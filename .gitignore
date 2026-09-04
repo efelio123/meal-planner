@@ -1,2 +1,14 @@
-# Private product-planning context
+# Private planning context
 docs/CONSUMER_APP_PLAN.md
+
+# Local secrets
+.env
+.env.*
+!.env.example
+
+# Python local/generated files
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
+*.py[cod]
