@@ -26,10 +26,12 @@ code yet.
 
 ### `users`
 
-Global account identity: `id`, identity-provider subject (unique), normalized
-email (unique while active), display name, timestamps, and `deleted_at` for
-account deletion workflow. Authentication credentials and raw provider tokens
-do not belong in this table.
+Global account identity: `id`, `identity_provider`, `identity_subject`,
+normalized email (unique while active), display name, timestamps, and
+`deleted_at` for account deletion workflow. Use
+`UNIQUE (identity_provider, identity_subject)`: a subject alone is globally
+unique only when its provider explicitly guarantees that property.
+Authentication credentials and raw provider tokens do not belong in this table.
 
 Deletion immediately disables sign-in. After the deletion workflow permanently
 removes or anonymizes personal data, release the normalized email for a new
@@ -50,8 +52,9 @@ it is not inferred from `created_by_user_id`.
 The authorization join table: `household_id`, `user_id`, `role`, `joined_at`,
 `removed_at`, and audit timestamps. `removed_at` preserves membership history;
 only memberships with `removed_at IS NULL` authorize household access. Use
-`UNIQUE (household_id, user_id)` (or that composite primary key). A user may
-belong to many households.
+`UNIQUE (household_id, user_id) WHERE removed_at IS NULL`, allowing a later
+rejoin while preserving prior membership records. A user may belong to many
+households.
 
 ### `household_invitations`
 

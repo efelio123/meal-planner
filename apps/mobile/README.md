@@ -1,4 +1,27 @@
-# Welcome to your Expo app 👋
+# Meal Planner mobile
+
+## Local authentication setup
+
+After a Clerk development instance has been created, keep these values in an
+ignored local environment file in this directory. They are intentionally public
+mobile build configuration, not secrets.
+
+```text
+EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
+EXPO_PUBLIC_API_BASE_URL=http://<computer-lan-ip>:8000
+```
+
+For a physical phone, do not use `localhost`: it points at the phone. Keep the
+phone and computer on the same trusted LAN, bind FastAPI to the LAN interface,
+open only the local development firewall port, and check `/v1/health` first.
+Android 9+ may need a development-only cleartext setting and rebuilt dev client;
+use HTTPS instead if iOS ATS rejects the LAN HTTP endpoint. Never add a
+cleartext exception to a production build.
+
+For the Android HTTP-only development build, set `APP_VARIANT=development`
+while creating the native development client. The dynamic Expo config adds
+`usesCleartextTraffic` only for that variant; it is absent when the variable is
+not set.
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
