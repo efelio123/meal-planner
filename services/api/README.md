@@ -8,7 +8,8 @@ values or commit them.
 
 ```powershell
 $env:CLERK_SECRET_KEY = "sk_..."
-$env:CLERK_AUTHORIZED_PARTIES = "<the exact azp value issued for this native Clerk client>"
+# Set only when this Clerk native-client session token contains an azp claim.
+# $env:CLERK_AUTHORIZED_PARTIES = "<the exact azp value issued for this native Clerk client>"
 # Optional: set only after configuring a matching Clerk JWT audience.
 # $env:CLERK_AUDIENCE = "https://api.example.test"
 ```
@@ -17,10 +18,11 @@ The API accepts only Clerk `session_token` values through `Authorization:
 Bearer ...`. It verifies them with Clerk's official Python SDK and provisions a
 local user on every protected route, so clients do not need to call `/v1/me`
 first. The API obtains email/name only from Clerk's server-side user resource.
-`CLERK_AUTHORIZED_PARTIES` is required and must match the real `azp` claim
-Clerk issues for the native client; `localhost:8081` is not a safe placeholder.
-`CLERK_AUDIENCE` is optional and must be omitted unless the Clerk instance has a
-matching audience configured.
+When an `azp` claim is present, `CLERK_AUTHORIZED_PARTIES` must match the real
+value Clerk issues for the native client; `localhost:8081` is not a safe
+placeholder. If the session token has no `azp` claim, omit this setting rather
+than inventing a value. `CLERK_AUDIENCE` is optional and must be omitted unless
+the Clerk instance has a matching audience configured.
 
 For a physical device, bind the development server to the trusted LAN interface
 and use the computer's LAN IP in the mobile `EXPO_PUBLIC_API_BASE_URL`; never
