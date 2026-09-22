@@ -7,9 +7,17 @@ import { Screen } from '@/components/screen';
 
 type Mode = 'sign-in' | 'sign-up';
 
-function messageFor(error: unknown) {
-  if (error) return 'We could not continue. Check your email address or code and try again.';
-  return 'We could not continue. Check your email address or code and try again.';
+function messageFor(error: unknown, fallback: string) {
+  if (
+    error
+    && typeof error === 'object'
+    && 'longMessage' in error
+    && typeof error.longMessage === 'string'
+    && error.longMessage.trim()
+  ) {
+    return error.longMessage.trim();
+  }
+  return fallback;
 }
 
 export function AuthEmailCodeForm({ mode }: { mode: Mode }) {
@@ -30,16 +38,23 @@ export function AuthEmailCodeForm({ mode }: { mode: Mode }) {
     setError(null);
     try {
       if (mode === 'sign-in') {
-        const result = await signIn.emailCode.sendCode({ emailAddress });
-        if (result.error) { setError(messageFor(result.error)); return; }
+        if (!codeSent) {
+          const creation = await signIn.create({ identifier: emailAddress });
+          if (creation.error) {
+            setError(messageFor(creation.error, 'We could not start sign-in. Check your email address and try again.'));
+            return;
+          }
+        }
+        const result = await signIn.emailCode.sendCode();
+        if (result.error) { setError(messageFor(result.error, 'We could not send a verification code. Please try again.')); return; }
       } else if (!codeSent) {
         const result = await signUp.create({ emailAddress });
-        if (result.error) { setError(messageFor(result.error)); return; }
+        if (result.error) { setError(messageFor(result.error, 'We could not start sign-up. Check your email address and try again.')); return; }
         const sendResult = await signUp.verifications.sendEmailCode();
-        if (sendResult.error) { setError(messageFor(sendResult.error)); return; }
+        if (sendResult.error) { setError(messageFor(sendResult.error, 'We could not send a verification code. Please try again.')); return; }
       } else {
         const sendResult = await signUp.verifications.sendEmailCode();
-        if (sendResult.error) { setError(messageFor(sendResult.error)); return; }
+        if (sendResult.error) { setError(messageFor(sendResult.error, 'We could not send a verification code. Please try again.')); return; }
       }
       setCodeSent(true);
       setResendSeconds(30);
@@ -60,9 +75,9 @@ export function AuthEmailCodeForm({ mode }: { mode: Mode }) {
       const verification = mode === 'sign-in'
         ? await signIn.emailCode.verifyCode({ code: code.trim() })
         : await signUp.verifications.verifyEmailCode({ code: code.trim() });
-      if (verification.error) { setError(messageFor(verification.error)); return; }
+      if (verification.error) { setError(messageFor(verification.error, 'We could not verify that code. Please try again.')); return; }
       const finalization = mode === 'sign-in' ? await signIn.finalize() : await signUp.finalize();
-      if (finalization.error) { setError(messageFor(finalization.error)); return; }
+      if (finalization.error) { setError(messageFor(finalization.error, 'We could not complete sign-in. Please try again.')); return; }
       router.replace('/');
     } finally { setBusy(false); }
   };
