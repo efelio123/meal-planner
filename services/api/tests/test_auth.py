@@ -18,9 +18,11 @@ class FakeClerk:
     def __init__(self, state: FakeState) -> None:
         self.state = state
         self.calls = 0
+        self.options: object | None = None
 
     def authenticate_request(self, request: Request, options: object) -> FakeState:
         self.calls += 1
+        self.options = options
         return self.state
 
 
@@ -57,6 +59,25 @@ def test_require_identity_accepts_only_a_verified_clerk_subject(monkeypatch: pyt
 
     assert identity == auth.CurrentIdentity(provider="clerk", subject="user_123")
     assert clerk.calls == 1
+    assert clerk.options is not None
+    assert clerk.options.authorized_parties == ["native-client"]
+
+
+def test_require_identity_does_not_invent_authorized_party_when_azp_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = auth.ClerkSettings("secret", None, None, None)
+    clerk = FakeClerk(FakeState("user_123"))
+    monkeypatch.setattr(auth, "get_clerk_settings", lambda: settings)
+    monkeypatch.setattr(auth, "get_clerk_client", lambda: clerk)
+
+    identity = auth.require_identity(
+        request_with_headers([(b"authorization", b"Bearer session-token")])
+    )
+
+    assert identity == auth.CurrentIdentity(provider="clerk", subject="user_123")
+    assert clerk.options is not None
+    assert clerk.options.authorized_parties is None
 
 
 @pytest.mark.anyio

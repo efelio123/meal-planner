@@ -12,7 +12,7 @@ from fastapi import Depends, HTTPException, Request, status
 @dataclass(frozen=True)
 class ClerkSettings:
     secret_key: str
-    authorized_parties: list[str]
+    authorized_parties: list[str] | None
     audience: list[str] | None
     jwt_key: str | None
 
@@ -30,10 +30,6 @@ def _required(name: str) -> str:
     return value
 
 
-def _csv(name: str) -> list[str]:
-    return [value.strip() for value in _required(name).split(",") if value.strip()]
-
-
 def _optional_csv(name: str) -> list[str] | None:
     value = environ.get(name, "").strip()
     if not value:
@@ -46,7 +42,7 @@ def get_clerk_settings() -> ClerkSettings:
     """Read trusted, server-only Clerk configuration once per process."""
     return ClerkSettings(
         secret_key=_required("CLERK_SECRET_KEY"),
-        authorized_parties=_csv("CLERK_AUTHORIZED_PARTIES"),
+        authorized_parties=_optional_csv("CLERK_AUTHORIZED_PARTIES"),
         audience=_optional_csv("CLERK_AUDIENCE"),
         jwt_key=environ.get("CLERK_JWT_KEY", "").strip() or None,
     )
