@@ -5,6 +5,7 @@ import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { ApiError, api } from '@/lib/api';
 import { Screen } from '@/components/screen';
+import { SignOutAction } from '@/components/sign-out-action';
 import { useHouseholdState } from '@/hooks/use-household-state';
 
 function deviceTimeZone() {
@@ -45,6 +46,7 @@ export default function CreateHousehold() {
     <Text style={styles.hint}>Your device time zone is suggested. You can change it.</Text>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     <Button disabled={busy} onPress={() => void create()} title={busy ? 'Creating…' : 'Create household'} />
+    <SignOutAction />
   </View></Screen>;
 }
 

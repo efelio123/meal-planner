@@ -3,9 +3,24 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { ApiError, api } from '@/lib/api';
+import { ApiError, api, type GetToken } from '@/lib/api';
 import { Screen } from '@/components/screen';
+import { SignOutAction } from '@/components/sign-out-action';
 import { useHouseholdState } from '@/hooks/use-household-state';
+
+type AcceptInvitation = (getToken: GetToken, code: string) => Promise<void>;
+
+export async function acceptInvitationAndRefresh(
+  acceptInvitation: AcceptInvitation,
+  getToken: GetToken,
+  code: string,
+  refresh: () => Promise<void>,
+  navigateHome: () => void,
+) {
+  await acceptInvitation(getToken, code);
+  await refresh();
+  navigateHome();
+}
 
 export default function JoinHousehold() {
   const { getToken } = useAuth();
@@ -20,10 +35,10 @@ export default function JoinHousehold() {
     setBusy(true);
     setError(null);
     try {
-      await api.acceptInvitation(getToken, code.trim());
-      setCode('');
-      await refresh();
-      router.replace('/');
+      await acceptInvitationAndRefresh(api.acceptInvitation, getToken, code.trim(), refresh, () => {
+        setCode('');
+        router.replace('/');
+      });
     } catch (reason) {
       if (reason instanceof ApiError && reason.status === 410) setError('This invitation has expired.');
       else if (reason instanceof ApiError && reason.status === 403) setError('This invitation was created for a different verified email address.');
@@ -38,7 +53,8 @@ export default function JoinHousehold() {
     <Text style={styles.body}>Paste the development invitation code shared by a household owner.</Text>
     <TextInput accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} onChangeText={setCode} placeholder="Invitation code" style={styles.input} value={code} />
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-    <Button disabled={busy} onPress={() => void join()} title={busy ? 'Joining…' : 'Join household'} />
+    <Button disabled={busy} onPress={join} title={busy ? 'Joining…' : 'Join household'} />
+    <SignOutAction />
   </View></Screen>;
 }
 

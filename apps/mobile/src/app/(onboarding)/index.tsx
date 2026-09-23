@@ -2,6 +2,7 @@ import { type Href, Link } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
+import { SignOutAction } from '@/components/sign-out-action';
 
 export default function OnboardingChoice() {
   return (
@@ -11,6 +12,7 @@ export default function OnboardingChoice() {
         <Text style={styles.body}>Create a household for your family, or join one with a copyable invitation code.</Text>
         <Link href={'/(onboarding)/create-household' as Href} style={styles.link}>Create a household</Link>
         <Link href={'/(onboarding)/join-household' as Href} style={styles.link}>Enter an invitation code</Link>
+        <SignOutAction />
       </View>
     </Screen>
   );

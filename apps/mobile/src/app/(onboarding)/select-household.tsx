@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
+import { SignOutAction } from '@/components/sign-out-action';
 import { useHouseholdState } from '@/hooks/use-household-state';
 
 export default function SelectHousehold() {
@@ -25,6 +26,7 @@ export default function SelectHousehold() {
       <Text>{household.role}</Text>
       <Button disabled={busy !== null} onPress={() => void choose(household.id)} title={busy === household.id ? 'Selecting…' : 'Select'} />
     </View>)}
+    <SignOutAction />
   </View></Screen>;
 }
 

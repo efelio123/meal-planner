@@ -7,7 +7,23 @@ import { Screen } from '@/components/screen';
 
 type Mode = 'sign-in' | 'sign-up';
 
-function messageFor(error: unknown, fallback: string) {
+type ClerkEmailCodeResult = { error: unknown | null };
+
+type SignInEmailCodeClient = {
+  create: (parameters: { identifier: string }) => Promise<ClerkEmailCodeResult>;
+  emailCode: { sendCode: () => Promise<ClerkEmailCodeResult> };
+};
+
+export async function createSignInAndSendCode(
+  signIn: SignInEmailCodeClient,
+  emailAddress: string,
+) {
+  const creation = await signIn.create({ identifier: emailAddress });
+  if (creation.error) return { source: 'creation' as const, result: creation };
+  return { source: 'send' as const, result: await signIn.emailCode.sendCode() };
+}
+
+export function messageFor(error: unknown, fallback: string) {
   if (
     error
     && typeof error === 'object'
@@ -38,15 +54,16 @@ export function AuthEmailCodeForm({ mode }: { mode: Mode }) {
     setError(null);
     try {
       if (mode === 'sign-in') {
-        if (!codeSent) {
-          const creation = await signIn.create({ identifier: emailAddress });
-          if (creation.error) {
-            setError(messageFor(creation.error, 'We could not start sign-in. Check your email address and try again.'));
-            return;
-          }
+        const operation = codeSent
+          ? { source: 'send' as const, result: await signIn.emailCode.sendCode() }
+          : await createSignInAndSendCode(signIn, emailAddress);
+        if (operation.result.error) {
+          const fallback = operation.source === 'creation'
+            ? 'We could not start sign-in. Check your email address and try again.'
+            : 'We could not send a verification code. Please try again.';
+          setError(messageFor(operation.result.error, fallback));
+          return;
         }
-        const result = await signIn.emailCode.sendCode();
-        if (result.error) { setError(messageFor(result.error, 'We could not send a verification code. Please try again.')); return; }
       } else if (!codeSent) {
         const result = await signUp.create({ emailAddress });
         if (result.error) { setError(messageFor(result.error, 'We could not start sign-up. Check your email address and try again.')); return; }
