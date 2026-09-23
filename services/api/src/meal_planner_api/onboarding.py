@@ -104,7 +104,7 @@ def _active_memberships(connection, user_id: str) -> list[dict]:
 
 def list_households(user: CurrentUser, engine: Engine | None = None) -> list[dict]:
     with (engine or get_engine()).connect() as connection:
-        return list(_active_memberships(connection, user.id))
+        return [dict(household) for household in _active_memberships(connection, user.id)]
 
 
 def create_household(user: CurrentUser, name: str, time_zone: str, engine: Engine | None = None) -> dict:

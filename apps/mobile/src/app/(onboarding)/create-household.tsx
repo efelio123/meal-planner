@@ -6,11 +6,9 @@ import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError, api } from '@/lib/api';
 import { Screen } from '@/components/screen';
 import { SignOutAction } from '@/components/sign-out-action';
+import { TimeZonePicker } from '@/components/time-zone-picker';
 import { useHouseholdState } from '@/hooks/use-household-state';
-
-function deviceTimeZone() {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-}
+import { deviceTimeZone } from '@/lib/time-zones';
 
 export default function CreateHousehold() {
   const { getToken } = useAuth();
@@ -42,8 +40,8 @@ export default function CreateHousehold() {
   return <Screen><View style={styles.content}>
     <Text style={styles.title}>Create household</Text>
     <TextInput accessibilityLabel="Household name" autoCapitalize="words" onChangeText={setName} placeholder="Household name" style={styles.input} value={name} />
-    <TextInput accessibilityLabel="IANA time zone" autoCapitalize="none" onChangeText={setTimeZone} placeholder="America/Phoenix" style={styles.input} value={timeZone} />
-    <Text style={styles.hint}>Your device time zone is suggested. You can change it.</Text>
+    <TimeZonePicker onChange={setTimeZone} value={timeZone} />
+    <Text style={styles.hint}>Your device time zone is suggested. You can search and change it.</Text>
     {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
     <Button disabled={busy} onPress={() => void create()} title={busy ? 'Creating…' : 'Create household'} />
     <SignOutAction />
