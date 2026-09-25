@@ -1,9 +1,12 @@
 import { useSignIn, useSignUp } from '@clerk/expo';
 import { type Href, Link, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Button, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Button, StyleSheet, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
+import { useTheme } from '@/hooks/use-theme';
+import { ThemedText as Text } from '@/components/themed-text';
+import { ThemedInput } from '@/components/themed-controls';
 
 type Mode = 'sign-in' | 'sign-up';
 
@@ -37,6 +40,7 @@ export function messageFor(error: unknown, fallback: string) {
 }
 
 export function AuthEmailCodeForm({ mode }: { mode: Mode }) {
+  const theme = useTheme();
   const { signIn } = useSignIn();
   const { signUp } = useSignUp();
   const router = useRouter();
@@ -104,18 +108,18 @@ export function AuthEmailCodeForm({ mode }: { mode: Mode }) {
   return (
     <Screen>
       <View style={styles.content}>
-        <Text style={styles.title}>{mode === 'sign-in' ? 'Welcome back' : 'Create your account'}</Text>
+        <Text style={[styles.title, { color: theme.text }]}>{mode === 'sign-in' ? 'Welcome back' : 'Create your account'}</Text>
         <Text style={styles.description}>We’ll send a verification code to your email. No password needed.</Text>
-        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+        {error ? <Text accessibilityRole="alert" style={[styles.error, { color: theme.error }]}>{error}</Text> : null}
         {!codeSent ? <>
-          <TextInput accessibilityLabel="Email address" autoCapitalize="none" autoComplete="email" keyboardType="email-address" onChangeText={setEmail} placeholder="you@example.com" style={styles.input} value={email} />
+          <ThemedInput accessibilityLabel="Email address" autoCapitalize="none" autoComplete="email" keyboardType="email-address" onChangeText={setEmail} placeholder="you@example.com" value={email} />
           <Button disabled={busy} onPress={() => void sendCode()} title={busy ? 'Sending…' : 'Send code'} />
         </> : <>
-          <TextInput accessibilityLabel="Verification code" autoComplete="one-time-code" keyboardType="number-pad" onChangeText={setCode} placeholder="Verification code" style={styles.input} value={code} />
+          <ThemedInput accessibilityLabel="Verification code" autoComplete="one-time-code" keyboardType="number-pad" onChangeText={setCode} placeholder="Verification code" value={code} />
           <Button disabled={busy} onPress={() => void verifyCode()} title={busy ? 'Verifying…' : 'Verify and continue'} />
           <Button disabled={busy || resendSeconds > 0} onPress={() => void sendCode()} title={resendSeconds > 0 ? `Resend in ${resendSeconds}s` : 'Resend code'} />
         </>}
-        <Link href={alternate as Href}>{alternateText}</Link>
+        <Link href={alternate as Href} style={{ color: theme.link }}>{alternateText}</Link>
       </View>
     </Screen>
   );
@@ -126,5 +130,4 @@ const styles = StyleSheet.create({
   title: { fontSize: 30, fontWeight: '700' },
   description: { fontSize: 16, lineHeight: 22 },
   error: { color: '#b42318', fontSize: 15 },
-  input: { borderColor: '#9ca3af', borderRadius: 8, borderWidth: 1, fontSize: 16, padding: 12 },
 });

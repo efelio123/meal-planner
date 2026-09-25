@@ -1,18 +1,25 @@
 import { useMemo, useState } from 'react';
-import { Button, FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Button, FlatList, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { filteredTimeZones, timeZoneLabel } from '@/lib/time-zones';
+import { useTheme } from '@/hooks/use-theme';
+import { ThemedInput } from '@/components/themed-controls';
 
 type Props = {
   onChange: (timeZone: string) => void;
   value: string;
 };
 
+export function timeZoneModalStyle(backgroundColor: string) {
+  return [styles.modal, { backgroundColor }];
+}
+
 export function submitTimeZoneSelection(onChange: Props['onChange'], timeZone: string) {
   onChange(timeZone);
 }
 
 export function TimeZonePicker({ onChange, value }: Props) {
+  const theme = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
   const timeZones = useMemo(() => filteredTimeZones(value, query), [query, value]);
@@ -24,24 +31,23 @@ export function TimeZonePicker({ onChange, value }: Props) {
   };
 
   return <View style={styles.container}>
-    <Text style={styles.label}>Time zone</Text>
-    <Pressable accessibilityLabel="Time zone" accessibilityRole="button" onPress={() => setIsOpen(true)} style={styles.selected}>
-      <Text style={styles.selectedLabel}>{timeZoneLabel(value)}</Text>
-      <Text style={styles.identifier}>{value}</Text>
+    <Text style={[styles.label, { color: theme.text }]}>Time zone</Text>
+    <Pressable accessibilityLabel="Time zone" accessibilityRole="button" onPress={() => setIsOpen(true)} style={[styles.selected, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}>
+      <Text style={[styles.selectedLabel, { color: theme.text }]}>{timeZoneLabel(value)}</Text>
+      <Text style={[styles.identifier, { color: theme.textSecondary }]}>{value}</Text>
     </Pressable>
     <Modal animationType="slide" onRequestClose={() => setIsOpen(false)} visible={isOpen}>
-      <View style={styles.modal}>
+      <View testID="time-zone-modal" style={timeZoneModalStyle(theme.screen)}>
         <View style={styles.header}>
-          <Text style={styles.title}>Choose time zone</Text>
+          <Text style={[styles.title, { color: theme.text }]}>Choose time zone</Text>
           <Button onPress={() => setIsOpen(false)} title="Close" />
         </View>
-        <TextInput
+        <ThemedInput
           accessibilityLabel="Search time zones"
           autoCapitalize="none"
           autoCorrect={false}
           onChangeText={setQuery}
           placeholder="Search city or region"
-          style={styles.search}
           value={query}
         />
         <FlatList
@@ -53,10 +59,10 @@ export function TimeZonePicker({ onChange, value }: Props) {
             accessibilityRole="radio"
             accessibilityState={{ selected: item === value }}
             onPress={() => selectTimeZone(item)}
-            style={styles.option}
+            style={[styles.option, { borderBottomColor: theme.border }]}
           >
-            <Text style={styles.optionLabel}>{timeZoneLabel(item)}</Text>
-            <Text style={styles.identifier}>{item}</Text>
+            <Text style={[styles.optionLabel, { color: theme.text }]}>{timeZoneLabel(item)}</Text>
+            <Text style={[styles.identifier, { color: theme.textSecondary }]}>{item}</Text>
           </Pressable>}
         />
       </View>
