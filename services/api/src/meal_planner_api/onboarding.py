@@ -120,6 +120,8 @@ def create_household(user: CurrentUser, name: str, time_zone: str, engine: Engin
             {"name": name.strip(), "time_zone": time_zone.strip(), "user_id": user.id}).mappings().one()
         connection.execute(text("""INSERT INTO household_members (household_id, user_id, role)
             VALUES (:household_id, :user_id, 'owner')"""), {"household_id": household["id"], "user_id": user.id})
+        connection.execute(text("""INSERT INTO shopping_lists (household_id)
+            VALUES (:household_id) ON CONFLICT (household_id) DO NOTHING"""), {"household_id": household["id"]})
         return {**household, "role": "owner"}
 
 

@@ -1,7 +1,8 @@
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Depends, FastAPI, Response, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, StrictBool
 
 from meal_planner_api.onboarding import (
     CurrentUser,
@@ -12,6 +13,7 @@ from meal_planner_api.onboarding import (
     require_current_user,
     revoke_invitation,
 )
+from meal_planner_api.shopping_lists import add_item, delete_item, get_list, set_checked
 
 app = FastAPI(
     title="Meal Planner API",
@@ -38,6 +40,14 @@ class CreateInvitationRequest(BaseModel):
 
 class AcceptInvitationRequest(BaseModel):
     code: str = Field(min_length=1, max_length=512)
+
+
+class CreateShoppingListItemRequest(BaseModel):
+    name: str = Field(max_length=200)
+
+
+class SetShoppingListItemCheckedRequest(BaseModel):
+    is_checked: StrictBool
 
 
 @app.get("/v1/me", tags=["onboarding"])
@@ -69,4 +79,25 @@ def post_revoke_invitation(household_id: str, invitation_id: str, user: User) ->
 @app.post("/v1/invitations/accept", status_code=status.HTTP_204_NO_CONTENT, tags=["invitations"])
 def post_accept_invitation(payload: AcceptInvitationRequest, user: User) -> Response:
     accept_invitation(user, payload.code)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/v1/households/{household_id}/shopping-list", tags=["shopping-list"])
+def get_shopping_list(household_id: UUID, user: User) -> dict:
+    return {"shopping_list": get_list(user, str(household_id))}
+
+
+@app.post("/v1/households/{household_id}/shopping-list/items", status_code=status.HTTP_201_CREATED, tags=["shopping-list"])
+def post_shopping_list_item(household_id: UUID, payload: CreateShoppingListItemRequest, user: User) -> dict:
+    return {"item": add_item(user, str(household_id), payload.name)}
+
+
+@app.patch("/v1/households/{household_id}/shopping-list/items/{item_id}", tags=["shopping-list"])
+def patch_shopping_list_item(household_id: UUID, item_id: UUID, payload: SetShoppingListItemCheckedRequest, user: User) -> dict:
+    return {"item": set_checked(user, str(household_id), str(item_id), payload.is_checked)}
+
+
+@app.delete("/v1/households/{household_id}/shopping-list/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["shopping-list"])
+def remove_shopping_list_item(household_id: UUID, item_id: UUID, user: User) -> Response:
+    delete_item(user, str(household_id), str(item_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

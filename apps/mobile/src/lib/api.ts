@@ -4,6 +4,8 @@ export type GetToken = () => Promise<string | null>;
 
 export type Household = { id: string; name: string; time_zone: string; role: 'owner' | 'member' };
 export type Me = { user: { id: string; email: string; display_name: string }; households: Household[] };
+export type ShoppingListItem = { id: string; name: string; is_checked: boolean; checked_at: string | null; checked_by_user_id: string | null; created_by_user_id: string; created_at: string };
+export type ShoppingList = { id: string; household_id: string; items: ShoppingListItem[] };
 
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {
@@ -31,4 +33,12 @@ export const api = {
     request<{ household: Household }>(getToken, '/v1/households', { method: 'POST', body: JSON.stringify({ name, time_zone: timeZone }) }),
   acceptInvitation: (getToken: GetToken, code: string) =>
     request<void>(getToken, '/v1/invitations/accept', { method: 'POST', body: JSON.stringify({ code }) }),
+  shoppingList: (getToken: GetToken, householdId: string) =>
+    request<{ shopping_list: ShoppingList }>(getToken, `/v1/households/${householdId}/shopping-list`, { method: 'GET' }),
+  addShoppingListItem: (getToken: GetToken, householdId: string, name: string) =>
+    request<{ item: ShoppingListItem }>(getToken, `/v1/households/${householdId}/shopping-list/items`, { method: 'POST', body: JSON.stringify({ name }) }),
+  setShoppingListItemChecked: (getToken: GetToken, householdId: string, itemId: string, isChecked: boolean) =>
+    request<{ item: ShoppingListItem }>(getToken, `/v1/households/${householdId}/shopping-list/items/${itemId}`, { method: 'PATCH', body: JSON.stringify({ is_checked: isChecked }) }),
+  deleteShoppingListItem: (getToken: GetToken, householdId: string, itemId: string) =>
+    request<void>(getToken, `/v1/households/${householdId}/shopping-list/items/${itemId}`, { method: 'DELETE' }),
 };

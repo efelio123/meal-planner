@@ -51,4 +51,55 @@ describe('mobile API client', () => {
       new ApiError(410, 'This invitation has expired.'),
     );
   });
+
+  it('loads a shopping list with GET and a fresh Bearer token', async () => {
+    const getToken = jest.fn().mockResolvedValue('shopping-list-token');
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ shopping_list: { id: 'list-1', household_id: 'home-1', items: [] } }), { status: 200 }));
+
+    await api.shoppingList(getToken, 'home-1');
+
+    expect(getToken).toHaveBeenCalledTimes(1);
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/shopping-list');
+    expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer shopping-list-token');
+  });
+
+  it('adds a shopping-list item with POST JSON and a fresh Bearer token', async () => {
+    const getToken = jest.fn().mockResolvedValue('add-item-token');
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ item: { id: 'item-1' } }), { status: 201 }));
+
+    await api.addShoppingListItem(getToken, 'home-1', 'Milk');
+
+    expect(getToken).toHaveBeenCalledTimes(1);
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/shopping-list/items');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({ name: 'Milk' });
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer add-item-token');
+  });
+
+  it('sets checked state with PATCH JSON and a fresh Bearer token', async () => {
+    const getToken = jest.fn().mockResolvedValue('toggle-item-token');
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ item: { id: 'item-1', is_checked: true } }), { status: 200 }));
+
+    await api.setShoppingListItemChecked(getToken, 'home-1', 'item-1', true);
+
+    expect(getToken).toHaveBeenCalledTimes(1);
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/shopping-list/items/item-1');
+    expect(fetchMock.mock.calls[0][1].method).toBe('PATCH');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({ is_checked: true });
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer toggle-item-token');
+  });
+
+  it('deletes a shopping-list item and handles the 204 response without JSON parsing', async () => {
+    const getToken = jest.fn().mockResolvedValue('delete-item-token');
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(api.deleteShoppingListItem(getToken, 'home-1', 'item-1')).resolves.toBeUndefined();
+
+    expect(getToken).toHaveBeenCalledTimes(1);
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/shopping-list/items/item-1');
+    expect(fetchMock.mock.calls[0][1].method).toBe('DELETE');
+    expect(fetchMock.mock.calls[0][1].body).toBeUndefined();
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer delete-item-token');
+  });
 });
