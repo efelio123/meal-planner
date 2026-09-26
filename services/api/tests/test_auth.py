@@ -94,3 +94,51 @@ async def test_invitation_request_rejects_an_invalid_email() -> None:
         app.dependency_overrides.clear()
 
     assert response.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_shopping_list_rejects_malformed_identifiers_before_database_access() -> None:
+    app.dependency_overrides[require_current_user] = lambda: CurrentUser(
+        id="user-id", normalized_email="person@example.test", display_name="Person"
+    )
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            responses = [
+                await client.get("/v1/households/not-a-uuid/shopping-list"),
+                await client.post("/v1/households/not-a-uuid/shopping-list/items", json={"name": "Milk"}),
+                await client.patch(
+                    "/v1/households/not-a-uuid/shopping-list/items/not-a-uuid",
+                    json={"is_checked": True},
+                ),
+                await client.delete("/v1/households/not-a-uuid/shopping-list/items/not-a-uuid"),
+            ]
+    finally:
+        app.dependency_overrides.clear()
+
+    assert [response.status_code for response in responses] == [422, 422, 422, 422]
+
+
+@pytest.mark.anyio
+async def test_shopping_list_distinguishes_request_and_domain_validation() -> None:
+    app.dependency_overrides[require_current_user] = lambda: CurrentUser(
+        id="user-id", normalized_email="person@example.test", display_name="Person"
+    )
+    household_id = "00000000-0000-0000-0000-000000000001"
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            blank_name = await client.post(
+                f"/v1/households/{household_id}/shopping-list/items", json={"name": "   "}
+            )
+            too_long_name = await client.post(
+                f"/v1/households/{household_id}/shopping-list/items", json={"name": "x" * 201}
+            )
+            non_boolean_checked = await client.patch(
+                f"/v1/households/{household_id}/shopping-list/items/00000000-0000-0000-0000-000000000002",
+                json={"is_checked": "true"},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert blank_name.status_code == 400
+    assert too_long_name.status_code == 422
+    assert non_boolean_checked.status_code == 422

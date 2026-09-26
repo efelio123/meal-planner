@@ -3,6 +3,7 @@ import { useAuth, useClerk } from '@clerk/expo';
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { api, type Household, type Me } from '@/lib/api';
+import { getStartupDiagnostics } from '@/lib/startup-diagnostics';
 
 const SELECTED_HOUSEHOLD_KEY = 'meal-planner:selected-household-id';
 export type AppDestination = 'loading' | 'signed-out' | 'api-error' | 'create-or-join' | 'select-household' | 'app';
@@ -22,6 +23,24 @@ function useHouseholdStateValue() {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
+  const diagnostics = getStartupDiagnostics();
+  const readStoredHouseholdId = useCallback(async () => {
+    const startedAt = Date.now();
+    try {
+      return await AsyncStorage.getItem(SELECTED_HOUSEHOLD_KEY);
+    } finally {
+      diagnostics?.record('household_preference_read', Date.now() - startedAt);
+    }
+  }, [diagnostics]);
+  const clearStoredHouseholdId = useCallback(async () => {
+    const startedAt = Date.now();
+    try {
+      await AsyncStorage.removeItem(SELECTED_HOUSEHOLD_KEY);
+    } finally {
+      diagnostics?.record('household_preference_clear', Date.now() - startedAt);
+    }
+  }, [diagnostics]);
+
   useEffect(() => {
     latestGetToken.current = getToken;
   }, [getToken]);
@@ -37,11 +56,16 @@ function useHouseholdStateValue() {
 
   const select = useCallback(async (household: Household) => {
     if (!sessionIsSignedIn.current || signOutStarted.current) return;
-    await AsyncStorage.setItem(SELECTED_HOUSEHOLD_KEY, household.id);
+    const storageStartedAt = Date.now();
+    try {
+      await AsyncStorage.setItem(SELECTED_HOUSEHOLD_KEY, household.id);
+    } finally {
+      diagnostics?.record('household_preference_write', Date.now() - storageStartedAt);
+    }
     if (!sessionIsSignedIn.current || signOutStarted.current) return;
     setSelectedHousehold(household);
     setDestination('app');
-  }, []);
+  }, [diagnostics]);
 
   const refresh = useCallback(async () => {
     if (!isSignedIn || signOutStarted.current) {
@@ -58,10 +82,10 @@ function useHouseholdStateValue() {
     );
     setDestination('loading');
     try {
-      const nextMe = await api.me(() => latestGetToken.current());
+      const nextMe = await api.me(() => latestGetToken.current(), undefined, diagnostics);
       if (!isCurrentRefresh()) return;
       setMe(nextMe);
-      const storedId = await AsyncStorage.getItem(SELECTED_HOUSEHOLD_KEY);
+      const storedId = await readStoredHouseholdId();
       if (!isCurrentRefresh()) return;
       const stored = nextMe.households.find((household) => household.id === storedId) ?? null;
       if (stored) {
@@ -70,7 +94,7 @@ function useHouseholdStateValue() {
         return;
       }
       if (nextMe.households.length === 0) {
-        await AsyncStorage.removeItem(SELECTED_HOUSEHOLD_KEY);
+        await clearStoredHouseholdId();
         if (!isCurrentRefresh()) return;
         setSelectedHousehold(null);
         setDestination('create-or-join');
@@ -80,14 +104,14 @@ function useHouseholdStateValue() {
         await select(nextMe.households[0]);
         return;
       }
-      await AsyncStorage.removeItem(SELECTED_HOUSEHOLD_KEY);
+      await clearStoredHouseholdId();
       if (!isCurrentRefresh()) return;
       setSelectedHousehold(null);
       setDestination('select-household');
     } catch {
       if (isCurrentRefresh()) setDestination('api-error');
     }
-  }, [isSignedIn, select]);
+  }, [clearStoredHouseholdId, diagnostics, isSignedIn, readStoredHouseholdId, select]);
 
   const signOut = useCallback(async () => {
     signOutStarted.current = true;

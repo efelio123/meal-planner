@@ -3,14 +3,16 @@
 import hashlib
 import secrets
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Annotated
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import Engine, text
 
 from meal_planner_api.auth import CurrentIdentity, get_clerk_client, require_identity
 from meal_planner_api.database import get_engine
+from meal_planner_api.startup_diagnostics import elapsed_ms, log_timing, request_id_for
 
 
 @dataclass(frozen=True)
@@ -24,9 +26,13 @@ def _bad_request(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
 
-def _profile_for(identity: CurrentIdentity) -> tuple[str, str]:
+def _profile_for(identity: CurrentIdentity, request_id: str | None = None) -> tuple[str, str]:
     """Read the verified primary email from Clerk, never from the mobile request."""
-    profile = get_clerk_client().users.get(user_id=identity.subject)
+    profile_started_at = perf_counter()
+    try:
+        profile = get_clerk_client().users.get(user_id=identity.subject)
+    finally:
+        log_timing(request_id, "clerk_user_profile_fetch", elapsed_ms(profile_started_at))
     primary_id = getattr(profile, "primary_email_address_id", None)
     primary = next(
         (address for address in profile.email_addresses if getattr(address, "id", None) == primary_id),
@@ -45,54 +51,65 @@ def _profile_for(identity: CurrentIdentity) -> tuple[str, str]:
     return normalized_email, display_name
 
 
-def resolve_current_user(identity: CurrentIdentity, engine: Engine | None = None) -> CurrentUser:
+def resolve_current_user(
+    identity: CurrentIdentity,
+    engine: Engine | None = None,
+    request_id: str | None = None,
+) -> CurrentUser:
     """Idempotently resolve/provision a local user for every protected route."""
-    normalized_email, display_name = _profile_for(identity)
-    with (engine or get_engine()).begin() as connection:
-        connection.execute(
-            text(
-                """INSERT INTO users (identity_provider, identity_subject, normalized_email, display_name)
-                VALUES (:provider, :subject, :email, :display_name)
-                ON CONFLICT DO NOTHING"""
-            ),
-            {"provider": identity.provider, "subject": identity.subject, "email": normalized_email, "display_name": display_name},
-        )
-        user = connection.execute(
-            text(
-                """SELECT id::text, normalized_email, display_name, deleted_at FROM users
-                WHERE identity_provider = :provider AND identity_subject = :subject FOR UPDATE"""
-            ),
-            {"provider": identity.provider, "subject": identity.subject},
-        ).mappings().one_or_none()
-        if user is None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Verified email is already in use",
-            )
-        if user["deleted_at"] is not None:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deleted")
-        if user["normalized_email"] != normalized_email:
-            updated = connection.execute(
+    profile = _profile_for(identity, request_id) if request_id is not None else _profile_for(identity)
+    normalized_email, display_name = profile
+    database_started_at = perf_counter()
+    try:
+        with (engine or get_engine()).begin() as connection:
+            connection.execute(
                 text(
-                    """UPDATE users SET normalized_email = :email, display_name = :display_name
-                    WHERE id = :id AND NOT EXISTS (
-                        SELECT 1 FROM users AS other
-                        WHERE other.normalized_email = :email
-                          AND other.deleted_at IS NULL AND other.id <> :id
-                    ) RETURNING id"""
+                    """INSERT INTO users (identity_provider, identity_subject, normalized_email, display_name)
+                    VALUES (:provider, :subject, :email, :display_name)
+                    ON CONFLICT DO NOTHING"""
                 ),
-                {"id": user["id"], "email": normalized_email, "display_name": display_name},
-            ).scalar_one_or_none()
-            if updated is None:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Verified email is already in use")
-            user = {**user, "normalized_email": normalized_email, "display_name": display_name}
-        return CurrentUser(id=user["id"], normalized_email=user["normalized_email"], display_name=user["display_name"])
+                {"provider": identity.provider, "subject": identity.subject, "email": normalized_email, "display_name": display_name},
+            )
+            user = connection.execute(
+                text(
+                    """SELECT id::text, normalized_email, display_name, deleted_at FROM users
+                    WHERE identity_provider = :provider AND identity_subject = :subject FOR UPDATE"""
+                ),
+                {"provider": identity.provider, "subject": identity.subject},
+            ).mappings().one_or_none()
+            if user is None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Verified email is already in use",
+                )
+            if user["deleted_at"] is not None:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is deleted")
+            if user["normalized_email"] != normalized_email:
+                updated = connection.execute(
+                    text(
+                        """UPDATE users SET normalized_email = :email, display_name = :display_name
+                        WHERE id = :id AND NOT EXISTS (
+                            SELECT 1 FROM users AS other
+                            WHERE other.normalized_email = :email
+                              AND other.deleted_at IS NULL AND other.id <> :id
+                        ) RETURNING id"""
+                    ),
+                    {"id": user["id"], "email": normalized_email, "display_name": display_name},
+                ).scalar_one_or_none()
+                if updated is None:
+                    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Verified email is already in use")
+                user = {**user, "normalized_email": normalized_email, "display_name": display_name}
+            result = CurrentUser(id=user["id"], normalized_email=user["normalized_email"], display_name=user["display_name"])
+    finally:
+        log_timing(request_id, "database_user_provision", elapsed_ms(database_started_at))
+    return result
 
 
 def require_current_user(
     identity: Annotated[CurrentIdentity, Depends(require_identity)],
+    request: Request,
 ) -> CurrentUser:
-    return resolve_current_user(identity)
+    return resolve_current_user(identity, request_id=request_id_for(request))
 
 
 def _active_memberships(connection, user_id: str) -> list[dict]:
@@ -102,9 +119,17 @@ def _active_memberships(connection, user_id: str) -> list[dict]:
         ORDER BY h.created_at"""), {"user_id": user_id}).mappings().all()
 
 
-def list_households(user: CurrentUser, engine: Engine | None = None) -> list[dict]:
-    with (engine or get_engine()).connect() as connection:
-        return [dict(household) for household in _active_memberships(connection, user.id)]
+def list_households(
+    user: CurrentUser,
+    engine: Engine | None = None,
+    request_id: str | None = None,
+) -> list[dict]:
+    database_started_at = perf_counter()
+    try:
+        with (engine or get_engine()).connect() as connection:
+            return [dict(household) for household in _active_memberships(connection, user.id)]
+    finally:
+        log_timing(request_id, "database_households_query", elapsed_ms(database_started_at))
 
 
 def create_household(user: CurrentUser, name: str, time_zone: str, engine: Engine | None = None) -> dict:
@@ -120,6 +145,8 @@ def create_household(user: CurrentUser, name: str, time_zone: str, engine: Engin
             {"name": name.strip(), "time_zone": time_zone.strip(), "user_id": user.id}).mappings().one()
         connection.execute(text("""INSERT INTO household_members (household_id, user_id, role)
             VALUES (:household_id, :user_id, 'owner')"""), {"household_id": household["id"], "user_id": user.id})
+        connection.execute(text("""INSERT INTO shopping_lists (household_id)
+            VALUES (:household_id) ON CONFLICT (household_id) DO NOTHING"""), {"household_id": household["id"]})
         return {**household, "role": "owner"}
 
 

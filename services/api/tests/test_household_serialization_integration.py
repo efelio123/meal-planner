@@ -58,6 +58,11 @@ async def test_household_reads_serialize_rows_created_by_the_api(
             assert created.status_code == 201
             household = created.json()["household"]
             household_id = household["id"]
+            with disposable_engine.connect() as connection:
+                created_list_count = connection.execute(
+                    text("SELECT count(*) FROM shopping_lists WHERE household_id = :household_id"),
+                    {"household_id": household_id},
+                ).scalar_one()
             expected_household = {
                 "id": household_id,
                 "name": "Serialization test",
@@ -65,6 +70,7 @@ async def test_household_reads_serialize_rows_created_by_the_api(
                 "role": "owner",
             }
             assert household == expected_household
+            assert created_list_count == 1
 
             me = await client.get("/v1/me")
             households = await client.get("/v1/households")
@@ -79,6 +85,10 @@ async def test_household_reads_serialize_rows_created_by_the_api(
             if household_id:
                 connection.execute(
                     text("DELETE FROM household_members WHERE household_id = :household_id"),
+                    {"household_id": household_id},
+                )
+                connection.execute(
+                    text("DELETE FROM shopping_lists WHERE household_id = :household_id"),
                     {"household_id": household_id},
                 )
                 connection.execute(
