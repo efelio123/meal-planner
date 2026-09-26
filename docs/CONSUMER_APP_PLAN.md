@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: September 23, 2026
+Last updated: September 26, 2026
 
 ## Purpose of this document
 
@@ -54,14 +54,13 @@ Current limitations that make the private system unsuitable for public consumers
 
 The Mac Mini deployment should remain the functioning family dashboard and a development laboratory. It should not become the public consumer production server.
 
-## Current consumer-app progress (September 23, 2026)
+## Current consumer-app progress (September 26, 2026)
 
-- The separate `meal-planner` repository exists. Its Expo/React Native mobile app and FastAPI `/v1` API are under active development.
-- Local PostgreSQL 17, Alembic migrations, and the first identity/household schema are in place. Disposable-database integration tests cover migration and onboarding behavior.
-- Clerk is the selected identity provider. The mobile app uses passwordless email verification codes; the API verifies Clerk session tokens and provisions local users.
-- Household create, join by invitation code, select, and sign-out flows are implemented. Signup and household creation have been exercised on a physical iPhone against the local API.
-- The current feature is a global light/dark theme foundation. Its plan is awaiting review; no theme implementation is approved yet.
-- Cloud staging, cross-household product-data isolation, the shared shopping-list vertical slice, and consumer release operations remain future milestones.
+- The separate `meal-planner` repository has an Expo/React Native mobile app and a FastAPI `/v1` API. Clerk passwordless email-code authentication, household onboarding, and the global light/dark theme are implemented.
+- Local PostgreSQL 17, Alembic migrations, and the identity/household schema are in place. The existing invitation-code acceptance contract enforces verified-email matching, expiry, and single use.
+- Household create/join/select/sign-out flows are implemented; signup and household creation have been exercised on a physical iPhone against the local API. The owner-facing invitation creation UI and two-member invitation acceptance flow are not yet complete.
+- The `feat/household-shared-shopping-list` branch contains the first shared-list implementation: a handwritten migration, household-scoped API operations, eager list creation/backfill, and a themed mobile screen with tests. It is committed but not yet merged; two-member physical-device acceptance and cloud staging remain outstanding.
+- Cloud staging, the completed shared-list vertical slice, end-to-end two-member acceptance/list sharing, broader cross-household product-data isolation, and consumer release operations remain future milestones.
 
 This is a status snapshot, not a change to the long-term scope below. Update it as milestones are validated.
 
@@ -365,6 +364,13 @@ Critical user journeys:
 8. Adjust the plan when the week changes.
 
 Shopping-list interaction should be optimistic so checking an item feels immediate.
+
+### Household invitation delivery
+
+- For the current local-testing/shared-list slice, use manually shared invitation codes. The recipient enters the code in the existing join flow; invitation-link handling is out of scope for this slice.
+- Later, owners should be able to share an invitation URL by text or another sharing channel. Opening the URL should open the installed app and prepopulate the invitation code, continuing through sign-in/sign-up when necessary.
+- A link must preserve the existing server-side invitation checks: matching verified recipient email, expiry, and single-use acceptance. Opening a URL must not automatically accept an invitation.
+- Plan and review cross-platform link routing, behavior when the app is not installed, and safe handling of codes before implementing this follow-up.
 
 Initial offline behavior should be deliberately modest:
 
@@ -749,5 +755,6 @@ Do not begin by rebuilding every existing feature. Prove this vertical foundatio
 - Use Clerk for passwordless email-code authentication in the first beta; defer social sign-in.
 - Use `com.efelio.mealplanner` for the iOS bundle identifier and Android package, with `mealplanner` as the Expo scheme.
 - Make household multitenancy and authorization foundational work.
+- Keep the current invitation-testing slice code-only; add text-shareable invitation URLs that open the app and prepopulate the code in a later approved slice.
 - Prioritize the low-maintenance, quantity-aware, household meal-planning loop.
 - Keep the initial beta free and defer speculative features.
