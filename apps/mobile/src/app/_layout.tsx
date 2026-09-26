@@ -1,7 +1,7 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ClerkProvider, useAuth } from '@clerk/expo';
@@ -11,6 +11,7 @@ import { clerkPublishableKey } from '@/auth-config';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { HouseholdStateProvider, useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme, useThemeMode } from '@/hooks/use-theme';
+import { getStartupDiagnostics } from '@/lib/startup-diagnostics';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -18,6 +19,27 @@ function RootNavigator() {
   const theme = useTheme();
   const { isLoaded, isSignedIn } = useAuth();
   const { destination } = useHouseholdState();
+  const diagnostics = getStartupDiagnostics();
+  const startupStartedAt = useRef<number | null>(null);
+  const clerkInitializationLogged = useRef(false);
+  const previousDestination = useRef(destination);
+
+  useEffect(() => {
+    startupStartedAt.current = Date.now();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoaded || clerkInitializationLogged.current) return;
+    clerkInitializationLogged.current = true;
+    diagnostics?.record('clerk_initialization', Date.now() - (startupStartedAt.current ?? Date.now()));
+  }, [diagnostics, isLoaded]);
+
+  useEffect(() => {
+    if (previousDestination.current === destination) return;
+    previousDestination.current = destination;
+    diagnostics?.record('destination_change', Date.now() - (startupStartedAt.current ?? Date.now()));
+  }, [destination, diagnostics]);
+
   if (!isLoaded || destination === 'loading') return <View style={{ alignItems: 'center', backgroundColor: theme.screen, flex: 1, justifyContent: 'center' }}><ActivityIndicator color={theme.activity} /></View>;
   return (
     <Stack>

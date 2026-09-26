@@ -3,10 +3,13 @@
 from dataclasses import dataclass
 from functools import lru_cache
 from os import environ
+from time import perf_counter
 
 from clerk_backend_api import Clerk
 from clerk_backend_api.security.types import AuthenticateRequestOptions
 from fastapi import Depends, HTTPException, Request, status
+
+from meal_planner_api.startup_diagnostics import elapsed_ms, log_timing, request_id_for
 
 
 @dataclass(frozen=True)
@@ -68,16 +71,20 @@ def require_identity(request: Request) -> CurrentIdentity:
     ):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     settings = get_clerk_settings()
-    state = get_clerk_client().authenticate_request(
-        request,
-        AuthenticateRequestOptions(
-            secret_key=settings.secret_key,
-            jwt_key=settings.jwt_key,
-            audience=settings.audience,
-            authorized_parties=settings.authorized_parties,
-            accepts_token=["session_token"],
-        ),
-    )
+    verification_started_at = perf_counter()
+    try:
+        state = get_clerk_client().authenticate_request(
+            request,
+            AuthenticateRequestOptions(
+                secret_key=settings.secret_key,
+                jwt_key=settings.jwt_key,
+                audience=settings.audience,
+                authorized_parties=settings.authorized_parties,
+                accepts_token=["session_token"],
+            ),
+        )
+    finally:
+        log_timing(request_id_for(request), "clerk_token_verification", elapsed_ms(verification_started_at))
     subject = state.payload.get("sub") if state.is_signed_in and state.payload else None
     if not isinstance(subject, str) or not subject:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")

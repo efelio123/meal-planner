@@ -31,6 +31,19 @@ describe('mobile API client', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('adds only an anonymous request ID when startup diagnostics are supplied', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ user: {}, households: [] }), { status: 200 }));
+    const diagnostics = { requestId: 'a'.repeat(32), record: jest.fn() };
+
+    await api.me(jest.fn().mockResolvedValue('session-token'), undefined, diagnostics);
+
+    const headers = fetchMock.mock.calls[0][1].headers as Headers;
+    expect(headers.get('X-Request-ID')).toBe('a'.repeat(32));
+    expect(diagnostics.record).toHaveBeenCalledWith('token_retrieval', expect.any(Number));
+    expect(diagnostics.record).toHaveBeenCalledWith('me_fetch', 0);
+    expect(diagnostics.record).toHaveBeenCalledWith('me_response', expect.any(Number), 200);
+  });
+
   it('does not allow request options to replace the Clerk authorization header', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ user: {}, households: [] }), { status: 200 }));
 

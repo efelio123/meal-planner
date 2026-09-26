@@ -1,7 +1,8 @@
+from time import perf_counter
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Response, status
+from fastapi import Depends, FastAPI, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field, StrictBool
 
 from meal_planner_api.onboarding import (
@@ -19,6 +20,32 @@ app = FastAPI(
     title="Meal Planner API",
     version="0.1.0",
 )
+
+
+@app.middleware("http")
+async def measure_me_request(request: Request, call_next):
+    from meal_planner_api.startup_diagnostics import (
+        elapsed_ms,
+        enabled,
+        log_timing,
+        new_request_id,
+        request_id_for,
+    )
+
+    if request.url.path != "/v1/me" or not enabled():
+        return await call_next(request)
+
+    request_id = new_request_id(request.headers.get("x-request-id"))
+    request.state.startup_request_id = request_id
+    log_timing(request_id, "request_received", 0)
+    started_at = perf_counter()
+    response_status = status.HTTP_500_INTERNAL_SERVER_ERROR
+    try:
+        response = await call_next(request)
+        response_status = response.status_code
+        return response
+    finally:
+        log_timing(request_id_for(request), "request_complete", elapsed_ms(started_at), response_status)
 
 
 @app.get("/v1/health", tags=["system"])
@@ -51,8 +78,13 @@ class SetShoppingListItemCheckedRequest(BaseModel):
 
 
 @app.get("/v1/me", tags=["onboarding"])
-def get_me(user: User) -> dict:
-    return {"user": {"id": user.id, "email": user.normalized_email, "display_name": user.display_name}, "households": list_households(user)}
+def get_me(user: User, request: Request) -> dict:
+    from meal_planner_api.startup_diagnostics import request_id_for
+
+    return {
+        "user": {"id": user.id, "email": user.normalized_email, "display_name": user.display_name},
+        "households": list_households(user, request_id=request_id_for(request)),
+    }
 
 
 @app.get("/v1/households", tags=["households"])
