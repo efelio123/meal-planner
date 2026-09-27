@@ -1,17 +1,20 @@
-import type { ExpoConfig } from 'expo/config';
-
-import appJson from './app.json';
+import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 const isDevelopmentBuild = process.env.APP_VARIANT === 'development';
-const baseConfig = appJson.expo as ExpoConfig;
-const plugins = baseConfig.plugins ?? [];
 const developmentPlugins: NonNullable<ExpoConfig['plugins']> = [
   ['expo-build-properties', { android: { usesCleartextTraffic: true } }],
 ];
 
-const config: ExpoConfig = {
-  ...baseConfig,
-  plugins: [...plugins, ...(isDevelopmentBuild ? developmentPlugins : [])],
-};
+export default ({ config }: ConfigContext): ExpoConfig => {
+  // Expo supplies the normalized static config at runtime; its context type
+  // marks fields optional, so narrow it to the documented output type here.
+  const normalizedConfig = config as ExpoConfig;
 
-export default config;
+  return {
+    ...normalizedConfig,
+    plugins: [
+      ...(normalizedConfig.plugins ?? []),
+      ...(isDevelopmentBuild ? developmentPlugins : []),
+    ],
+  };
+};
