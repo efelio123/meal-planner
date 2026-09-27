@@ -6,6 +6,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { clerkPublishableKey } from '@/auth-config';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
@@ -69,13 +70,15 @@ export default function RootLayout() {
   }, [colors.screen]);
   return (
     <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
-      <HouseholdStateProvider>
-        <ThemeProvider value={navigationTheme}>
-          <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-          <AnimatedSplashOverlay />
-          <RootNavigator />
-        </ThemeProvider>
-      </HouseholdStateProvider>
+      <SafeAreaProvider>
+        <HouseholdStateProvider>
+          <ThemeProvider value={navigationTheme}>
+            <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+            <AnimatedSplashOverlay />
+            <RootNavigator />
+          </ThemeProvider>
+        </HouseholdStateProvider>
+      </SafeAreaProvider>
     </ClerkProvider>
   );
 }

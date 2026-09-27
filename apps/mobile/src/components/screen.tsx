@@ -1,10 +1,35 @@
 import type { PropsWithChildren } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { Platform, ScrollView, StyleSheet } from 'react-native';
+import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 
-export function Screen({ children }: PropsWithChildren) {
+type ScreenProps = PropsWithChildren<{
+  safeAreaEdges?: Edge[];
+  /** Marks tab-root content whose iOS inset adjustment is owned by NativeTabs. */
+  nativeTabScreen?: boolean;
+}>;
+
+const defaultSafeAreaEdges: Edge[] = ['top', 'right', 'bottom', 'left'];
+
+export function Screen({ children, safeAreaEdges = defaultSafeAreaEdges, nativeTabScreen = false }: ScreenProps) {
   const theme = useTheme();
-  return <ScrollView testID="screen" style={{ backgroundColor: theme.screen }} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">{children}</ScrollView>;
+  const nativeIosInsets = nativeTabScreen && Platform.OS === 'ios';
+  return (
+    <SafeAreaView edges={nativeIosInsets ? [] : safeAreaEdges} style={[styles.safeArea, { backgroundColor: theme.screen }]}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        contentInsetAdjustmentBehavior={nativeIosInsets ? 'automatic' : 'never'}
+        keyboardShouldPersistTaps="handled"
+        style={{ backgroundColor: theme.screen }}
+        testID="screen"
+      >
+        {children}
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
 
-export const styles = StyleSheet.create({ content: { flexGrow: 1, padding: 24, gap: 16, justifyContent: 'center' } });
+export const styles = StyleSheet.create({
+  safeArea: { flex: 1 },
+  content: { flexGrow: 1, padding: 24, gap: 16, justifyContent: 'center' },
+});

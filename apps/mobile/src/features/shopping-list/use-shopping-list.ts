@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api, type ShoppingListItem } from '@/lib/api';
-import { useHouseholdState } from './use-household-state';
+import { useHouseholdState } from '@/hooks/use-household-state';
 
 type ShoppingListState = {
   householdId: string | null;

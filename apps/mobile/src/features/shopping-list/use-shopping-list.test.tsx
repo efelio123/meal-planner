@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { useHouseholdState } from '@/hooks/use-household-state';
-import { useShoppingList } from '@/hooks/use-shopping-list';
+import { useShoppingList } from '@/features/shopping-list/use-shopping-list';
 import { api, type ShoppingList, type ShoppingListItem } from '@/lib/api';
 
 jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: jest.fn() }));
