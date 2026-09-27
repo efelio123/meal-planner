@@ -35,7 +35,27 @@ a material product or technical decision changes.
 - Run validation proportionate to the change and report what was checked.
 - Before implementing with a technology or library, consult its current official
   documentation and verify guidance against the version installed or resolved in
-  the project. Proactively recommend appropriate dependency upgrades for
-  security or useful capabilities, but do not make those upgrades without
-  including them in an approved plan or receiving explicit approval.
+  the project.
+- Proactively evaluate dependency upgrades and new libraries when they offer
+  meaningful security, compatibility, maintainability, or long-term product
+  benefits, especially early in the project. Do not treat keeping dependencies
+  unchanged as a goal, but do not add or upgrade packages merely to use the
+  newest release or for a marginal benefit. Explain the benefit, alternatives,
+  platform/SDK compatibility, migration costs, and validation in the plan.
+  Implement dependency changes only through an approved plan or explicit
+  approval.
 - Never commit secrets, tokens, `.env` files, or personal data.
+
+## Mobile source organization
+
+- Keep `apps/mobile/src/app/` limited to Expo Router route screens and navigation
+  layouts. Never place tests, non-route components, hooks, or utilities there.
+- Put feature-specific supporting components, hooks, utilities, and tests under
+  `apps/mobile/src/features/<feature>/`. Keep app-wide reusable UI in
+  `src/components/`, shared hooks in `src/hooks/`, shared infrastructure in
+  `src/lib/`, and theme/constants in their existing shared locations.
+- Do not add a generic `shared/` directory. Create supporting folders only
+  when needed; avoid empty scaffolding and unnecessary wrappers.
+- Before moving feature code, identify the intended moves, update imports and
+  tests, and preserve behavior. Do not reorganize unrelated authentication or
+  onboarding code.
