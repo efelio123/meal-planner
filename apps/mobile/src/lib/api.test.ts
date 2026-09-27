@@ -65,6 +65,32 @@ describe('mobile API client', () => {
     );
   });
 
+  it('creates a household invitation with a fresh token and returns its one-time fields', async () => {
+    const getToken = jest.fn().mockResolvedValue('invitation-token');
+    const invitation = {
+      id: 'invitation-1',
+      expires_at: '2026-10-01T12:00:00Z',
+      code: 'one-time-code',
+    };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ invitation }), { status: 201 }));
+
+    await expect(api.createInvitation(getToken, 'household-1', 'person@example.com')).resolves.toEqual({ invitation });
+
+    expect(getToken).toHaveBeenCalledTimes(1);
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/household-1/invitations');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({ email: 'person@example.com' });
+    const headers = fetchMock.mock.calls[0][1].headers as Headers;
+    expect(headers.get('Authorization')).toBe('Bearer invitation-token');
+  });
+
+  it.each([409, 422])('maps invitation creation HTTP %s to a safe API error', async (status) => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ detail: 'sensitive backend detail' }), { status }));
+
+    await expect(api.createInvitation(jest.fn().mockResolvedValue('invitation-token'), 'household-1', 'person@example.com'))
+      .rejects.toEqual(new ApiError(status, 'Something went wrong. Please try again.'));
+  });
+
   it('loads a shopping list with GET and a fresh Bearer token', async () => {
     const getToken = jest.fn().mockResolvedValue('shopping-list-token');
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ shopping_list: { id: 'list-1', household_id: 'home-1', items: [] } }), { status: 200 }));

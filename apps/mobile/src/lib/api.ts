@@ -7,6 +7,7 @@ export type Household = { id: string; name: string; time_zone: string; role: 'ow
 export type Me = { user: { id: string; email: string; display_name: string }; households: Household[] };
 export type ShoppingListItem = { id: string; name: string; is_checked: boolean; checked_at: string | null; checked_by_user_id: string | null; created_by_user_id: string; created_at: string };
 export type ShoppingList = { id: string; household_id: string; items: ShoppingListItem[] };
+export type CreatedInvitation = { id: string; expires_at: string; code: string };
 
 export class ApiError extends Error {
   constructor(readonly status: number, message: string) {
@@ -48,6 +49,8 @@ export const api = {
     request<{ household: Household }>(getToken, '/v1/households', { method: 'POST', body: JSON.stringify({ name, time_zone: timeZone }) }),
   acceptInvitation: (getToken: GetToken, code: string) =>
     request<void>(getToken, '/v1/invitations/accept', { method: 'POST', body: JSON.stringify({ code }) }),
+  createInvitation: (getToken: GetToken, householdId: string, email: string) =>
+    request<{ invitation: CreatedInvitation }>(getToken, `/v1/households/${householdId}/invitations`, { method: 'POST', body: JSON.stringify({ email }) }),
   shoppingList: (getToken: GetToken, householdId: string) =>
     request<{ shopping_list: ShoppingList }>(getToken, `/v1/households/${householdId}/shopping-list`, { method: 'GET' }),
   addShoppingListItem: (getToken: GetToken, householdId: string, name: string) =>

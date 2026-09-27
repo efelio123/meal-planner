@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: September 26, 2026
+Last updated: September 27, 2026
 
 ## Purpose of this document
 
@@ -54,14 +54,14 @@ Current limitations that make the private system unsuitable for public consumers
 
 The Mac Mini deployment should remain the functioning family dashboard and a development laboratory. It should not become the public consumer production server.
 
-## Current consumer-app progress (September 26, 2026)
+## Current consumer-app progress (September 27, 2026)
 
 - The separate `meal-planner` repository has an Expo/React Native mobile app and a FastAPI `/v1` API. Clerk passwordless email-code authentication, household onboarding, and the global light/dark theme are implemented.
 - Local PostgreSQL 17, Alembic migrations, and the identity/household schema are in place. The existing invitation-code acceptance contract enforces verified-email matching, expiry, and single use.
-- Household create/join/select/sign-out flows are implemented; signup and household creation have been exercised on a physical iPhone against the local API. The owner-facing invitation creation UI and two-member invitation acceptance flow are not yet complete.
-- The household-shared shopping-list implementation (handwritten migration, household-scoped API operations, eager list creation/backfill, and themed mobile screen/tests) merged to `main` through PR #5 on September 26, 2026. Two-member physical-device acceptance remains outstanding; cloud staging remains a separate future milestone.
-- The five-tab signed-in navigation foundation—Plan, Recipes, Shopping, Pantry, Settings—is implemented on `feat/mobile-navigation`. Plan is the permanent startup destination; Shopping is the temporary startup destination while Plan remains a placeholder. Plan, Recipes, and Pantry are themed accessible “Coming soon” pages. Felipe completed physical iOS testing and accepted the navigation slice. Android device testing was unavailable and remains outstanding; do not treat it as accepted. Expo SDK patch alignment outside the approved Router/Symbol updates remains a separate follow-up. The owner-facing invitation UI and two-member invitation acceptance flow remain incomplete, and the invitation UI plan remains an unapproved draft that must later place invitations within Settings.
-- Cloud staging, end-to-end two-member acceptance/list sharing, broader cross-household product-data isolation, and consumer release operations remain future milestones.
+- Household create/join/select/sign-out flows are implemented; signup and household creation have been exercised on a physical iPhone against the local API. Felipe reports manually testing invitation creation, a recipient joining on a second device, and matching shopping lists. The second device's OS is not recorded, so Android acceptance is not claimed. Lost-code recovery remains unresolved; pending-invitation listing/cancellation/recovery are not implemented. The owner-facing invitation UI is committed on its feature branch and pending PR review.
+- The household-shared shopping-list implementation (handwritten migration, household-scoped API operations, eager list creation/backfill, and themed mobile screen/tests) merged to `main` through PR #5 on September 26, 2026. The reported matching-list check was part of Felipe's basic second-device invitation/join test; it does not complete broader acceptance, cloud staging, or platform-specific validation.
+- The five-tab signed-in navigation foundation—Plan, Recipes, Shopping, Pantry, Settings—merged to `main` through PR #6. Plan is the permanent startup destination; Shopping is the temporary startup destination while Plan remains a placeholder. Plan, Recipes, and Pantry are themed accessible “Coming soon” pages. Felipe completed physical iOS testing and accepted the navigation slice. Android device testing was unavailable and remains outstanding. Expo SDK 57 package patch alignment and the function-form `app.config.ts` refactor merged through PR #7; Felipe's final online checks reported dependencies up to date and Expo Doctor 21/21. No native rebuild or post-alignment native smoke test has been performed.
+- Cloud staging, repeatable/broader two-member acceptance including untested edge cases, broader cross-household product-data isolation, and consumer release operations remain future milestones. The basic invitation/join/list check reported above does not complete these broader milestones.
 
 This is a status snapshot, not a change to the long-term scope below. Update it as milestones are validated.
 
