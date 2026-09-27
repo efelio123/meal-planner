@@ -1,6 +1,6 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import HouseholdHome from '@/app/(app)';
-import * as shoppingListHook from '@/hooks/use-shopping-list';
+import HouseholdHome from '@/features/shopping-list/shopping-list-screen';
+import * as shoppingListHook from '@/features/shopping-list/use-shopping-list';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { api, type ShoppingList, type ShoppingListItem } from '@/lib/api';
 

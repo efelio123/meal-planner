@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react-native';
-import { Text } from 'react-native';
+import { Platform, Text } from 'react-native';
 import { Screen } from './screen';
 import { TimeZonePicker, timeZoneModalStyle } from './time-zone-picker';
 
@@ -18,6 +18,19 @@ describe.each([
   it('renders the shared screen with its semantic background', async () => {
     const component = await render(<Screen><Text>Content</Text></Screen>);
     expect(component.getByTestId('screen').props.style).toMatchObject({ backgroundColor: screenColor });
+  });
+
+  it('delegates tab-root iOS insets to NativeTabs without adding SafeAreaView edges twice', async () => {
+    const component = await render(<Screen nativeTabScreen safeAreaEdges={['top', 'left', 'right']}><Text>Tab content</Text></Screen>);
+    const safeArea = component.getByTestId('screen').parent;
+
+    if (Platform.OS === 'ios') {
+      expect(safeArea?.props.edges).toEqual({ top: 'off', right: 'off', bottom: 'off', left: 'off' });
+      expect(component.getByTestId('screen').props.contentInsetAdjustmentBehavior).toBe('automatic');
+    } else {
+      expect(safeArea?.props.edges).toEqual({ top: 'additive', right: 'additive', bottom: 'off', left: 'additive' });
+      expect(component.getByTestId('screen').props.contentInsetAdjustmentBehavior).toBe('never');
+    }
   });
 
   it('renders the time-zone picker and derives its modal background from the same theme', async () => {

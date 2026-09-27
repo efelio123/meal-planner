@@ -59,8 +59,9 @@ The Mac Mini deployment should remain the functioning family dashboard and a dev
 - The separate `meal-planner` repository has an Expo/React Native mobile app and a FastAPI `/v1` API. Clerk passwordless email-code authentication, household onboarding, and the global light/dark theme are implemented.
 - Local PostgreSQL 17, Alembic migrations, and the identity/household schema are in place. The existing invitation-code acceptance contract enforces verified-email matching, expiry, and single use.
 - Household create/join/select/sign-out flows are implemented; signup and household creation have been exercised on a physical iPhone against the local API. The owner-facing invitation creation UI and two-member invitation acceptance flow are not yet complete.
-- The `feat/household-shared-shopping-list` branch contains the first shared-list implementation: a handwritten migration, household-scoped API operations, eager list creation/backfill, and a themed mobile screen with tests. It is committed but not yet merged; two-member physical-device acceptance and cloud staging remain outstanding.
-- Cloud staging, the completed shared-list vertical slice, end-to-end two-member acceptance/list sharing, broader cross-household product-data isolation, and consumer release operations remain future milestones.
+- The household-shared shopping-list implementation (handwritten migration, household-scoped API operations, eager list creation/backfill, and themed mobile screen/tests) merged to `main` through PR #5 on September 26, 2026. Two-member physical-device acceptance remains outstanding; cloud staging remains a separate future milestone.
+- The five-tab signed-in navigation foundation—Plan, Recipes, Shopping, Pantry, Settings—is implemented on `feat/mobile-navigation`. Plan is the permanent startup destination; Shopping is the temporary startup destination while Plan remains a placeholder. Plan, Recipes, and Pantry are themed accessible “Coming soon” pages. Felipe completed physical iOS testing and accepted the navigation slice. Android device testing was unavailable and remains outstanding; do not treat it as accepted. Expo SDK patch alignment outside the approved Router/Symbol updates remains a separate follow-up. The owner-facing invitation UI and two-member invitation acceptance flow remain incomplete, and the invitation UI plan remains an unapproved draft that must later place invitations within Settings.
+- Cloud staging, end-to-end two-member acceptance/list sharing, broader cross-household product-data isolation, and consumer release operations remain future milestones.
 
 This is a status snapshot, not a change to the long-term scope below. Update it as milestones are validated.
 
@@ -240,6 +241,17 @@ meal-planner/
 `-- .github/
     `-- workflows/
 ```
+
+Mobile source organization:
+
+- Expo Router's `apps/mobile/src/app/` contains route screens and navigation
+  layouts only; tests and supporting code live elsewhere.
+- Feature-specific support code and tests live under `src/features/<feature>/`.
+  App-wide UI stays in `src/components/`, shared hooks in `src/hooks/`, shared
+  infrastructure in `src/lib/`, and theme/constants in their current shared
+  locations. Do not create a generic `shared/` directory or empty scaffolding.
+- Move only code that belongs to the feature being changed, update imports and
+  tests, and preserve unrelated authentication/onboarding organization.
 
 The initial web application only needs to support:
 

@@ -2,9 +2,8 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
-import { SignOutAction } from '@/components/sign-out-action';
 import { ThemedText } from '@/components/themed-text';
-import { useShoppingList } from '@/hooks/use-shopping-list';
+import { useShoppingList } from '@/features/shopping-list/use-shopping-list';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function HouseholdHome() {
@@ -89,9 +88,9 @@ export default function HouseholdHome() {
   };
 
   return (
-    <Screen>
+    <Screen nativeTabScreen safeAreaEdges={['top', 'left', 'right']}>
       <View style={styles.content}>
-        <ThemedText style={styles.title}>Shopping list</ThemedText>
+        <ThemedText accessibilityRole="header" style={styles.title}>Shopping list</ThemedText>
         <ThemedInput
           accessibilityLabel="Shopping-list item"
           onChangeText={(value) => updateForm({ name: value })}
@@ -100,16 +99,12 @@ export default function HouseholdHome() {
         />
         <PrimaryButton onPress={() => void addItem()} title="Add item" />
         {form.actionError ? (
-          <ThemedText accessibilityRole="alert" themeColor="error">
-            {form.actionError}
-          </ThemedText>
+          <ThemedText accessibilityRole="alert" themeColor="error">{form.actionError}</ThemedText>
         ) : null}
         {loading ? <ActivityIndicator accessibilityLabel="Loading shopping list" color={theme.activity} /> : null}
         {error ? (
           <View style={styles.message}>
-            <ThemedText accessibilityRole="alert" themeColor="error">
-              {error}
-            </ThemedText>
+            <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText>
             <PrimaryButton onPress={() => void refresh()} title="Try again" />
           </View>
         ) : null}
@@ -122,35 +117,34 @@ export default function HouseholdHome() {
               const isPending = pendingItemIds.has(item.id);
               return (
                 <View key={item.id} style={[styles.item, { borderColor: theme.border }]}>
-                <Pressable
-                  accessibilityLabel={`Mark ${item.name} ${item.is_checked ? 'not purchased' : 'purchased'}`}
-                  accessibilityRole="checkbox"
-                  accessibilityState={{ checked: item.is_checked, disabled: isPending }}
-                  disabled={isPending}
-                  onPress={() => void toggleItem(item)}
-                  style={styles.itemName}
-                >
-                  <ThemedText accessible={false} style={[styles.indicator, { color: theme.primary }]}>
-                    {item.is_checked ? '✓' : '○'}
-                  </ThemedText>
-                  <ThemedText style={item.is_checked ? styles.checked : undefined}>{item.name}</ThemedText>
-                </Pressable>
-                <Pressable
-                  accessibilityLabel={`Remove ${item.name}`}
-                  accessibilityRole="button"
-                  accessibilityState={{ disabled: isPending }}
-                  disabled={isPending}
-                  onPress={() => void removeItem(item)}
-                >
-                  <ThemedText themeColor="error">Remove</ThemedText>
-                </Pressable>
+                  <Pressable
+                    accessibilityLabel={`Mark ${item.name} ${item.is_checked ? 'not purchased' : 'purchased'}`}
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: item.is_checked, disabled: isPending }}
+                    disabled={isPending}
+                    onPress={() => void toggleItem(item)}
+                    style={styles.itemName}
+                  >
+                    <ThemedText accessible={false} style={[styles.indicator, { color: theme.primary }]}>
+                      {item.is_checked ? '✓' : '○'}
+                    </ThemedText>
+                    <ThemedText style={item.is_checked ? styles.checked : undefined}>{item.name}</ThemedText>
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel={`Remove ${item.name}`}
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: isPending }}
+                    disabled={isPending}
+                    onPress={() => void removeItem(item)}
+                  >
+                    <ThemedText themeColor="error">Remove</ThemedText>
+                  </Pressable>
                 </View>
               );
             })}
           </View>
         ) : null}
         <PrimaryButton onPress={() => void refresh()} title="Refresh" />
-        <SignOutAction />
       </View>
     </Screen>
   );
