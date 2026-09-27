@@ -2,24 +2,45 @@ import type { PropsWithChildren } from 'react';
 import { createElement } from 'react';
 import { act, fireEvent } from '@testing-library/react-native';
 import { router, type Href } from 'expo-router';
-import { renderRouter, screen } from 'expo-router/testing-library';
+import { renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import { Button, Text } from 'react-native';
 import { api, type ShoppingList } from '@/lib/api';
 
 let mockInitialDestination = 'app';
 let mockInitialSignedIn = true;
+let mockInitialRole = 'owner';
 let mockSetSignedIn: ((value: boolean) => void) | undefined;
 let mockSetDestination: ((destination: string) => void) | undefined;
 
 jest.mock('@clerk/expo', () => ({
   ...(() => {
     const React = jest.requireActual<typeof import('react')>('react');
-    const AuthContext = React.createContext({ isLoaded: true, isSignedIn: mockInitialSignedIn });
+    const AuthContext = React.createContext<{
+      isLoaded: boolean;
+      isSignedIn: boolean;
+      sessionId: string | null;
+      userId: string | null;
+      getToken: () => Promise<string | null>;
+    }>({
+      isLoaded: true,
+      isSignedIn: mockInitialSignedIn,
+      sessionId: mockInitialSignedIn ? 'session-a' : null,
+      userId: mockInitialSignedIn ? 'user-a' : null,
+      getToken: async () => 'session-token',
+    });
     return {
       ClerkProvider: ({ children }: PropsWithChildren) => {
         const [isSignedIn, setIsSignedIn] = React.useState(mockInitialSignedIn);
         mockSetSignedIn = setIsSignedIn;
-        return React.createElement(AuthContext.Provider, { value: { isLoaded: true, isSignedIn } }, children);
+        return React.createElement(AuthContext.Provider, {
+          value: {
+            isLoaded: true,
+            isSignedIn,
+            sessionId: isSignedIn ? 'session-a' : null,
+            userId: isSignedIn ? 'user-a' : null,
+            getToken: async () => 'session-token',
+          },
+        }, children);
       },
       useAuth: () => React.useContext(AuthContext),
     };
@@ -29,7 +50,7 @@ jest.mock('@clerk/expo/token-cache', () => ({ tokenCache: {} }));
 jest.mock('@/hooks/use-household-state', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   const HouseholdContext = React.createContext<unknown>(null);
-  const household = { id: 'household-a', name: 'Home', role: 'owner', time_zone: 'UTC' };
+  const household = { id: 'household-a', name: 'Home', role: mockInitialRole, time_zone: 'UTC' };
 
   return {
     HouseholdStateProvider: ({ children }: PropsWithChildren) => {
@@ -38,10 +59,10 @@ jest.mock('@/hooks/use-household-state', () => {
       const state = {
         destination,
         getToken: jest.fn().mockResolvedValue('session-token'),
-        households: [household],
+        households: [{ ...household, role: mockInitialRole }],
         isSigningOut: false,
         refresh: jest.fn(),
-        selectedHousehold: household,
+        selectedHousehold: { ...household, role: mockInitialRole },
         signOut: async () => {
           mockSetSignedIn?.(false);
           setDestination('signed-out');
@@ -59,6 +80,7 @@ jest.mock('expo-system-ui', () => ({ setBackgroundColorAsync: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   api: {
     shoppingList: jest.fn(),
+    createInvitation: jest.fn(),
     addShoppingListItem: jest.fn(),
     setShoppingListItemChecked: jest.fn(),
     deleteShoppingListItem: jest.fn(),
@@ -130,6 +152,7 @@ describe('signed-in startup routing', () => {
     jest.resetAllMocks();
     mockInitialDestination = 'app';
     mockInitialSignedIn = true;
+    mockInitialRole = 'owner';
     mockSetSignedIn = undefined;
     mockSetDestination = undefined;
     jest.mocked(api.shoppingList).mockResolvedValue(shoppingListResponse());
@@ -356,5 +379,88 @@ describe('signed-in startup routing', () => {
     });
     expect(renderResult.getPathname()).toBe('/shopping');
     expect(screen.getByText('Shopping list')).toBeTruthy();
+  });
+
+  it('preserves a pending invitation across a tab switch, then clears it when the route closes', async () => {
+    let resolveInvitation!: (value: { invitation: { id: string; expires_at: string; code: string } }) => void;
+    jest.mocked(api.createInvitation).mockReturnValue(new Promise((resolve) => { resolveInvitation = resolve; }));
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/settings');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Invite a household member' }));
+    expect(renderResult.getPathname()).toBe('/settings/invite-household');
+    await screen.findByLabelText('Recipient email');
+    await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'Friend@Example.com');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
+    await waitFor(() => expect(api.createInvitation).toHaveBeenCalledTimes(1));
+
+    await navigateTo(renderResult, '/shopping');
+    expect(renderResult.getPathname()).toBe('/shopping');
+    expect(api.createInvitation).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveInvitation({ invitation: { id: 'invitation-1', expires_at: '2026-10-01T12:00:00Z', code: 'router-only-code' } });
+      await Promise.resolve();
+    });
+
+    expect(renderResult.getPathname()).toBe('/shopping');
+    expect(api.createInvitation).toHaveBeenCalledTimes(1);
+    await navigateTo(renderResult, '/settings/invite-household');
+    expect(await screen.findByText(/Invitation for friend@example\.com/u)).toBeTruthy();
+    expect(screen.getByText('router-only-code')).toBeTruthy();
+    expect(screen.getByLabelText('Recipient email').props.value).toBe('Friend@Example.com');
+    expect(api.createInvitation).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      router.back();
+      await jest.runOnlyPendingTimersAsync();
+    });
+    expect(renderResult.getPathname()).toBe('/settings');
+    await fireEvent.press(screen.getByRole('button', { name: 'Invite a household member' }));
+    expect(renderResult.getPathname()).toBe('/settings/invite-household');
+    expect(screen.getByLabelText('Recipient email').props.value).toBe('');
+    expect(screen.queryByText('router-only-code')).toBeNull();
+  });
+
+  it('hides the invitation entry action from a member in Settings', async () => {
+    mockInitialRole = 'member';
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/settings');
+
+    expect(screen.getByText('Current household')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Invite a household member' })).toBeNull();
+  });
+
+  it('does not restore a deferred invitation after the Settings route is popped', async () => {
+    let resolveInvitation!: (value: { invitation: { id: string; expires_at: string; code: string } }) => void;
+    jest.mocked(api.createInvitation).mockReturnValue(new Promise((resolve) => { resolveInvitation = resolve; }));
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/settings');
+    await fireEvent.press(screen.getByRole('button', { name: 'Invite a household member' }));
+    await screen.findByLabelText('Recipient email');
+    await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
+    await waitFor(() => expect(api.createInvitation).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      router.back();
+      await jest.runOnlyPendingTimersAsync();
+    });
+    expect(renderResult.getPathname()).toBe('/settings');
+    await act(async () => {
+      resolveInvitation({ invitation: { id: 'invitation-1', expires_at: '2026-10-01T12:00:00Z', code: 'closed-route-code' } });
+      await Promise.resolve();
+    });
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Invite a household member' }));
+    await screen.findByLabelText('Recipient email');
+    expect(screen.getByLabelText('Recipient email').props.value).toBe('');
+    expect(screen.queryByText('closed-route-code')).toBeNull();
   });
 });
