@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react-native';
-import { Platform, Text } from 'react-native';
+import { Platform, StyleSheet, Text } from 'react-native';
 import { Screen } from './screen';
 import { TimeZonePicker, timeZoneModalStyle } from './time-zone-picker';
 
@@ -18,6 +18,12 @@ describe.each([
   it('renders the shared screen with its semantic background', async () => {
     const component = await render(<Screen><Text>Content</Text></Screen>);
     expect(component.getByTestId('screen').props.style).toMatchObject({ backgroundColor: screenColor });
+    expect(StyleSheet.flatten(component.getByTestId('screen').props.contentContainerStyle)).toMatchObject({ justifyContent: 'center' });
+  });
+
+  it('supports top-aligned long-form signed-in pages', async () => {
+    const component = await render(<Screen contentAlignment="top"><Text>Content</Text></Screen>);
+    expect(StyleSheet.flatten(component.getByTestId('screen').props.contentContainerStyle)).toMatchObject({ justifyContent: 'flex-start' });
   });
 
   it('delegates tab-root iOS insets to NativeTabs without adding SafeAreaView edges twice', async () => {

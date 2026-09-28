@@ -2,7 +2,7 @@ import { useAuth } from '@clerk/expo';
 import * as Clipboard from 'expo-clipboard';
 import { router, type Href } from 'expo-router';
 import { useLayoutEffect, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
@@ -18,7 +18,7 @@ type InvitationSnapshot = {
 };
 
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
-const settingsPath = '/settings' as Href;
+const householdsPath = '/(app)/(tabs)/profile/my-households' as Href;
 
 function invitationError(error: unknown): string {
   if (error instanceof ApiError && error.status === 409) {
@@ -36,11 +36,12 @@ function formatExpiration(value: string): string {
   return date.toLocaleString();
 }
 
-export function OwnerInvitationScreen() {
+export function OwnerInvitationScreen({ householdId: routeHouseholdId }: { householdId?: string }) {
   const { isLoaded, isSignedIn, sessionId, userId } = useAuth();
-  const { getToken, isSigningOut, selectedHousehold } = useHouseholdState();
-  const householdId = selectedHousehold?.id ?? null;
-  const isOwner = selectedHousehold?.role === 'owner';
+  const { getToken, households, isSigningOut } = useHouseholdState();
+  const targetHousehold = households.find((item) => item.id === routeHouseholdId) ?? null;
+  const householdId = targetHousehold?.id ?? null;
+  const isOwner = targetHousehold?.role === 'owner';
   const canUseScreen = Boolean(isLoaded && isSignedIn && sessionId && userId && !isSigningOut && householdId && isOwner);
   const contextKey = JSON.stringify([
     householdId,
@@ -48,7 +49,7 @@ export function OwnerInvitationScreen() {
     sessionId,
     isSignedIn,
     isSigningOut,
-    selectedHousehold?.role ?? null,
+    targetHousehold?.role ?? null,
   ]);
 
   const mountedRef = useRef(true);
@@ -84,7 +85,7 @@ export function OwnerInvitationScreen() {
       setCopyFeedback(null);
     }
 
-    if (!canUseScreen) router.replace(settingsPath);
+    if (!canUseScreen) router.replace(householdsPath);
   }, [canUseScreen, contextKey]);
 
   useLayoutEffect(() => {
@@ -202,9 +203,9 @@ export function OwnerInvitationScreen() {
   if (!canUseScreen) return null;
 
   return (
-    <Screen safeAreaEdges={['left', 'right']}>
+    <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
       <View style={{ gap: 16 }}>
-        <ThemedText accessibilityRole="header" type="subtitle">Invite a household member</ThemedText>
+        <ThemedText accessibilityRole="header" type="subtitle">Invite a member to {targetHousehold?.name}</ThemedText>
         <ThemedText themeColor="textSecondary">
           Your recipient must sign up or sign in with the invited email address, then enter the code in Join a household.
         </ThemedText>
@@ -247,10 +248,6 @@ export function OwnerInvitationScreen() {
             {copyFeedback === 'failure' ? <ThemedText accessibilityRole="alert" themeColor="error">Couldn’t copy the code. Please try again.</ThemedText> : null}
           </View>
         ) : null}
-
-        <Pressable accessibilityRole="button" onPress={() => router.back()}>
-          <ThemedText type="link">Back to Settings</ThemedText>
-        </Pressable>
       </View>
     </Screen>
   );

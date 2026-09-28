@@ -22,7 +22,7 @@ export default function WebTabLayout() {
       <Tabs.Screen name="recipes" options={{ title: 'Recipes' }} />
       <Tabs.Screen name="shopping" options={{ title: 'Shopping' }} />
       <Tabs.Screen name="pantry" options={{ title: 'Pantry' }} />
-      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
   );
 }
