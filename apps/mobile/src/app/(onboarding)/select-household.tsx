@@ -14,13 +14,20 @@ export default function SelectHousehold() {
   const theme = useTheme();
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const choose = async (id: string) => {
-    const household = households.find((candidate) => candidate.id === id);
-    if (!household) return;
+    if (!households.some((candidate) => candidate.id === id)) return;
     setBusy(id);
-    await select(household);
-    router.replace('/');
+    setError(null);
+    const result = await select(id);
+    if (result.status === 'selected') router.replace('/');
+    else if (result.status === 'failed') setError('We couldn’t select that household. Please try again.');
+    else if (result.reason === 'refreshing') setError('Your household list is refreshing. Please try again in a moment.');
+    else if (result.reason === 'not-a-member' || result.reason === 'stale') {
+      setError('Your household list changed. Please try again.');
+    }
+    setBusy(null);
   };
 
   return (
@@ -34,6 +41,7 @@ export default function SelectHousehold() {
             <PrimaryButton disabled={busy !== null} onPress={() => void choose(household.id)} title={busy === household.id ? 'Selecting…' : 'Select'} />
           </View>
         ))}
+        {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
         <SignOutAction />
       </View>
     </Screen>

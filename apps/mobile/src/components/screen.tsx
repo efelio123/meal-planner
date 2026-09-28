@@ -5,19 +5,20 @@ import { useTheme } from '@/hooks/use-theme';
 
 type ScreenProps = PropsWithChildren<{
   safeAreaEdges?: Edge[];
+  contentAlignment?: 'center' | 'top';
   /** Marks tab-root content whose iOS inset adjustment is owned by NativeTabs. */
   nativeTabScreen?: boolean;
 }>;
 
 const defaultSafeAreaEdges: Edge[] = ['top', 'right', 'bottom', 'left'];
 
-export function Screen({ children, safeAreaEdges = defaultSafeAreaEdges, nativeTabScreen = false }: ScreenProps) {
+export function Screen({ children, contentAlignment = 'center', safeAreaEdges = defaultSafeAreaEdges, nativeTabScreen = false }: ScreenProps) {
   const theme = useTheme();
   const nativeIosInsets = nativeTabScreen && Platform.OS === 'ios';
   return (
     <SafeAreaView edges={nativeIosInsets ? [] : safeAreaEdges} style={[styles.safeArea, { backgroundColor: theme.screen }]}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, contentAlignment === 'top' && styles.contentTop]}
         contentInsetAdjustmentBehavior={nativeIosInsets ? 'automatic' : 'never'}
         keyboardShouldPersistTaps="handled"
         style={{ backgroundColor: theme.screen }}
@@ -32,4 +33,5 @@ export function Screen({ children, safeAreaEdges = defaultSafeAreaEdges, nativeT
 export const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   content: { flexGrow: 1, padding: 24, gap: 16, justifyContent: 'center' },
+  contentTop: { justifyContent: 'flex-start' },
 });

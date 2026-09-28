@@ -5,12 +5,21 @@ import { router, type Href } from 'expo-router';
 import { renderRouter, screen, waitFor } from 'expo-router/testing-library';
 import { Button, Text } from 'react-native';
 import { api, type ShoppingList } from '@/lib/api';
+import { useResetToHouseholdStartup } from '@/features/profile/use-reset-to-household-startup';
 
 let mockInitialDestination = 'app';
 let mockInitialSignedIn = true;
 let mockInitialRole = 'owner';
+let mockInitialHouseholdId = 'household-a';
+let mockHouseholds = [
+  { id: 'household-a', name: 'Home', role: 'owner', time_zone: 'UTC' },
+  { id: 'household-b', name: 'Cabin', role: 'member', time_zone: 'America/Phoenix' },
+];
 let mockSetSignedIn: ((value: boolean) => void) | undefined;
 let mockSetDestination: ((destination: string) => void) | undefined;
+let mockSetSelectedHouseholdId: ((value: string) => void) | undefined;
+let mockSelectionOverride: { status: string; reason?: string } | null = null;
+let mockSelectCalls: string[] = [];
 
 jest.mock('@clerk/expo', () => ({
   ...(() => {
@@ -43,6 +52,7 @@ jest.mock('@clerk/expo', () => ({
         }, children);
       },
       useAuth: () => React.useContext(AuthContext),
+      useUser: () => ({ user: { imageUrl: null } }),
     };
   })(),
 }));
@@ -50,19 +60,35 @@ jest.mock('@clerk/expo/token-cache', () => ({ tokenCache: {} }));
 jest.mock('@/hooks/use-household-state', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   const HouseholdContext = React.createContext<unknown>(null);
-  const household = { id: 'household-a', name: 'Home', role: mockInitialRole, time_zone: 'UTC' };
 
   return {
     HouseholdStateProvider: ({ children }: PropsWithChildren) => {
       const [destination, setDestination] = React.useState(mockInitialDestination);
+      const [selectedHouseholdId, setSelectedHouseholdId] = React.useState(mockInitialHouseholdId);
       mockSetDestination = setDestination;
+      mockSetSelectedHouseholdId = setSelectedHouseholdId;
+      const households = mockHouseholds.map((item) => ({
+        ...item,
+        role: item.id === 'household-a' ? mockInitialRole : item.role,
+      }));
+      const selectedHousehold = households.find((item) => item.id === selectedHouseholdId) ?? null;
       const state = {
         destination,
         getToken: jest.fn().mockResolvedValue('session-token'),
-        households: [{ ...household, role: mockInitialRole }],
+        households,
         isSigningOut: false,
+        isSwitchingHousehold: false,
+        me: { user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' }, households },
         refresh: jest.fn(),
-        selectedHousehold: { ...household, role: mockInitialRole },
+        selectedHousehold,
+        select: async (id: string) => {
+          mockSelectCalls.push(id);
+          if (mockSelectionOverride) return mockSelectionOverride;
+          const target = households.find((item) => item.id === id);
+          if (!target) return { status: 'cancelled', reason: 'not-a-member' };
+          setSelectedHouseholdId(id);
+          return { status: 'selected', household: target };
+        },
         signOut: async () => {
           mockSetSignedIn?.(false);
           setDestination('signed-out');
@@ -90,6 +116,11 @@ jest.mock('expo-linking', () => ({
   ...jest.requireActual('expo-linking'),
   createURL: () => 'mealplanner:///',
 }));
+jest.mock('expo-symbols', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+  return { SymbolView: (props: Record<string, unknown>) => React.createElement(View, props) };
+});
 
 type NavigationState = {
   type?: string;
@@ -143,6 +174,14 @@ function ShoppingDetailsFixture() {
   return createElement(Text, null, 'Shopping details fixture');
 }
 
+function ResetTabsFixture() {
+  const resetToStartup = useResetToHouseholdStartup();
+  return createElement(Button, {
+    title: 'Reset to Shopping',
+    onPress: resetToStartup,
+  });
+}
+
 function shoppingListResponse(): { shopping_list: ShoppingList } {
   return { shopping_list: { id: 'list-a', household_id: 'household-a', items: [] } };
 }
@@ -153,8 +192,16 @@ describe('signed-in startup routing', () => {
     mockInitialDestination = 'app';
     mockInitialSignedIn = true;
     mockInitialRole = 'owner';
+    mockInitialHouseholdId = 'household-a';
+    mockHouseholds = [
+      { id: 'household-a', name: 'Home', role: 'owner', time_zone: 'UTC' },
+      { id: 'household-b', name: 'Cabin', role: 'member', time_zone: 'America/Phoenix' },
+    ];
     mockSetSignedIn = undefined;
     mockSetDestination = undefined;
+    mockSetSelectedHouseholdId = undefined;
+    mockSelectionOverride = null;
+    mockSelectCalls = [];
     jest.mocked(api.shoppingList).mockResolvedValue(shoppingListResponse());
   });
 
@@ -169,7 +216,7 @@ describe('signed-in startup routing', () => {
     expect(renderResult.getPathname()).toBe('/shopping');
     expect(screen.getByText('Your shopping list is empty.')).toBeTruthy();
     const tabs = findTabState(renderResult.getRouterState() as NavigationState);
-    expect(tabs?.routeNames).toEqual(['plan', 'recipes', 'shopping', 'pantry', 'settings']);
+    expect(tabs?.routeNames).toEqual(['plan', 'recipes', 'shopping', 'pantry', 'profile']);
     expect(tabs?.index).toBe(2);
     expect(tabs?.routes?.[tabs.index ?? -1]?.name).toBe('shopping');
     expect(tabs?.routes?.map((route) => route.state?.type)).toEqual([
@@ -210,7 +257,7 @@ describe('signed-in startup routing', () => {
     expect(state.routeNames).not.toContain('(app)');
   });
 
-  it('removes signed-in screens after Settings sign-out and starts fresh after sign-in', async () => {
+  it('removes signed-in screens after Profile sign-out and starts fresh after sign-in', async () => {
     const renderResult = renderRouter(
       {
         appDir: `${process.cwd()}/src/app`,
@@ -220,12 +267,12 @@ describe('signed-in startup routing', () => {
     );
     await renderResult;
     await screen.findByText('Shopping list');
-    await navigateTo(renderResult, '/settings');
-    await screen.findByText('Current household');
+    await navigateTo(renderResult, '/profile/my-account');
+    await screen.findByText('Account information');
 
     await fireEvent.press(screen.getByRole('button', { name: 'Sign out' }));
     expect(await screen.findByText('Sign in again')).toBeTruthy();
-    expect(screen.queryByText('Current household')).toBeNull();
+    expect(screen.queryByText('Account information')).toBeNull();
     if (renderResult.getPathname() !== '/sign-in') {
       // The groups are protected even if the auth route's canonical path omits its group name.
       expect(renderResult.getPathname()).toMatch(/sign-in/);
@@ -236,7 +283,7 @@ describe('signed-in startup routing', () => {
         await jest.runOnlyPendingTimersAsync();
       });
       expect(screen.queryByText('Shopping list')).toBeNull();
-      expect(screen.queryByText('Current household')).toBeNull();
+      expect(screen.queryByText('Account information')).toBeNull();
     }
 
     await fireEvent.press(screen.getByText('Sign in again'));
@@ -251,7 +298,7 @@ describe('signed-in startup routing', () => {
     expect(api.shoppingList).toHaveBeenCalledTimes(1);
 
     await fireEvent.changeText(screen.getByLabelText('Shopping-list item'), 'Draft for later');
-    for (const tab of ['plan', 'recipes', 'pantry', 'settings', 'shopping']) {
+    for (const tab of ['plan', 'recipes', 'pantry', 'profile', 'shopping']) {
       await navigateTo(renderResult, `/${tab}`);
     }
 
@@ -342,10 +389,10 @@ describe('signed-in startup routing', () => {
     await screen.findByText('Shopping list');
 
     await navigateTo(renderResult, '/plan');
-    await navigateTo(renderResult, '/settings');
+    await navigateTo(renderResult, '/profile');
     await navigateTo(renderResult, '/recipes');
 
-    for (const expectedPath of ['/settings', '/plan', '/shopping']) {
+    for (const expectedPath of ['/profile', '/plan', '/shopping']) {
       await act(async () => {
         router.back();
         await jest.runOnlyPendingTimersAsync();
@@ -381,16 +428,162 @@ describe('signed-in startup routing', () => {
     expect(screen.getByText('Shopping list')).toBeTruthy();
   });
 
-  it('preserves a pending invitation across a tab switch, then clears it when the route closes', async () => {
+  it('resets nested Profile household history before returning to the startup tab', async () => {
+    const renderResult = renderRouter(
+      {
+        appDir: `${process.cwd()}/src/app`,
+        overrides: {
+          '(app)/(tabs)/profile/reset-fixture': ResetTabsFixture,
+          '(app)/(tabs)/profile/secret-fixture': () => createElement(Text, null, 'Old household secret'),
+        },
+      },
+      { initialUrl: '/' },
+    );
+    await renderResult;
+    await screen.findByText('Shopping list');
+    await navigateTo(renderResult, '/profile/secret-fixture');
+    expect(screen.getByText('Old household secret')).toBeTruthy();
+    await navigateTo(renderResult, '/profile/reset-fixture');
+
+    await fireEvent.press(screen.getByText('Reset to Shopping'));
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/shopping'));
+    await navigateTo(renderResult, '/profile');
+    expect(screen.getByText('Current household')).toBeTruthy();
+    expect(screen.queryByText('Old household secret')).toBeNull();
+
+    await act(async () => {
+      router.back();
+      await jest.runOnlyPendingTimersAsync();
+    });
+    expect(renderResult.getPathname()).toBe('/shopping');
+    expect(screen.queryByText('Old household secret')).toBeNull();
+  });
+
+  it('explicitly switches from a household detail and clears its prior Invitations history', async () => {
+    mockInitialHouseholdId = 'household-b';
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Shopping list');
+    await navigateTo(renderResult, '/profile');
+    await fireEvent.press(screen.getByRole('button', { name: 'My households' }));
+    await screen.findByText('My households');
+    await fireEvent.press(screen.getByRole('button', { name: 'Home' }));
+    await screen.findByText('UTC');
+    expect(screen.getByText('owner')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Switch to this household' })).toBeTruthy();
+    expect(mockSelectCalls).toEqual([]);
+
+    jest.mocked(api.createInvitation).mockResolvedValue({
+      invitation: { id: 'invitation-1', expires_at: '2026-10-01T12:00:00Z', code: 'profile-route-code' },
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Invitations' }));
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-a/invitations');
+    await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.test');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
+    await screen.findByText(/Invitation for friend@example\.test/u);
+    expect(api.createInvitation).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'friend@example.test');
+
+    await act(async () => {
+      router.back();
+      await jest.runOnlyPendingTimersAsync();
+    });
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/profile/my-households/household-a'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Switch to this household' }));
+    expect(mockSelectCalls).toEqual(['household-a']);
+    await screen.findByText('Shopping list');
+    expect(renderResult.getPathname()).toBe('/shopping');
+    expect(mockSetSelectedHouseholdId).toBeDefined();
+
+    await navigateTo(renderResult, '/profile');
+    expect(screen.getByText('Home')).toBeTruthy();
+    expect(screen.queryByText('profile-route-code')).toBeNull();
+    await act(async () => {
+      router.back();
+      await jest.runOnlyPendingTimersAsync();
+    });
+    expect(renderResult.getPathname()).toBe('/shopping');
+    expect(screen.queryByLabelText('Recipient email')).toBeNull();
+  });
+
+  it('marks the active household and keeps opening other household details read-only', async () => {
+    mockInitialHouseholdId = 'household-b';
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Shopping list');
+    await navigateTo(renderResult, '/profile/my-households');
+
+    expect(screen.getByRole('button', { name: 'Home' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cabin, active household' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Home' }));
+    expect(await screen.findByText('Switch to this household')).toBeTruthy();
+    expect(mockSelectCalls).toEqual([]);
+  });
+
+  it('keeps Profile, My households, household details, and Invitations in one working Back history', async () => {
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+
+    await navigateTo(renderResult, '/profile');
+    await fireEvent.press(screen.getByRole('button', { name: 'My households' }));
+    expect(renderResult.getPathname()).toBe('/profile/my-households');
+    expect(await screen.findByRole('button', { name: 'Home, active household' })).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Home, active household' }));
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-a');
+    expect(await screen.findByText('Time zone')).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Invitations' }));
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-a/invitations');
+    expect(await screen.findByLabelText('Recipient email')).toBeTruthy();
+
+    await act(async () => {
+      router.back();
+      await jest.runOnlyPendingTimersAsync();
+    });
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/profile/my-households/household-a'));
+    expect(screen.getByText('Time zone')).toBeTruthy();
+
+    await act(async () => {
+      router.back();
+      await jest.runOnlyPendingTimersAsync();
+    });
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/profile/my-households'));
+    expect(screen.getByRole('button', { name: 'Home, active household' })).toBeTruthy();
+
+    await act(async () => {
+      router.back();
+      await jest.runOnlyPendingTimersAsync();
+    });
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/profile'));
+    expect(screen.getByText('Current household')).toBeTruthy();
+  });
+
+  it('does not navigate when explicit household switching fails', async () => {
+    mockInitialHouseholdId = 'household-b';
+    mockSelectionOverride = { status: 'failed', reason: 'storage' };
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Shopping list');
+    await navigateTo(renderResult, '/profile/my-households');
+    await fireEvent.press(screen.getByRole('button', { name: 'Home' }));
+    await screen.findByText('UTC');
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Switch to this household' }));
+
+    expect(await screen.findByText('We couldn’t switch households. Your current household is unchanged. Please try again.')).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-a');
+    expect(mockSelectCalls).toEqual(['household-a']);
+  });
+
+  it('preserves a household-targeted invitation across tab switches and clears it when its route closes', async () => {
     let resolveInvitation!: (value: { invitation: { id: string; expires_at: string; code: string } }) => void;
     jest.mocked(api.createInvitation).mockReturnValue(new Promise((resolve) => { resolveInvitation = resolve; }));
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shopping list is empty.');
-    await navigateTo(renderResult, '/settings');
-
-    await fireEvent.press(screen.getByRole('button', { name: 'Invite a household member' }));
-    expect(renderResult.getPathname()).toBe('/settings/invite-household');
+    await navigateTo(renderResult, '/profile/my-households/household-a/invitations');
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-a/invitations');
     await screen.findByLabelText('Recipient email');
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'Friend@Example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
@@ -407,7 +600,7 @@ describe('signed-in startup routing', () => {
 
     expect(renderResult.getPathname()).toBe('/shopping');
     expect(api.createInvitation).toHaveBeenCalledTimes(1);
-    await navigateTo(renderResult, '/settings/invite-household');
+    await navigateTo(renderResult, '/profile/my-households/household-a/invitations');
     expect(await screen.findByText(/Invitation for friend@example\.com/u)).toBeTruthy();
     expect(screen.getByText('router-only-code')).toBeTruthy();
     expect(screen.getByLabelText('Recipient email').props.value).toBe('Friend@Example.com');
@@ -417,32 +610,46 @@ describe('signed-in startup routing', () => {
       router.back();
       await jest.runOnlyPendingTimersAsync();
     });
-    expect(renderResult.getPathname()).toBe('/settings');
-    await fireEvent.press(screen.getByRole('button', { name: 'Invite a household member' }));
-    expect(renderResult.getPathname()).toBe('/settings/invite-household');
+    expect(renderResult.getPathname()).toBe('/profile');
+    await navigateTo(renderResult, '/profile/my-households/household-a/invitations');
     expect(screen.getByLabelText('Recipient email').props.value).toBe('');
     expect(screen.queryByText('router-only-code')).toBeNull();
   });
 
-  it('hides the invitation entry action from a member in Settings', async () => {
+  it('hides owner invitation controls from a member household detail', async () => {
     mockInitialRole = 'member';
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shopping list is empty.');
-    await navigateTo(renderResult, '/settings');
+    await navigateTo(renderResult, '/profile/my-households/household-a');
 
-    expect(screen.getByText('Current household')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Invite a household member' })).toBeNull();
+    expect(screen.getByText('Home')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Invitations' })).toBeNull();
   });
 
-  it('does not restore a deferred invitation after the Settings route is popped', async () => {
+  it('does not substitute the active household for an unknown invitation route target', async () => {
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Shopping list');
+
+    await act(async () => {
+      router.navigate('/profile/my-households/not-a-member/invitations' as Href);
+      await jest.runOnlyPendingTimersAsync();
+    });
+
+    await screen.findByText('My households');
+    expect(renderResult.getPathname()).toBe('/profile/my-households');
+    expect(screen.queryByLabelText('Recipient email')).toBeNull();
+    expect(api.createInvitation).not.toHaveBeenCalled();
+  });
+
+  it('does not restore a deferred invitation after its household route is popped', async () => {
     let resolveInvitation!: (value: { invitation: { id: string; expires_at: string; code: string } }) => void;
     jest.mocked(api.createInvitation).mockReturnValue(new Promise((resolve) => { resolveInvitation = resolve; }));
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shopping list is empty.');
-    await navigateTo(renderResult, '/settings');
-    await fireEvent.press(screen.getByRole('button', { name: 'Invite a household member' }));
+    await navigateTo(renderResult, '/profile/my-households/household-a/invitations');
     await screen.findByLabelText('Recipient email');
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
@@ -452,13 +659,13 @@ describe('signed-in startup routing', () => {
       router.back();
       await jest.runOnlyPendingTimersAsync();
     });
-    expect(renderResult.getPathname()).toBe('/settings');
+    expect(renderResult.getPathname()).toBe('/profile');
     await act(async () => {
       resolveInvitation({ invitation: { id: 'invitation-1', expires_at: '2026-10-01T12:00:00Z', code: 'closed-route-code' } });
       await Promise.resolve();
     });
 
-    await fireEvent.press(screen.getByRole('button', { name: 'Invite a household member' }));
+    await navigateTo(renderResult, '/profile/my-households/household-a/invitations');
     await screen.findByLabelText('Recipient email');
     expect(screen.getByLabelText('Recipient email').props.value).toBe('');
     expect(screen.queryByText('closed-route-code')).toBeNull();

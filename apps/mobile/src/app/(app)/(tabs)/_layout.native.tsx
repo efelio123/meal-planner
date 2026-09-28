@@ -31,9 +31,9 @@ export default function NativeTabLayout() {
         <NativeTabs.Trigger.Label>Pantry</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="cabinet.fill" md="kitchen" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="settings">
-        <NativeTabs.Trigger.Label>Settings</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="gearshape" md="settings" />
+      <NativeTabs.Trigger name="profile">
+        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="person.crop.circle" md="account_circle" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

@@ -13,7 +13,7 @@ let mockAuthState = {
 let mockHouseholdState = {
   getToken: jest.fn().mockResolvedValue('session-token'),
   isSigningOut: false,
-  selectedHousehold: null as null | { id: string; name: string; role: 'owner' | 'member'; time_zone: string },
+  households: [] as { id: string; name: string; role: 'owner' | 'member'; time_zone: string }[],
 };
 
 jest.mock('@clerk/expo', () => ({ useAuth: () => mockAuthState }));
@@ -56,7 +56,7 @@ describe('OwnerInvitationScreen', () => {
     mockHouseholdState = {
       getToken: jest.fn().mockResolvedValue('session-token'),
       isSigningOut: false,
-      selectedHousehold: { id: 'household-a', name: 'Home A', role: 'owner', time_zone: 'UTC' },
+      households: [{ id: 'household-a', name: 'Home A', role: 'owner', time_zone: 'UTC' }],
     };
     createInvitation.mockResolvedValue(invitationResponse);
     setClipboardString.mockResolvedValue(true);
@@ -65,7 +65,7 @@ describe('OwnerInvitationScreen', () => {
   it('keeps submitted email, code, ID, and expiry paired when the form changes and a later request fails', async () => {
     const laterRequest = deferred<typeof invitationResponse>();
     createInvitation.mockResolvedValueOnce(invitationResponse).mockReturnValueOnce(laterRequest.promise);
-    await render(<OwnerInvitationScreen />);
+    await render(<OwnerInvitationScreen householdId="household-a" />);
 
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), '  Friend@Example.com  ');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
@@ -84,7 +84,7 @@ describe('OwnerInvitationScreen', () => {
   });
 
   it('shows copy success only when the clipboard reports true', async () => {
-    await render(<OwnerInvitationScreen />);
+    await render(<OwnerInvitationScreen householdId="household-a" />);
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
     await screen.findByText(/Invitation for friend@example\.com/u);
@@ -101,7 +101,7 @@ describe('OwnerInvitationScreen', () => {
   });
 
   it('shows a safe copy failure when the clipboard rejects', async () => {
-    await render(<OwnerInvitationScreen />);
+    await render(<OwnerInvitationScreen householdId="household-a" />);
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
     await screen.findByText(/Invitation for friend@example\.com/u);
@@ -115,7 +115,7 @@ describe('OwnerInvitationScreen', () => {
 
   it('validates the recipient address locally and presents a safe 422 correction', async () => {
     createInvitation.mockRejectedValueOnce(new ApiError(422, 'private response detail'));
-    await render(<OwnerInvitationScreen />);
+    await render(<OwnerInvitationScreen householdId="household-a" />);
 
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
     expect(screen.getByText('Enter a valid email address for the person you want to invite.')).toBeTruthy();
@@ -129,7 +129,7 @@ describe('OwnerInvitationScreen', () => {
 
   it('shows a safe retry message for unexpected invitation failures', async () => {
     createInvitation.mockRejectedValueOnce(new Error('network details must stay hidden'));
-    await render(<OwnerInvitationScreen />);
+    await render(<OwnerInvitationScreen householdId="household-a" />);
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
 
@@ -140,7 +140,7 @@ describe('OwnerInvitationScreen', () => {
   it('prevents duplicate submissions before the pending state rerenders', async () => {
     const pending = deferred<typeof invitationResponse>();
     createInvitation.mockReturnValueOnce(pending.promise);
-    await render(<OwnerInvitationScreen />);
+    await render(<OwnerInvitationScreen householdId="household-a" />);
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
 
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
@@ -154,15 +154,15 @@ describe('OwnerInvitationScreen', () => {
   it('ignores an invitation response after the selected household changes', async () => {
     const pending = deferred<typeof invitationResponse>();
     createInvitation.mockReturnValueOnce(pending.promise);
-    const view = await render(<OwnerInvitationScreen />);
+    const view = await render(<OwnerInvitationScreen householdId="household-a" />);
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
 
     mockHouseholdState = {
       ...mockHouseholdState,
-      selectedHousehold: { id: 'household-b', name: 'Home B', role: 'owner', time_zone: 'UTC' },
+      households: [{ id: 'household-b', name: 'Home B', role: 'owner', time_zone: 'UTC' }],
     };
-    await view.rerender(<OwnerInvitationScreen />);
+    await view.rerender(<OwnerInvitationScreen householdId="household-b" />);
     await waitFor(() => expect(screen.getByLabelText('Recipient email').props.value).toBe(''));
     pending.resolve(invitationResponse);
 
@@ -174,12 +174,12 @@ describe('OwnerInvitationScreen', () => {
   it('clears invitation state and ignores a late create result when sign-out starts', async () => {
     const pending = deferred<typeof invitationResponse>();
     createInvitation.mockReturnValueOnce(pending.promise);
-    const view = await render(<OwnerInvitationScreen />);
+    const view = await render(<OwnerInvitationScreen householdId="household-a" />);
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
 
     mockHouseholdState = { ...mockHouseholdState, isSigningOut: true };
-    await view.rerender(<OwnerInvitationScreen />);
+    await view.rerender(<OwnerInvitationScreen householdId="household-a" />);
     pending.resolve(invitationResponse);
 
     await waitFor(() => expect(screen.queryByTestId('invitation-snapshot')).toBeNull());
@@ -189,12 +189,12 @@ describe('OwnerInvitationScreen', () => {
   it('ignores a rejected create result after the authenticated Clerk session changes', async () => {
     const pending = deferred<typeof invitationResponse>();
     createInvitation.mockReturnValueOnce(pending.promise);
-    const view = await render(<OwnerInvitationScreen />);
+    const view = await render(<OwnerInvitationScreen householdId="household-a" />);
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
 
     mockAuthState = { isLoaded: true, isSignedIn: true, sessionId: 'session-b', userId: 'user-b' };
-    await view.rerender(<OwnerInvitationScreen />);
+    await view.rerender(<OwnerInvitationScreen householdId="household-a" />);
     pending.reject(new ApiError(500, 'private response detail'));
 
     await waitFor(() => expect(screen.getByLabelText('Recipient email').props.value).toBe(''));
@@ -205,15 +205,15 @@ describe('OwnerInvitationScreen', () => {
   it('clears owner-only invitation state when access is lost', async () => {
     const pending = deferred<typeof invitationResponse>();
     createInvitation.mockReturnValueOnce(pending.promise);
-    const view = await render(<OwnerInvitationScreen />);
+    const view = await render(<OwnerInvitationScreen householdId="household-a" />);
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
 
     mockHouseholdState = {
       ...mockHouseholdState,
-      selectedHousehold: { id: 'household-a', name: 'Home A', role: 'member', time_zone: 'UTC' },
+      households: [{ id: 'household-a', name: 'Home A', role: 'member', time_zone: 'UTC' }],
     };
-    await view.rerender(<OwnerInvitationScreen />);
+    await view.rerender(<OwnerInvitationScreen householdId="household-a" />);
     pending.resolve(invitationResponse);
 
     await waitFor(() => expect(screen.queryByTestId('invitation-snapshot')).toBeNull());
@@ -222,7 +222,7 @@ describe('OwnerInvitationScreen', () => {
 
   it('does not show stale clipboard feedback after the household changes', async () => {
     const pendingCopy = deferred<boolean>();
-    const view = await render(<OwnerInvitationScreen />);
+    const view = await render(<OwnerInvitationScreen householdId="household-a" />);
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
     await screen.findByText(/Invitation for friend@example\.com/u);
@@ -231,9 +231,9 @@ describe('OwnerInvitationScreen', () => {
 
     mockHouseholdState = {
       ...mockHouseholdState,
-      selectedHousehold: { id: 'household-b', name: 'Home B', role: 'owner', time_zone: 'UTC' },
+      households: [{ id: 'household-b', name: 'Home B', role: 'owner', time_zone: 'UTC' }],
     };
-    await view.rerender(<OwnerInvitationScreen />);
+    await view.rerender(<OwnerInvitationScreen householdId="household-b" />);
     pendingCopy.resolve(true);
 
     await waitFor(() => expect(screen.queryByText('Invitation code copied.')).toBeNull());
@@ -252,7 +252,7 @@ describe('OwnerInvitationScreen', () => {
     const pendingReplacement = deferred<typeof replacement>();
     createInvitation.mockResolvedValueOnce(invitationResponse).mockReturnValueOnce(pendingReplacement.promise);
     setClipboardString.mockReturnValueOnce(pendingCopy.promise);
-    await render(<OwnerInvitationScreen />);
+    await render(<OwnerInvitationScreen householdId="household-a" />);
 
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'first@example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
@@ -279,7 +279,7 @@ describe('OwnerInvitationScreen', () => {
 
   it('ignores clipboard completion after the invitation route unmounts', async () => {
     const pendingCopy = deferred<boolean>();
-    const view = await render(<OwnerInvitationScreen />);
+    const view = await render(<OwnerInvitationScreen householdId="household-a" />);
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
     await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
     await screen.findByText(/Invitation for friend@example\.com/u);
@@ -289,7 +289,7 @@ describe('OwnerInvitationScreen', () => {
     await view.unmount();
     pendingCopy.resolve(true);
     await Promise.resolve();
-    const reopened = await render(<OwnerInvitationScreen />);
+    const reopened = await render(<OwnerInvitationScreen householdId="household-a" />);
 
     expect(reopened.queryByTestId('invitation-snapshot')).toBeNull();
     expect(reopened.queryByText('Invitation code copied.')).toBeNull();

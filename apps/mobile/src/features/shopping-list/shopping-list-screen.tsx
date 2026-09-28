@@ -88,7 +88,7 @@ export default function HouseholdHome() {
   };
 
   return (
-    <Screen nativeTabScreen safeAreaEdges={['top', 'left', 'right']}>
+    <Screen contentAlignment="top" nativeTabScreen safeAreaEdges={['top', 'left', 'right']}>
       <View style={styles.content}>
         <ThemedText accessibilityRole="header" style={styles.title}>Shopping list</ThemedText>
         <ThemedInput
