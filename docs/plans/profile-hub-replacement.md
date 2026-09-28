@@ -1,7 +1,7 @@
 # Profile Hub Replacing Settings: Implementation Plan
 
-Status: implementation is complete on `feat/profile-hub` and approved after
-Felipe's physical-iPhone testing; commits and PR review are pending. Felipe
+Status: implementation is committed on `feat/profile-hub`; PR #9 is open and
+awaiting review. Felipe approved it after physical-iPhone testing. Felipe
 confirmed the Profile layout looks good, Back works through nested pages, and
 VoiceOver announces the native Back control correctly. Android device testing,
 native rebuilds, cloud staging, and lost-invitation-code recovery remain
