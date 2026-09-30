@@ -50,6 +50,11 @@ a material product or technical decision changes.
   platform/SDK compatibility, migration costs, and validation in the plan.
   Implement dependency changes only through an approved plan or explicit
   approval.
+- During this early phase, target a total cloud and CI cost of $0/month and
+  research free options first. Never create paid resources, switch to a paid
+  plan, add a payment method for a service, or accept any charge without
+  Felipe's explicit approval. If a free quota is exhausted, let the service or
+  workflow pause until reset rather than incur a charge.
 - Never commit secrets, tokens, `.env` files, or personal data.
 
 ## Mobile source organization

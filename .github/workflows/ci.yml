@@ -1,0 +1,174 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feat/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mobile:
+    name: Mobile checks
+    runs-on: ubuntu-latest
+    env:
+      # Non-secret placeholders let Expo resolve app config without giving CI
+      # access to Clerk or staging credentials.
+      EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_ci_placeholder
+      EXPO_PUBLIC_API_BASE_URL: https://api.example.invalid
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Install mobile dependencies
+        working-directory: apps/mobile
+        run: npm ci
+
+      - name: Run mobile tests
+        working-directory: apps/mobile
+        run: npm test -- --runInBand
+
+      - name: Run cold mobile tests
+        working-directory: apps/mobile
+        run: |
+          npx jest --clearCache
+          npm test -- --runInBand --no-cache
+
+      - name: Generate Expo TypeScript declarations
+        working-directory: apps/mobile
+        run: npx expo customize tsconfig.json
+
+      - name: Type-check mobile app
+        working-directory: apps/mobile
+        run: npx tsc --noEmit
+
+      - name: Lint mobile app
+        working-directory: apps/mobile
+        run: npm run lint
+
+      - name: Check Expo dependencies
+        working-directory: apps/mobile
+        run: npx expo install --check
+
+      - name: Check Expo configuration
+        working-directory: apps/mobile
+        run: npx --yes expo-doctor
+
+  api:
+    name: API checks (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: meal_planner_disposable_test
+          POSTGRES_USER: meal_planner_ci
+          POSTGRES_PASSWORD: disposable-ci-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U meal_planner_ci -d meal_planner_disposable_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # This test-only connection targets only the ephemeral PostgreSQL
+      # service created for this job. It is never a staging credential.
+      DATABASE_URL: postgresql+psycopg://meal_planner_ci:disposable-ci-password@127.0.0.1:5432/meal_planner_disposable_test
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: 0.12.9
+          enable-cache: false
+
+      - name: Install API dependencies
+        working-directory: services/api
+        run: uv sync --locked
+
+      - name: Verify disposable database identity
+        working-directory: services/api
+        run: |
+          uv run python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          from sqlalchemy.engine import make_url
+
+          expected = "meal_planner_disposable_test"
+          url = make_url(os.environ["DATABASE_URL"])
+          if (
+              url.drivername != "postgresql+psycopg"
+              or url.database != expected
+              or url.host != "127.0.0.1"
+              or url.port != 5432
+          ):
+              raise SystemExit("DATABASE_URL must target the local disposable test database.")
+
+          engine = create_engine(url)
+          try:
+              with engine.connect() as connection:
+                  current_database = connection.execute(text("SELECT current_database()")).scalar_one()
+          finally:
+              engine.dispose()
+
+          if current_database != expected:
+              raise SystemExit("Connected database is not the named disposable test database.")
+          print("Disposable PostgreSQL database identity verified.")
+          PY
+
+      - name: Check API style
+        working-directory: services/api
+        run: uv run ruff check .
+
+      - name: Apply migrations and verify Alembic head
+        working-directory: services/api
+        run: |
+          uv run alembic -c alembic.ini upgrade head
+          uv run alembic -c alembic.ini current --check-heads
+
+      - name: Run API tests and reject skipped tests
+        working-directory: services/api
+        run: |
+          set +e
+          uv run pytest --junitxml=pytest-results.xml
+          pytest_status=$?
+          set -e
+
+          python - <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          report = Path("pytest-results.xml")
+          if not report.is_file():
+              raise SystemExit("Pytest did not produce its required JUnit report.")
+
+          root = ET.parse(report).getroot()
+          cases = list(root.iter("testcase"))
+          skipped = sum(case.find("skipped") is not None for case in cases)
+          if not cases:
+              raise SystemExit("Pytest discovered no tests; refusing a green API check.")
+          print(f"API test cases: {len(cases)}; skipped: {skipped}.")
+          if skipped:
+              raise SystemExit("API CI requires zero skipped tests.")
+          PY
+
+          exit "$pytest_status"
