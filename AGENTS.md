@@ -33,6 +33,12 @@ a material product or technical decision changes.
   it does not. Do not implement or commit work directly on `main` unless
   Felipe explicitly agrees to that exception.
 - Run validation proportionate to the change and report what was checked.
+- Run the full disposable-PostgreSQL suite for major features or substantial
+  schema/data changes, not for every small follow-up. For a focused change,
+  run relevant targeted tests; include a database test when database behavior
+  changes. Report skipped tests as unrun, not passing, and preserve the last
+  full-suite result as historical validation rather than claiming it covers
+  later edits.
 - Before implementing with a technology or library, consult its current official
   documentation and verify guidance against the version installed or resolved in
   the project.

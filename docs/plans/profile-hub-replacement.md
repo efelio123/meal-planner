@@ -1,12 +1,14 @@
 # Profile Hub Replacing Settings: Implementation Plan
 
-Status: implementation is committed on `feat/profile-hub`; PR #9 is open and
-awaiting review. Felipe approved it after physical-iPhone testing. Felipe
+Status: implementation merged into `main` through PR #9 on September 28,
+2026. Felipe approved it after physical-iPhone testing. Felipe
 confirmed the Profile layout looks good, Back works through nested pages, and
 VoiceOver announces the native Back control correctly. Android device testing,
 native rebuilds, cloud staging, and lost-invitation-code recovery remain
-outstanding. Household-management work below is future scope and is not
-implemented or approved.
+outstanding. Household-management work that was future scope when this plan was
+written is now separately approved and in progress on
+`feat/household-management`; its current status is tracked in
+`docs/plans/household-management.md`.
 
 ## Goal and scope
 
@@ -41,9 +43,10 @@ household's Invitations destination; members have no owner-management control.
   branding, colors, typography, or exact styling.
 - On household details, the current Profile slice remains read-only and uses
   the existing household summary fields; owners get the Invitations entry and
-  members do not. The member “People” rows belong to the separately proposed
-  household-management slice because the current API does not return other
-  household members. In that later slice, use Apple Home's People section only
+  members do not. The member “People” rows were assigned to the separate
+  household-management slice because the Profile API did not return other
+  household members. That slice is now approved and in progress. Use Apple
+  Home's People section only
   as a layout reference: readable active-member rows with name and Owner/Member
   role, plus an owner-visible Invite action. Keep pending invitations in a
   distinct Invitations section/destination, never mixed into the active-member
@@ -56,18 +59,18 @@ Out of scope for the Profile hub: profile editing, avatar uploads, account
 deletion, new preferences, household member/role management, household
 deletion, active-invitation listing/revocation/reissue, additional-household
 creation from My households, new API endpoints, schema changes, and unfinished
-management actions. A separate household-management slice is proposed below;
-it needs its own review and approval before implementation. Invitation codes
-remain unrecoverable after creation because only hashes are stored; reissue
-would mint a new code rather than retrieve an old one.
+management actions. Household management was deliberately separated from the
+Profile hub and is now covered by its own approved, in-progress plan.
+Invitation codes remain unrecoverable after creation because only hashes are
+stored; reissue would mint a new code rather than retrieve an old one.
 
 ## Branch and scope record
 
 The invitation UI was reviewed and merged through PR #8 before this Profile
-branch began. This approved implementation is on `feat/profile-hub`; it does
-not include household-management endpoints or UI. Any later
-household-management slice must wait until the Profile work is reviewed and
-merged, then start on a new feature branch from updated `main`.
+branch began. The Profile implementation merged through PR #9; as planned, it
+did not include household-management endpoints or UI. That sequencing
+prerequisite was met before `feat/household-management` was created from the
+updated `main` branch.
 
 ## Existing data and behavior
 
