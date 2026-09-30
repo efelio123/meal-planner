@@ -20,7 +20,7 @@ export function ProfileHubScreen() {
   const { me, selectedHousehold } = useHouseholdState();
   const theme = useTheme();
   const email = me?.user.email ?? '';
-  const name = me?.user.display_name.trim() || email || 'Your profile';
+  const name = me?.user.display_name.trim() || 'Your profile';
   const avatarLabel = name || email;
   const showEmail = Boolean(email && name.trim().toLowerCase() !== email.trim().toLowerCase());
 

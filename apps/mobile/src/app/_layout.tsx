@@ -51,7 +51,7 @@ function RootNavigator() {
       <Stack.Protected guard={!!isSignedIn && destination === 'app'}>
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
       </Stack.Protected>
-      <Stack.Protected guard={!!isSignedIn && (destination === 'create-or-join' || destination === 'select-household')}>
+      <Stack.Protected guard={!!isSignedIn && (destination === 'create-or-join' || destination === 'select-household' || destination === 'complete-profile')}>
         <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
       </Stack.Protected>
       <Stack.Protected guard={!!isSignedIn && destination === 'api-error'}>

@@ -8,9 +8,12 @@ export type Me = { user: { id: string; email: string; display_name: string }; ho
 export type ShoppingListItem = { id: string; name: string; is_checked: boolean; checked_at: string | null; checked_by_user_id: string | null; created_by_user_id: string; created_at: string };
 export type ShoppingList = { id: string; household_id: string; items: ShoppingListItem[] };
 export type CreatedInvitation = { id: string; expires_at: string; code: string };
+export type HouseholdMember = { membership_id: string; display_name: string; avatar_url: string | null; role: 'owner' | 'member'; joined_at: string; is_self: boolean; email?: string };
+export type PendingInvitation = { id: string; normalized_email: string; expires_at: string };
+export type ApiErrorCode = 'DISPLAY_NAME_REQUIRED' | 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' | 'INVITATION_ALREADY_PENDING' | 'LAST_OWNER';
 
 export class ApiError extends Error {
-  constructor(readonly status: number, message: string) {
+  constructor(readonly status: number, message: string, readonly code?: ApiErrorCode) {
     super(message);
   }
 }
@@ -39,7 +42,26 @@ async function request<T>(getToken: GetToken, path: string, init?: RequestInit, 
     throw error;
   }
   requestDiagnostics?.record('me_response', Date.now() - fetchStartedAt, response.status);
-  if (!response.ok) throw new ApiError(response.status, response.status === 410 ? 'This invitation has expired.' : 'Something went wrong. Please try again.');
+  if (!response.ok) {
+    let code: ApiErrorCode | undefined;
+    try {
+      const body = await response.json() as { detail?: { code?: unknown } };
+      const candidate = body.detail?.code;
+      if (candidate === 'DISPLAY_NAME_REQUIRED' || candidate === 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' || candidate === 'INVITATION_ALREADY_PENDING' || candidate === 'LAST_OWNER') code = candidate;
+    } catch { /* Keep error responses safe and generic when their body is not JSON. */ }
+    const message = code === 'DISPLAY_NAME_REQUIRED'
+      ? 'Add a display name to continue.'
+      : response.status === 410
+      ? 'This invitation has expired.'
+      : code === 'HOUSEHOLD_MEMBER_ALREADY_EXISTS'
+        ? 'This person is already a member of this household.'
+        : code === 'INVITATION_ALREADY_PENDING'
+          ? 'An active invitation already exists for that email.'
+          : code === 'LAST_OWNER'
+            ? 'At least one active owner must remain.'
+            : 'Something went wrong. Please try again.';
+    throw new ApiError(response.status, message, code);
+  }
   return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>);
 }
 
@@ -47,10 +69,32 @@ export const api = {
   me: (getToken: GetToken, init?: RequestInit, diagnostics?: StartupDiagnostics) => request<Me>(getToken, '/v1/me', init, diagnostics),
   createHousehold: (getToken: GetToken, name: string, timeZone: string) =>
     request<{ household: Household }>(getToken, '/v1/households', { method: 'POST', body: JSON.stringify({ name, time_zone: timeZone }) }),
+  household: (getToken: GetToken, householdId: string) =>
+    request<{ household: Household }>(getToken, `/v1/households/${householdId}`, { method: 'GET' }),
+  updateHousehold: (getToken: GetToken, householdId: string, values: { name?: string; time_zone?: string }) =>
+    request<{ household: Household }>(getToken, `/v1/households/${householdId}`, { method: 'PATCH', body: JSON.stringify(values) }),
+  householdMembers: (getToken: GetToken, householdId: string) =>
+    request<{ members: HouseholdMember[] }>(getToken, `/v1/households/${householdId}/members`, { method: 'GET' }),
+  householdMember: (getToken: GetToken, householdId: string, membershipId: string) =>
+    request<{ member: HouseholdMember }>(getToken, `/v1/households/${householdId}/members/${membershipId}`, { method: 'GET' }),
+  setHouseholdMemberRole: (getToken: GetToken, householdId: string, membershipId: string, role: HouseholdMember['role']) =>
+    request<void>(getToken, `/v1/households/${householdId}/members/${membershipId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  removeHouseholdMember: (getToken: GetToken, householdId: string, membershipId: string) =>
+    request<void>(getToken, `/v1/households/${householdId}/members/${membershipId}`, { method: 'DELETE' }),
+  leaveHousehold: (getToken: GetToken, householdId: string) =>
+    request<void>(getToken, `/v1/households/${householdId}/leave`, { method: 'DELETE' }),
+  deleteHousehold: (getToken: GetToken, householdId: string) =>
+    request<void>(getToken, `/v1/households/${householdId}`, { method: 'DELETE' }),
   acceptInvitation: (getToken: GetToken, code: string) =>
     request<void>(getToken, '/v1/invitations/accept', { method: 'POST', body: JSON.stringify({ code }) }),
   createInvitation: (getToken: GetToken, householdId: string, email: string) =>
     request<{ invitation: CreatedInvitation }>(getToken, `/v1/households/${householdId}/invitations`, { method: 'POST', body: JSON.stringify({ email }) }),
+  householdInvitations: (getToken: GetToken, householdId: string) =>
+    request<{ invitations: PendingInvitation[] }>(getToken, `/v1/households/${householdId}/invitations`, { method: 'GET' }),
+  revokeInvitation: (getToken: GetToken, householdId: string, invitationId: string) =>
+    request<void>(getToken, `/v1/households/${householdId}/invitations/${invitationId}/revoke`, { method: 'POST' }),
+  reissueInvitation: (getToken: GetToken, householdId: string, invitationId: string) =>
+    request<{ invitation: CreatedInvitation }>(getToken, `/v1/households/${householdId}/invitations/${invitationId}/reissue`, { method: 'POST' }),
   shoppingList: (getToken: GetToken, householdId: string) =>
     request<{ shopping_list: ShoppingList }>(getToken, `/v1/households/${householdId}/shopping-list`, { method: 'GET' }),
   addShoppingListItem: (getToken: GetToken, householdId: string, name: string) =>

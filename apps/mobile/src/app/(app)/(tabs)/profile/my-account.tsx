@@ -7,7 +7,7 @@ import { useHouseholdState } from '@/hooks/use-household-state';
 
 export default function MyAccountRoute() {
   const { me } = useHouseholdState();
-  const name = me?.user.display_name.trim() || me?.user.email || 'Unavailable';
+  const name = me?.user.display_name.trim() || 'Unavailable';
   return (
     <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
       <View style={styles.content}>

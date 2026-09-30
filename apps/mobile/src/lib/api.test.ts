@@ -1,4 +1,4 @@
-import { api, ApiError } from '@/lib/api';
+import { api, ApiError, type GetToken } from '@/lib/api';
 
 const fetchMock = jest.fn();
 
@@ -65,6 +65,14 @@ describe('mobile API client', () => {
     );
   });
 
+  it('maps the display-name completion gate to a typed safe API error', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ detail: { code: 'DISPLAY_NAME_REQUIRED' } }), { status: 409 }));
+
+    await expect(api.me(jest.fn().mockResolvedValue('session-token'))).rejects.toEqual(
+      new ApiError(409, 'Add a display name to continue.', 'DISPLAY_NAME_REQUIRED'),
+    );
+  });
+
   it('creates a household invitation with a fresh token and returns its one-time fields', async () => {
     const getToken = jest.fn().mockResolvedValue('invitation-token');
     const invitation = {
@@ -82,6 +90,41 @@ describe('mobile API client', () => {
     expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({ email: 'person@example.com' });
     const headers = fetchMock.mock.calls[0][1].headers as Headers;
     expect(headers.get('Authorization')).toBe('Bearer invitation-token');
+  });
+
+  it('sends the expected URL, method/body, and fresh Bearer token for all management methods', async () => {
+    const requests: [string, (getToken: GetToken) => Promise<unknown>, string, string, unknown, number, unknown][] = [
+      ['household', (token) => api.household(token, 'home-1'), '/v1/households/home-1', 'GET', undefined, 200, { household: {} }],
+      ['update household', (token) => api.updateHousehold(token, 'home-1', { name: 'Cabin', time_zone: 'Europe/London' }), '/v1/households/home-1', 'PATCH', { name: 'Cabin', time_zone: 'Europe/London' }, 200, { household: {} }],
+      ['members', (token) => api.householdMembers(token, 'home-1'), '/v1/households/home-1/members', 'GET', undefined, 200, { members: [] }],
+      ['member detail', (token) => api.householdMember(token, 'home-1', 'membership-1'), '/v1/households/home-1/members/membership-1', 'GET', undefined, 200, { member: {} }],
+      ['member role', (token) => api.setHouseholdMemberRole(token, 'home-1', 'membership-1', 'owner'), '/v1/households/home-1/members/membership-1', 'PATCH', { role: 'owner' }, 204, null],
+      ['remove member', (token) => api.removeHouseholdMember(token, 'home-1', 'membership-1'), '/v1/households/home-1/members/membership-1', 'DELETE', undefined, 204, null],
+      ['leave household', (token) => api.leaveHousehold(token, 'home-1'), '/v1/households/home-1/leave', 'DELETE', undefined, 204, null],
+      ['delete household', (token) => api.deleteHousehold(token, 'home-1'), '/v1/households/home-1', 'DELETE', undefined, 204, null],
+      ['pending invitations', (token) => api.householdInvitations(token, 'home-1'), '/v1/households/home-1/invitations', 'GET', undefined, 200, { invitations: [] }],
+      ['revoke invitation', (token) => api.revokeInvitation(token, 'home-1', 'invite-1'), '/v1/households/home-1/invitations/invite-1/revoke', 'POST', undefined, 204, null],
+      ['reissue invitation', (token) => api.reissueInvitation(token, 'home-1', 'invite-1'), '/v1/households/home-1/invitations/invite-1/reissue', 'POST', undefined, 201, { invitation: {} }],
+    ];
+
+    for (const [, invoke, path, method, body, responseStatus, responseBody] of requests) {
+      fetchMock.mockReset();
+      const getToken = jest.fn().mockResolvedValue('fresh-management-token');
+      fetchMock.mockResolvedValue(new Response(responseBody === null ? null : JSON.stringify(responseBody), { status: responseStatus }));
+      await invoke(getToken);
+      expect(getToken).toHaveBeenCalledTimes(1);
+      expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe(path);
+      expect(fetchMock.mock.calls[0][1].method).toBe(method);
+      expect(fetchMock.mock.calls[0][1].body).toBe(body === undefined ? undefined : JSON.stringify(body));
+      expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer fresh-management-token');
+    }
+  });
+
+  it('preserves the typed active-member invitation conflict safely', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ detail: { code: 'HOUSEHOLD_MEMBER_ALREADY_EXISTS', message: 'private server message' } }), { status: 409 }));
+    await expect(api.createInvitation(jest.fn().mockResolvedValue('session-token'), 'home-1', 'member@example.test')).rejects.toEqual(
+      new ApiError(409, 'This person is already a member of this household.', 'HOUSEHOLD_MEMBER_ALREADY_EXISTS'),
+    );
   });
 
   it.each([409, 422])('maps invitation creation HTTP %s to a safe API error', async (status) => {

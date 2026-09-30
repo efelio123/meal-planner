@@ -14,6 +14,9 @@ export default function OnboardingLayout() {
       <Stack.Protected guard={destination === 'select-household'}>
         <Stack.Screen name="select-household" />
       </Stack.Protected>
+      <Stack.Protected guard={destination === 'complete-profile'}>
+        <Stack.Screen name="complete-profile" />
+      </Stack.Protected>
     </Stack>
   );
 }
