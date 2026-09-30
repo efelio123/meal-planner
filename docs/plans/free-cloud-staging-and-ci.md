@@ -1,9 +1,11 @@
 # Free cloud staging and CI plan
 
-Status: implementation in progress on `feat/cloud-staging-ci-plan`. An
-uncommitted GitHub Actions workflow has been added and its API database path
-passed locally against a new disposable PostgreSQL 17 container. No provider
-resources or deployments have been created.
+Status: implementation in progress on `feat/cloud-staging-ci-plan`; PR #11 is
+open with the workflow and approved SDK 57 patch updates committed. The initial
+hosted run exposed a missing generated Expo declaration in the clean
+checkout; a follow-up added the documented type-generation step, and the
+follow-up push and pull-request runs both passed. No provider resources or
+deployments have been created.
 
 ## Goal and boundaries
 
@@ -266,15 +268,23 @@ separate staging identity check or cross-device acceptance.
 - No payment method, charge, paid service, or tier upgrade is authorized. If a
   provider's current plan or billing screen does not clearly confirm $0, stop.
 
-### Current validation state and blocker
+### Current validation state and remaining work
 
 On September 30, 2026, a local CI-equivalent run against a new, volume-free
 PostgreSQL 17 container verified both the configured database URL and
 `SELECT current_database()` as `meal_planner_disposable_test`, ran Ruff and
 `alembic upgrade head` / `current --check-heads`, then passed all 56 API tests
 with 0 skips. Mobile normal and cold runs each passed 27 suites / 178 tests;
-TypeScript and lint passed. The workflow YAML parses locally. The GitHub-hosted
-workflow has not run because these changes remain uncommitted.
+TypeScript and lint passed. The initial hosted run also passed the API job
+(56 passed, 0 skipped) and mobile normal/cold tests, but TypeScript failed
+because the ignored `expo-env.d.ts` was absent in the clean checkout. The
+workflow now runs the official Expo declaration-generation command before
+type-checking. Follow-up push and pull-request runs both passed: each mobile
+job passed normal and cold runs (27 suites / 178 tests each), TypeScript, lint,
+Expo dependency compatibility (`Dependencies are up to date`), and Expo Doctor
+(21/21); each PostgreSQL job passed all 56 tests with 0 skipped. Staging
+resource creation remains paused; no provider resources or deployments have
+been created.
 
 After Felipe approved the four patch-only updates, the mobile manifest now
 uses `@expo/ui ~57.0.21`, `expo ~57.0.26`, `expo-constants ~57.0.20`, and
@@ -284,10 +294,10 @@ changes were made. Fresh `expo install --check` reports dependencies up to
 date, and temporary Expo Doctor passes 21/21. Mobile normal and cold runs each
 pass 27 suites / 178 tests; TypeScript and lint pass. The local disposable
 PostgreSQL validation above passed the migration/head checks and 56 API tests
-with 0 skips. The workflow YAML parses locally. The GitHub-hosted workflow has
-not run because these changes remain uncommitted. Staging resource creation
-remains paused until the committed workflow actually runs and passes on
-GitHub.
+with 0 skips. The committed workflow's follow-up push and pull-request runs
+passed as recorded above. Staging resource creation remains paused pending
+review and explicit next-step approval, plus confirmation in the provider
+dashboard that all selected services are Free/$0.
 
 Before staging resource creation, the live provider account and billing
 screens must be reviewed and must clearly show the approved Free plans and
