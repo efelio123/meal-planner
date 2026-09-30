@@ -3,8 +3,9 @@
 from fastapi import HTTPException, status
 from sqlalchemy import Engine, text
 
+from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.database import get_engine
-from meal_planner_api.onboarding import CurrentUser
+from meal_planner_api.household_management import lock_household
 
 
 def _not_found() -> HTTPException:
@@ -45,6 +46,7 @@ def add_item(user: CurrentUser, household_id: str, name: str, engine: Engine | N
     if not normalized_name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Item name is required")
     with (engine or get_engine()).begin() as connection:
+        lock_household(connection, household_id, user.id)
         item = connection.execute(text("""
             INSERT INTO shopping_list_items (shopping_list_id, name, created_by_user_id)
             SELECT sl.id, :name, :user_id
@@ -65,6 +67,7 @@ def add_item(user: CurrentUser, household_id: str, name: str, engine: Engine | N
 
 def set_checked(user: CurrentUser, household_id: str, item_id: str, is_checked: bool, engine: Engine | None = None) -> dict:
     with (engine or get_engine()).begin() as connection:
+        lock_household(connection, household_id, user.id)
         item = connection.execute(text("""
             UPDATE shopping_list_items
             SET is_checked = :is_checked,
@@ -89,6 +92,7 @@ def set_checked(user: CurrentUser, household_id: str, item_id: str, is_checked: 
 
 def delete_item(user: CurrentUser, household_id: str, item_id: str, engine: Engine | None = None) -> None:
     with (engine or get_engine()).begin() as connection:
+        lock_household(connection, household_id, user.id)
         deleted = connection.execute(text("""
             DELETE FROM shopping_list_items
             USING shopping_lists sl, households h, household_members hm
