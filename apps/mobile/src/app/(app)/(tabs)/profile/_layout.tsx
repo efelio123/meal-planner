@@ -16,7 +16,10 @@ export default function ProfileStackLayout() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="my-account" options={profileDetailHeader('My account')} />
       <Stack.Screen name="my-households/index" options={profileDetailHeader('My households')} />
+      <Stack.Screen name="my-households/create" options={profileDetailHeader('Create household')} />
       <Stack.Screen name="my-households/[householdId]/index" options={profileDetailHeader('Household details')} />
+      <Stack.Screen name="my-households/[householdId]/edit" options={profileDetailHeader('Edit household')} />
+      <Stack.Screen name="my-households/[householdId]/members/[membershipId]" options={profileDetailHeader('Member details')} />
       <Stack.Screen name="my-households/[householdId]/invitations" options={profileDetailHeader('Invitations')} />
     </Stack>
   );

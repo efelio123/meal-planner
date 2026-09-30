@@ -7,6 +7,7 @@ import { Screen } from '@/components/screen';
 import { useTheme } from '@/hooks/use-theme';
 import { ThemedText as Text } from '@/components/themed-text';
 import { ThemedInput } from '@/components/themed-controls';
+import { validateDisplayName } from '@/features/identity/display-name';
 
 type Mode = 'sign-in' | 'sign-up';
 
@@ -17,6 +18,11 @@ type SignInEmailCodeClient = {
   emailCode: { sendCode: () => Promise<ClerkEmailCodeResult> };
 };
 
+type SignUpEmailCodeClient = {
+  create: (parameters: { emailAddress: string; firstName: string }) => Promise<ClerkEmailCodeResult>;
+  verifications: { sendEmailCode: () => Promise<ClerkEmailCodeResult> };
+};
+
 export async function createSignInAndSendCode(
   signIn: SignInEmailCodeClient,
   emailAddress: string,
@@ -24,6 +30,16 @@ export async function createSignInAndSendCode(
   const creation = await signIn.create({ identifier: emailAddress });
   if (creation.error) return { source: 'creation' as const, result: creation };
   return { source: 'send' as const, result: await signIn.emailCode.sendCode() };
+}
+
+export async function createSignUpAndSendCode(
+  signUp: SignUpEmailCodeClient,
+  emailAddress: string,
+  firstName: string,
+) {
+  const creation = await signUp.create({ emailAddress, firstName });
+  if (creation.error) return { source: 'creation' as const, result: creation };
+  return { source: 'send' as const, result: await signUp.verifications.sendEmailCode() };
 }
 
 export function messageFor(error: unknown, fallback: string) {
@@ -45,6 +61,7 @@ export function AuthEmailCodeForm({ mode }: { mode: Mode }) {
   const { signUp } = useSignUp();
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [code, setCode] = useState('');
   const [codeSent, setCodeSent] = useState(false);
   const [resendSeconds, setResendSeconds] = useState(0);
@@ -69,10 +86,16 @@ export function AuthEmailCodeForm({ mode }: { mode: Mode }) {
           return;
         }
       } else if (!codeSent) {
-        const result = await signUp.create({ emailAddress });
-        if (result.error) { setError(messageFor(result.error, 'We could not start sign-up. Check your email address and try again.')); return; }
-        const sendResult = await signUp.verifications.sendEmailCode();
-        if (sendResult.error) { setError(messageFor(sendResult.error, 'We could not send a verification code. Please try again.')); return; }
+        const nameResult = validateDisplayName(displayName);
+        if (!nameResult.value) { setError(nameResult.error); return; }
+        const operation = await createSignUpAndSendCode(signUp, emailAddress, nameResult.value);
+        if (operation.result.error) {
+          const fallback = operation.source === 'creation'
+            ? 'We could not start sign-up. Check your details and try again.'
+            : 'We could not send a verification code. Please try again.';
+          setError(messageFor(operation.result.error, fallback));
+          return;
+        }
       } else {
         const sendResult = await signUp.verifications.sendEmailCode();
         if (sendResult.error) { setError(messageFor(sendResult.error, 'We could not send a verification code. Please try again.')); return; }
@@ -113,6 +136,7 @@ export function AuthEmailCodeForm({ mode }: { mode: Mode }) {
         {error ? <Text accessibilityRole="alert" style={[styles.error, { color: theme.error }]}>{error}</Text> : null}
         {!codeSent ? <>
           <ThemedInput accessibilityLabel="Email address" autoCapitalize="none" autoComplete="email" keyboardType="email-address" onChangeText={setEmail} placeholder="you@example.com" value={email} />
+          {mode === 'sign-up' ? <ThemedInput accessibilityLabel="Display name" autoCapitalize="words" editable={!busy} maxLength={160} onChangeText={setDisplayName} placeholder="Display name" value={displayName} /> : null}
           <Button disabled={busy} onPress={() => void sendCode()} title={busy ? 'Sending…' : 'Send code'} />
         </> : <>
           <ThemedInput accessibilityLabel="Verification code" autoComplete="one-time-code" keyboardType="number-pad" onChangeText={setCode} placeholder="Verification code" value={code} />

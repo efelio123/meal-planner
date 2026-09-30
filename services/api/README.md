@@ -85,3 +85,38 @@ Set `DATABASE_URL` to that database, apply migrations, and run the tests:
 uv run alembic -c alembic.ini upgrade head
 uv run pytest
 ```
+
+## Household-management API
+
+Household management uses the household ID in each route; the device's active
+household preference is never an authorization input. All routes require a
+verified Clerk session and active membership in that exact, non-deleted
+household. Owner operations are checked again by the API.
+
+| Method and route | Purpose |
+| --- | --- |
+| `GET /v1/households/{household_id}` | Read household name, IANA time zone, and caller role. |
+| `PATCH /v1/households/{household_id}` | Owner updates name and/or time zone. |
+| `GET /v1/households/{household_id}/members` | List active members. Owners receive email; members do not. |
+| `GET /v1/households/{household_id}/members/{membership_id}` | Read one active member with the same email privacy rule. |
+| `PATCH /v1/households/{household_id}/members/{membership_id}` | Owner changes role to `owner` or `member`. |
+| `DELETE /v1/households/{household_id}/members/{membership_id}` | Owner removes an active member. |
+| `DELETE /v1/households/{household_id}/leave` | Caller leaves that household; distinct from owner removal. |
+| `DELETE /v1/households/{household_id}` | Owner “Delete household” action. The API denies future access and retains associated rows. |
+| `GET /v1/households/{household_id}/invitations` | Owner lists unexpired pending invitations; codes and hashes are never returned. |
+| `POST /v1/households/{household_id}/invitations/{invitation_id}/reissue` | Owner atomically replaces a pending code; the new raw code is returned once. |
+
+Household write transactions lock the household row before checking role and
+changing membership, invitations, household state, or shopping items. This
+serializes last-owner checks and “Delete household” against concurrent writes.
+At least one active owner must remain. Membership removal preserves its row;
+accepting an invitation after a former member was removed creates a new row.
+
+Request-shape errors such as malformed UUIDs are `422`; semantic household
+validation is `400`. Owner-invariant failures are `409 LAST_OWNER`; an email
+already in that household is `409 HOUSEHOLD_MEMBER_ALREADY_EXISTS`; another
+unexpired invitation for the same address is `409 INVITATION_ALREADY_PENDING`.
+Invitation acceptance rechecks active membership while holding the household
+lock and revokes a now-redundant invitation before returning the member
+conflict. Invitation codes remain development-only/manual sharing, expire
+after seven days, and are stored only as SHA-256 digests.

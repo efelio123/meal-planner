@@ -2,11 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth, useClerk } from '@clerk/expo';
 import { createContext, type PropsWithChildren, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { api, type Household, type Me } from '@/lib/api';
+import { ApiError, api, type Household, type Me } from '@/lib/api';
 import { getStartupDiagnostics } from '@/lib/startup-diagnostics';
 
 const SELECTED_HOUSEHOLD_KEY = 'meal-planner:selected-household-id';
-export type AppDestination = 'loading' | 'signed-out' | 'api-error' | 'create-or-join' | 'select-household' | 'app';
+export type AppDestination = 'loading' | 'signed-out' | 'api-error' | 'complete-profile' | 'create-or-join' | 'select-household' | 'app';
 export type HouseholdSelectionResult =
   | { status: 'selected'; household: Household }
   | { status: 'cancelled'; reason: 'signed-out' | 'signing-out' | 'busy' | 'refreshing' | 'not-a-member' | 'stale' }
@@ -35,12 +35,17 @@ function useHouseholdStateValue() {
   const [me, setMe] = useState<Me | null>(null);
   const [selectedHousehold, setSelectedHousehold] = useState<Household | null>(null);
   const [destination, setDestination] = useState<AppDestination>('loading');
+  const destinationRef = useRef<AppDestination>('loading');
   const [activeStateIdentity, setActiveStateIdentity] = useState(sessionIdentity);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isSwitchingHousehold, setIsSwitchingHousehold] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
   const diagnostics = getStartupDiagnostics();
+  const changeDestination = useCallback((next: AppDestination) => {
+    destinationRef.current = next;
+    setDestination(next);
+  }, []);
   const enqueuePreferenceTask = useCallback(<T,>(task: () => Promise<T>) => {
     const result = preferenceQueue.current.then(task, task);
     preferenceQueue.current = result.then(() => undefined, () => undefined);
@@ -92,7 +97,7 @@ function useHouseholdStateValue() {
     membershipRevision.current += 1;
     setMe(null);
     setSelectedHousehold(null);
-    setDestination(isSignedIn ? 'loading' : 'signed-out');
+    changeDestination(isSignedIn ? 'loading' : 'signed-out');
     selectionGeneration.current += 1;
     switchOperation.current += 1;
     switchInFlight.current = false;
@@ -100,7 +105,7 @@ function useHouseholdStateValue() {
     refreshVersion.current += 1;
     refreshInFlight.current = null;
     if (isSignedIn) signOutStarted.current = false;
-  }, [isSignedIn, sessionIdentity]);
+  }, [changeDestination, isSignedIn, sessionIdentity]);
 
   const commitMe = useCallback((nextMe: Me | null) => {
     meRef.current = nextMe;
@@ -159,7 +164,7 @@ function useHouseholdStateValue() {
         }
 
         commitSelectedHousehold(household);
-        setDestination('app');
+        changeDestination('app');
         return { status: 'selected', household };
       });
       return result;
@@ -171,20 +176,30 @@ function useHouseholdStateValue() {
         setIsSwitchingHousehold(false);
       }
     }
-  }, [commitSelectedHousehold, diagnostics, enqueuePreferenceTask, sessionIdentity]);
+  }, [changeDestination, commitSelectedHousehold, diagnostics, enqueuePreferenceTask, sessionIdentity]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (): Promise<Me | null> => {
     if (!isSignedIn || signOutStarted.current) {
       commitMe(null);
       commitSelectedHousehold(null);
-      setDestination('signed-out');
-      return;
+      changeDestination('signed-out');
+      return null;
     }
 
+    const capturedIdentity = sessionIdentityRef.current;
+    const keepSignedInNavigator = (
+      capturedIdentity === sessionIdentity
+      && validatedSessionIdentity.current === capturedIdentity
+      && destinationRef.current === 'app'
+      && meRef.current !== null
+    );
+    const keepProfileCompletionRoute = (
+      capturedIdentity === sessionIdentity
+      && destinationRef.current === 'complete-profile'
+    );
     const version = ++refreshVersion.current;
     selectionGeneration.current += 1;
     refreshInFlight.current = version;
-    const capturedIdentity = sessionIdentityRef.current;
     const isCurrentRefresh = () => (
       version === refreshVersion.current
       && refreshInFlight.current === version
@@ -192,46 +207,57 @@ function useHouseholdStateValue() {
       && sessionIsSignedIn.current === true
       && !signOutStarted.current
     );
-    setDestination('loading');
+    if (!keepSignedInNavigator && !keepProfileCompletionRoute) changeDestination('loading');
     try {
       const nextMe = await api.me(() => latestGetToken.current(), undefined, diagnostics);
-      if (!isCurrentRefresh()) return;
+      if (!isCurrentRefresh()) return null;
       validatedSessionIdentity.current = capturedIdentity;
       commitMe(nextMe);
       const storedId = await readStoredHouseholdId();
-      if (!isCurrentRefresh()) return;
+      if (!isCurrentRefresh()) return null;
       const stored = nextMe.households.find((household) => household.id === storedId) ?? null;
       if (stored) {
         commitSelectedHousehold(stored);
-        setDestination('app');
-        return;
+        changeDestination('app');
+        return nextMe;
       }
       if (nextMe.households.length === 0) {
         await clearStoredHouseholdId();
-        if (!isCurrentRefresh()) return;
+        if (!isCurrentRefresh()) return null;
         commitSelectedHousehold(null);
-        setDestination('create-or-join');
-        return;
+        changeDestination('create-or-join');
+        return nextMe;
       }
       if (nextMe.households.length === 1) {
         const onlyHousehold = nextMe.households[0];
         const storedByRefresh = await reconcileStoredHouseholdId(onlyHousehold.id, storedId, isCurrentRefresh);
-        if (!isCurrentRefresh()) return;
-        if (!storedByRefresh) return;
+        if (!isCurrentRefresh()) return null;
+        if (!storedByRefresh) return null;
         commitSelectedHousehold(onlyHousehold);
-        setDestination('app');
-        return;
+        changeDestination('app');
+        return nextMe;
       }
       await clearStoredHouseholdId();
-      if (!isCurrentRefresh()) return;
+      if (!isCurrentRefresh()) return null;
       commitSelectedHousehold(null);
-      setDestination('select-household');
-    } catch {
-      if (isCurrentRefresh()) setDestination('api-error');
+      changeDestination('select-household');
+      return nextMe;
+    } catch (error) {
+      if (isCurrentRefresh()) {
+        if (error instanceof ApiError && error.code === 'DISPLAY_NAME_REQUIRED') {
+          validatedSessionIdentity.current = null;
+          commitMe(null);
+          commitSelectedHousehold(null);
+          changeDestination('complete-profile');
+        } else if (!keepSignedInNavigator && !keepProfileCompletionRoute) {
+          changeDestination('api-error');
+        }
+      }
+      return null;
     } finally {
       if (refreshInFlight.current === version) refreshInFlight.current = null;
     }
-  }, [clearStoredHouseholdId, commitMe, commitSelectedHousehold, diagnostics, isSignedIn, readStoredHouseholdId, reconcileStoredHouseholdId]);
+  }, [changeDestination, clearStoredHouseholdId, commitMe, commitSelectedHousehold, diagnostics, isSignedIn, readStoredHouseholdId, reconcileStoredHouseholdId, sessionIdentity]);
 
   const signOut = useCallback(async () => {
     signOutStarted.current = true;
@@ -255,14 +281,14 @@ function useHouseholdStateValue() {
 
     commitMe(null);
     commitSelectedHousehold(null);
-    setDestination('signed-out');
+    changeDestination('signed-out');
     try {
       await clearStoredHouseholdId();
     } catch {
       // A stale preference is harmless: /v1/me validates it before reuse.
     }
     setIsSigningOut(false);
-  }, [clearStoredHouseholdId, clerkSignOut, commitMe, commitSelectedHousehold, refresh]);
+  }, [changeDestination, clearStoredHouseholdId, clerkSignOut, commitMe, commitSelectedHousehold, refresh]);
 
   useEffect(() => {
     if (!isLoaded) return;

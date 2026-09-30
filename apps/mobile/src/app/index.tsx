@@ -11,6 +11,7 @@ export default function Index() {
   if (destination === 'loading') return <Screen><ActivityIndicator /></Screen>;
   if (destination === 'signed-out') return <Redirect href={'/(auth)/sign-in' as Href} />;
   if (destination === 'api-error') return <Redirect href={'/(api-error)' as Href} />;
+  if (destination === 'complete-profile') return <Redirect href={'/(onboarding)/complete-profile' as Href} />;
   if (destination === 'app') return <Redirect href={signedInStartupRoute} />;
   if (destination === 'select-household') return <Redirect href={'/(onboarding)/select-household' as Href} />;
   return <Redirect href={'/(onboarding)' as Href} />;

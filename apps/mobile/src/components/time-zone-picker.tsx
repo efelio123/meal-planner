@@ -6,6 +6,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { ThemedInput } from '@/components/themed-controls';
 
 type Props = {
+  disabled?: boolean;
   onChange: (timeZone: string) => void;
   value: string;
 };
@@ -18,7 +19,7 @@ export function submitTimeZoneSelection(onChange: Props['onChange'], timeZone: s
   onChange(timeZone);
 }
 
-export function TimeZonePicker({ onChange, value }: Props) {
+export function TimeZonePicker({ disabled = false, onChange, value }: Props) {
   const theme = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -32,7 +33,7 @@ export function TimeZonePicker({ onChange, value }: Props) {
 
   return <View style={styles.container}>
     <Text style={[styles.label, { color: theme.text }]}>Time zone</Text>
-    <Pressable accessibilityLabel="Time zone" accessibilityRole="button" onPress={() => setIsOpen(true)} style={[styles.selected, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}>
+    <Pressable accessibilityLabel="Time zone" accessibilityRole="button" disabled={disabled} onPress={() => setIsOpen(true)} style={[styles.selected, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}>
       <Text style={[styles.selectedLabel, { color: theme.text }]}>{timeZoneLabel(value)}</Text>
       <Text style={[styles.identifier, { color: theme.textSecondary }]}>{value}</Text>
     </Pressable>

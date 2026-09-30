@@ -3,7 +3,7 @@ import { createElement } from 'react';
 import { act, fireEvent } from '@testing-library/react-native';
 import { router, type Href } from 'expo-router';
 import { renderRouter, screen, waitFor } from 'expo-router/testing-library';
-import { Button, Text } from 'react-native';
+import { Alert, Button, Text } from 'react-native';
 import { api, type ShoppingList } from '@/lib/api';
 import { useResetToHouseholdStartup } from '@/features/profile/use-reset-to-household-startup';
 
@@ -20,6 +20,15 @@ let mockSetDestination: ((destination: string) => void) | undefined;
 let mockSetSelectedHouseholdId: ((value: string) => void) | undefined;
 let mockSelectionOverride: { status: string; reason?: string } | null = null;
 let mockSelectCalls: string[] = [];
+type MockMe = { user: { id: string; email: string; display_name: string }; households: typeof mockHouseholds };
+let mockRefreshResults: (MockMe | null | Promise<MockMe | null>)[] = [];
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => { resolve = resolvePromise; reject = rejectPromise; });
+  return { promise, resolve, reject };
+}
 
 jest.mock('@clerk/expo', () => ({
   ...(() => {
@@ -65,6 +74,7 @@ jest.mock('@/hooks/use-household-state', () => {
     HouseholdStateProvider: ({ children }: PropsWithChildren) => {
       const [destination, setDestination] = React.useState(mockInitialDestination);
       const [selectedHouseholdId, setSelectedHouseholdId] = React.useState(mockInitialHouseholdId);
+      const [, setHouseholdRevision] = React.useState(0);
       mockSetDestination = setDestination;
       mockSetSelectedHouseholdId = setSelectedHouseholdId;
       const households = mockHouseholds.map((item) => ({
@@ -79,7 +89,15 @@ jest.mock('@/hooks/use-household-state', () => {
         isSigningOut: false,
         isSwitchingHousehold: false,
         me: { user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' }, households },
-        refresh: jest.fn(),
+        refresh: jest.fn(async () => {
+          const next = mockRefreshResults.shift() ?? null;
+          const refreshed = await next;
+          if (refreshed) {
+            mockHouseholds = refreshed.households;
+            setHouseholdRevision((revision) => revision + 1);
+          }
+          return refreshed;
+        }),
         selectedHousehold,
         select: async (id: string) => {
           mockSelectCalls.push(id);
@@ -107,6 +125,17 @@ jest.mock('@/lib/api', () => ({
   api: {
     shoppingList: jest.fn(),
     createInvitation: jest.fn(),
+    householdInvitations: jest.fn(),
+    householdMember: jest.fn(),
+    revokeInvitation: jest.fn(),
+    reissueInvitation: jest.fn(),
+    householdMembers: jest.fn(),
+    createHousehold: jest.fn(),
+    updateHousehold: jest.fn(),
+    setHouseholdMemberRole: jest.fn(),
+    removeHouseholdMember: jest.fn(),
+    leaveHousehold: jest.fn(),
+    deleteHousehold: jest.fn(),
     addShoppingListItem: jest.fn(),
     setShoppingListItemChecked: jest.fn(),
     deleteShoppingListItem: jest.fn(),
@@ -202,7 +231,14 @@ describe('signed-in startup routing', () => {
     mockSetSelectedHouseholdId = undefined;
     mockSelectionOverride = null;
     mockSelectCalls = [];
+    mockRefreshResults = [];
     jest.mocked(api.shoppingList).mockResolvedValue(shoppingListResponse());
+    jest.mocked(api.householdMembers).mockResolvedValue({ members: [] });
+    jest.mocked(api.householdInvitations).mockResolvedValue({ invitations: [] });
+    jest.mocked(api.householdMember).mockResolvedValue({ member: {
+      membership_id: 'membership-b', display_name: 'Sam Member', avatar_url: null,
+      role: 'member', joined_at: '2026-09-01T00:00:00Z', is_self: false,
+    } });
   });
 
   it('redirects a cold signed-in launch to the temporary Shopping tab', async () => {
@@ -255,6 +291,18 @@ describe('signed-in startup routing', () => {
     expect(screen.queryByText('Shopping list')).toBeNull();
     const state = renderResult.getRouterState() as NavigationState;
     expect(state.routeNames).not.toContain('(app)');
+  });
+
+  it('routes an already-signed-in nameless account to profile completion without sign-out', async () => {
+    mockInitialDestination = 'complete-profile';
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+
+    expect(await screen.findByText('Choose your display name')).toBeTruthy();
+    expect(screen.getByLabelText('Display name')).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/complete-profile');
+    expect(screen.queryByText('Sign in')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
   });
 
   it('removes signed-in screens after Profile sign-out and starts fresh after sign-in', async () => {
@@ -519,6 +567,125 @@ describe('signed-in startup routing', () => {
     expect(mockSelectCalls).toEqual([]);
   });
 
+  it('creates a household through the actual router without activating it', async () => {
+    const created = { id: 'household-c', name: 'Guest home', role: 'owner' as const, time_zone: 'America/Phoenix' };
+    jest.mocked(api.createHousehold).mockResolvedValue({ household: created });
+    mockRefreshResults = [{
+      user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' },
+      households: [...mockHouseholds, created],
+    }];
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Shopping list');
+    await navigateTo(renderResult, '/profile/my-households/create');
+    await fireEvent.changeText(screen.getByLabelText('Household name'), 'Guest home');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create household' }));
+
+    expect(await screen.findByRole('button', { name: 'Switch to this household' })).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-c');
+    expect(screen.getByText('Guest home')).toBeTruthy();
+    expect(mockSelectCalls).toEqual([]);
+    expect(mockSetSelectedHouseholdId).toBeDefined();
+  });
+
+  it('keeps the create route mounted until its deferred refresh validates the new household', async () => {
+    const created = { id: 'household-c', name: 'Guest home', role: 'owner' as const, time_zone: 'America/Phoenix' };
+    const pendingRefresh = deferred<MockMe | null>();
+    jest.mocked(api.createHousehold).mockResolvedValue({ household: created });
+    mockRefreshResults = [pendingRefresh.promise];
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Shopping list');
+    await navigateTo(renderResult, '/profile/my-households/create');
+    await fireEvent.changeText(screen.getByLabelText('Household name'), 'Guest home');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create household' }));
+    expect(await screen.findByRole('button', { name: 'Refreshing…' })).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/profile/my-households/create');
+
+    await act(async () => {
+      pendingRefresh.resolve({
+        user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' },
+        households: [...mockHouseholds, created],
+      });
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByText('Guest home')).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-c');
+    expect(mockSelectCalls).toEqual([]);
+  });
+
+  it('edits a household and returns to that household’s updated details route', async () => {
+    const updated = { ...mockHouseholds[0], name: 'Renamed home', role: 'owner' as const };
+    jest.mocked(api.updateHousehold).mockResolvedValue({ household: updated });
+    mockRefreshResults = [{
+      user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' },
+      households: [updated, mockHouseholds[1]],
+    }];
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Shopping list');
+    await navigateTo(renderResult, '/profile/my-households/household-a/edit');
+    await fireEvent.changeText(screen.getByLabelText('Household name'), 'Renamed home');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText('Renamed home')).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-a');
+    expect(api.updateHousehold).toHaveBeenCalledWith(expect.any(Function), 'household-a', {
+      name: 'Renamed home', time_zone: 'UTC',
+    });
+  });
+
+  it('keeps the edit route mounted until its deferred refresh returns updated details', async () => {
+    const updated = { ...mockHouseholds[0], name: 'Renamed home', role: 'owner' as const };
+    const pendingRefresh = deferred<MockMe | null>();
+    jest.mocked(api.updateHousehold).mockResolvedValue({ household: updated });
+    mockRefreshResults = [pendingRefresh.promise];
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Shopping list');
+    await navigateTo(renderResult, '/profile/my-households/household-a/edit');
+    await fireEvent.changeText(screen.getByLabelText('Household name'), 'Renamed home');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByRole('button', { name: 'Refreshing…' })).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-a/edit');
+
+    await act(async () => {
+      pendingRefresh.resolve({
+        user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' },
+        households: [updated, mockHouseholds[1]],
+      });
+      await Promise.resolve();
+    });
+
+    expect(await screen.findByText('Renamed home')).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-a');
+  });
+
+  it('retries a household refresh after a successful create without resubmitting the create', async () => {
+    const created = { id: 'household-c', name: 'Guest home', role: 'owner' as const, time_zone: 'America/Phoenix' };
+    jest.mocked(api.createHousehold).mockResolvedValue({ household: created });
+    mockRefreshResults = [null, {
+      user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' },
+      households: [...mockHouseholds, created],
+    }];
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Shopping list');
+    await navigateTo(renderResult, '/profile/my-households/create');
+    await fireEvent.changeText(screen.getByLabelText('Household name'), 'Guest home');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create household' }));
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Retry refresh' })).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry refresh' }));
+
+    expect(await screen.findByText('Guest home')).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-c');
+    expect(api.createHousehold).toHaveBeenCalledTimes(1);
+    expect(mockSelectCalls).toEqual([]);
+  });
+
   it('keeps Profile, My households, household details, and Invitations in one working Back history', async () => {
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
@@ -557,6 +724,142 @@ describe('signed-in startup routing', () => {
     });
     await waitFor(() => expect(renderResult.getPathname()).toBe('/profile'));
     expect(screen.getByText('Current household')).toBeTruthy();
+  });
+
+  it('opens a member detail route and follows native Back to household details', async () => {
+    jest.mocked(api.householdMembers).mockResolvedValue({ members: [{
+      membership_id: 'membership-b', display_name: 'Sam Member', avatar_url: null,
+      role: 'member', joined_at: '2026-09-01T00:00:00Z', is_self: false, email: 'sam@example.test',
+    }] });
+    jest.mocked(api.householdMember).mockResolvedValue({ member: {
+      membership_id: 'membership-b', display_name: 'Sam Member', avatar_url: null,
+      role: 'member', joined_at: '2026-09-01T00:00:00Z', is_self: false, email: 'sam@example.test',
+    } });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/profile/my-households/household-a');
+    const memberRow = await screen.findByRole('button', { name: /Sam Member, member/u });
+    await fireEvent.press(memberRow);
+
+    expect(renderResult.getPathname()).toBe('/profile/my-households/household-a/members/membership-b');
+    expect(await screen.findByText('Sam Member')).toBeTruthy();
+
+    await act(async () => {
+      router.back();
+      await jest.runOnlyPendingTimersAsync();
+    });
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/profile/my-households/household-a'));
+    expect(screen.getByText('Time zone')).toBeTruthy();
+  });
+
+  it('refreshes the People list when a role mutation succeeds after Back returns to household details', async () => {
+    let currentMemberRole: 'member' | 'owner' = 'member';
+    const pendingRoleChange = deferred<void>();
+    jest.mocked(api.householdMembers).mockImplementation(async () => ({ members: [
+      {
+        membership_id: 'self-membership', display_name: 'Person Example', avatar_url: null,
+        role: 'owner', joined_at: '2026-08-01T00:00:00Z', is_self: true, email: 'person@example.test',
+      },
+      {
+        membership_id: 'membership-b', display_name: 'Sam Member', avatar_url: null,
+        role: currentMemberRole, joined_at: '2026-09-01T00:00:00Z', is_self: false, email: 'sam@example.test',
+      },
+    ] }));
+    jest.mocked(api.householdMember).mockResolvedValue({ member: {
+      membership_id: 'membership-b', display_name: 'Sam Member', avatar_url: null,
+      role: 'member', joined_at: '2026-09-01T00:00:00Z', is_self: false, email: 'sam@example.test',
+    } });
+    jest.mocked(api.setHouseholdMemberRole).mockImplementation(async (_getToken, _householdId, _membershipId, role) => {
+      await pendingRoleChange.promise;
+      currentMemberRole = role;
+    });
+    mockRefreshResults = [{
+      user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' },
+      households: mockHouseholds,
+    }];
+
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/profile/my-households/household-a');
+    await fireEvent.press(await screen.findByRole('button', { name: /Sam Member, member/u }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Make owner' }));
+    await waitFor(() => expect(api.setHouseholdMemberRole).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      router.back();
+      await jest.runOnlyPendingTimersAsync();
+    });
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/profile/my-households/household-a'));
+    expect(await screen.findByRole('button', { name: /Sam Member, member/u })).toBeTruthy();
+
+    await act(async () => {
+      pendingRoleChange.resolve();
+      await pendingRoleChange.promise;
+    });
+
+    expect(await screen.findByRole('button', { name: /Sam Member, owner/u })).toBeTruthy();
+    expect(api.householdMembers).toHaveBeenCalledTimes(2);
+    expect(mockRefreshResults).toHaveLength(0);
+  });
+
+  it('removes a member from the People list when removal succeeds after Back', async () => {
+    let memberIsActive = true;
+    const pendingRemoval = deferred<void>();
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    jest.mocked(api.householdMembers).mockImplementation(async () => ({ members: [
+      {
+        membership_id: 'self-membership', display_name: 'Person Example', avatar_url: null,
+        role: 'owner', joined_at: '2026-08-01T00:00:00Z', is_self: true, email: 'person@example.test',
+      },
+      ...(memberIsActive ? [{
+        membership_id: 'membership-b', display_name: 'Sam Member', avatar_url: null,
+        role: 'member' as const, joined_at: '2026-09-01T00:00:00Z', is_self: false, email: 'sam@example.test',
+      }] : []),
+    ] }));
+    jest.mocked(api.householdMember).mockResolvedValue({ member: {
+      membership_id: 'membership-b', display_name: 'Sam Member', avatar_url: null,
+      role: 'member', joined_at: '2026-09-01T00:00:00Z', is_self: false, email: 'sam@example.test',
+    } });
+    jest.mocked(api.removeHouseholdMember).mockImplementation(async () => {
+      await pendingRemoval.promise;
+      memberIsActive = false;
+    });
+    mockRefreshResults = [{
+      user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' },
+      households: mockHouseholds,
+    }];
+
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/profile/my-households/household-a');
+    await fireEvent.press(await screen.findByRole('button', { name: /Sam Member, member/u }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Remove member' }));
+
+    const confirmRemoval = alert.mock.calls[0]?.[2]?.find((button) => button.text === 'Remove member');
+    expect(confirmRemoval?.onPress).toBeDefined();
+    await act(async () => { confirmRemoval?.onPress?.(); });
+    await waitFor(() => expect(api.removeHouseholdMember).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      router.back();
+      await jest.runOnlyPendingTimersAsync();
+    });
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/profile/my-households/household-a'));
+    expect(await screen.findByRole('button', { name: /Sam Member, member/u })).toBeTruthy();
+
+    await act(async () => {
+      pendingRemoval.resolve();
+      await pendingRemoval.promise;
+    });
+
+    expect(await screen.findByRole('button', { name: /Person Example, owner/u })).toBeTruthy();
+    await waitFor(() => expect(screen.queryByRole('button', { name: /Sam Member, member/u })).toBeNull());
+    expect(api.householdMembers).toHaveBeenCalledTimes(2);
+    expect(mockRefreshResults).toHaveLength(0);
+    alert.mockRestore();
   });
 
   it('does not navigate when explicit household switching fails', async () => {

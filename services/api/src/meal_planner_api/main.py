@@ -5,8 +5,20 @@ from uuid import UUID
 from fastapi import Depends, FastAPI, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field, StrictBool
 
+from meal_planner_api.current_user import CurrentUser
+from meal_planner_api.household_management import (
+    delete_household,
+    household_detail,
+    leave_household,
+    list_invitations,
+    list_members,
+    member_detail,
+    reissue_invitation,
+    remove_member,
+    set_member_role,
+    update_household,
+)
 from meal_planner_api.onboarding import (
-    CurrentUser,
     accept_invitation,
     create_household,
     create_invitation,
@@ -61,6 +73,15 @@ class CreateHouseholdRequest(BaseModel):
     time_zone: str = Field(max_length=100)
 
 
+class UpdateHouseholdRequest(BaseModel):
+    name: str | None = Field(default=None, max_length=200)
+    time_zone: str | None = Field(default=None, max_length=100)
+
+
+class SetMemberRoleRequest(BaseModel):
+    role: str = Field(pattern="^(owner|member)$")
+
+
 class CreateInvitationRequest(BaseModel):
     email: EmailStr
 
@@ -97,15 +118,72 @@ def post_household(payload: CreateHouseholdRequest, user: User) -> dict:
     return {"household": create_household(user, payload.name, payload.time_zone)}
 
 
+@app.get("/v1/households/{household_id}", tags=["households"])
+def get_household(household_id: UUID, user: User) -> dict:
+    return {"household": household_detail(user, str(household_id))}
+
+
+@app.patch("/v1/households/{household_id}", tags=["households"])
+def patch_household(household_id: UUID, payload: UpdateHouseholdRequest, user: User) -> dict:
+    if not payload.model_fields_set:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="At least one household field is required.")
+    return {"household": update_household(user, str(household_id), payload.name, payload.time_zone)}
+
+
+@app.get("/v1/households/{household_id}/members", tags=["households"])
+def get_household_members(household_id: UUID, user: User) -> dict:
+    return {"members": list_members(user, str(household_id))}
+
+
+@app.get("/v1/households/{household_id}/members/{membership_id}", tags=["households"])
+def get_household_member(household_id: UUID, membership_id: UUID, user: User) -> dict:
+    return {"member": member_detail(user, str(household_id), str(membership_id))}
+
+
+@app.patch("/v1/households/{household_id}/members/{membership_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["households"])
+def patch_household_member(household_id: UUID, membership_id: UUID, payload: SetMemberRoleRequest, user: User) -> Response:
+    set_member_role(user, str(household_id), str(membership_id), payload.role)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.delete("/v1/households/{household_id}/members/{membership_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["households"])
+def delete_household_member(household_id: UUID, membership_id: UUID, user: User) -> Response:
+    remove_member(user, str(household_id), str(membership_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.delete("/v1/households/{household_id}/leave", status_code=status.HTTP_204_NO_CONTENT, tags=["households"])
+def delete_household_membership(household_id: UUID, user: User) -> Response:
+    leave_household(user, str(household_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.delete("/v1/households/{household_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["households"])
+def delete_household_route(household_id: UUID, user: User) -> Response:
+    delete_household(user, str(household_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @app.post("/v1/households/{household_id}/invitations", status_code=status.HTTP_201_CREATED, tags=["invitations"])
-def post_invitation(household_id: str, payload: CreateInvitationRequest, user: User) -> dict:
-    return {"invitation": create_invitation(user, household_id, payload.email)}
+def post_invitation(household_id: UUID, payload: CreateInvitationRequest, user: User) -> dict:
+    return {"invitation": create_invitation(user, str(household_id), payload.email)}
+
+
+@app.get("/v1/households/{household_id}/invitations", tags=["invitations"])
+def get_invitations(household_id: UUID, user: User) -> dict:
+    return {"invitations": list_invitations(user, str(household_id))}
 
 
 @app.post("/v1/households/{household_id}/invitations/{invitation_id}/revoke", status_code=status.HTTP_204_NO_CONTENT, tags=["invitations"])
-def post_revoke_invitation(household_id: str, invitation_id: str, user: User) -> Response:
-    revoke_invitation(user, household_id, invitation_id)
+def post_revoke_invitation(household_id: UUID, invitation_id: UUID, user: User) -> Response:
+    revoke_invitation(user, str(household_id), str(invitation_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post("/v1/households/{household_id}/invitations/{invitation_id}/reissue", status_code=status.HTTP_201_CREATED, tags=["invitations"])
+def post_reissue_invitation(household_id: UUID, invitation_id: UUID, user: User) -> dict:
+    return {"invitation": reissue_invitation(user, str(household_id), str(invitation_id))}
 
 
 @app.post("/v1/invitations/accept", status_code=status.HTTP_204_NO_CONTENT, tags=["invitations"])

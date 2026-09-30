@@ -1,8 +1,12 @@
+import importlib.util
 import os
 from collections.abc import Generator
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
 from sqlalchemy import Connection, Engine, create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
@@ -128,6 +132,44 @@ def test_migration_created_expected_tables_timestamp_defaults_and_no_user_trigge
         )
     ).scalars().all()
     assert user_defined_triggers == []
+
+
+def test_household_management_profile_avatar_is_nullable(database_connection: Connection) -> None:
+    avatar_column = database_connection.execute(
+        text("""SELECT is_nullable FROM information_schema.columns
+            WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'avatar_url'""")
+    ).scalar_one_or_none()
+    assert avatar_column == "YES"
+
+
+def test_household_management_migration_backfills_legacy_email_display_names(
+    migration_engine: Engine,
+) -> None:
+    schema_name = f"household_profile_migration_{uuid4().hex}"
+    migration_path = Path(__file__).parents[3] / "db" / "migrations" / "versions" / "household_management_profiles.py"
+    spec = importlib.util.spec_from_file_location("household_management_profiles_migration", migration_path)
+    assert spec and spec.loader
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+
+    with migration_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+        try:
+            connection.execute(text(f'SET LOCAL search_path TO "{schema_name}"'))
+            connection.execute(text("CREATE TABLE users (normalized_email TEXT NOT NULL, display_name TEXT NOT NULL)"))
+            connection.execute(text("INSERT INTO users VALUES ('person@example.test', ' PERSON@EXAMPLE.TEST ')"))
+            connection.execute(text("INSERT INTO users VALUES ('named@example.test', 'Named Person')"))
+            context = MigrationContext.configure(connection)
+            with Operations.context(context):
+                migration.upgrade()
+            rows = connection.execute(text("SELECT normalized_email, display_name, avatar_url FROM users ORDER BY normalized_email")).all()
+            assert rows == [
+                ("named@example.test", "Named Person", None),
+                ("person@example.test", "Household member", None),
+            ]
+        finally:
+            connection.execute(text("SET LOCAL search_path TO public"))
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
 
 
 def test_users_enforce_canonical_active_email_and_identity_constraints(

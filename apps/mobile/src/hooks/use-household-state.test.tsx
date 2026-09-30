@@ -9,7 +9,18 @@ jest.mock('@clerk/expo', () => ({ useAuth: jest.fn(), useClerk: jest.fn() }));
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(), removeItem: jest.fn(), setItem: jest.fn(),
 }));
-jest.mock('@/lib/api', () => ({ ApiError: class ApiError extends Error {}, api: { me: jest.fn() } }));
+jest.mock('@/lib/api', () => ({
+  ApiError: class ApiError extends Error {
+    readonly status: number;
+    readonly code?: string;
+    constructor(...parameters: [number, string, string?]) {
+      super(parameters[1]);
+      this.status = parameters[0];
+      this.code = parameters[2];
+    }
+  },
+  api: { me: jest.fn() },
+}));
 
 const getToken = jest.fn().mockResolvedValue('session-token');
 const mockedUseAuth = jest.mocked(useAuth);
@@ -65,6 +76,85 @@ describe('household selection state', () => {
     expect(mockedStorage.setItem).toHaveBeenCalledWith('meal-planner:selected-household-id', 'household');
   });
 
+  it('keeps the validated signed-in navigator mounted while refreshing the same session', async () => {
+    mockedStorage.getItem.mockResolvedValue('household-a');
+    mockedMe.mockResolvedValue(meWithBothHouseholds());
+    const { result } = await renderHook(() => useHouseholdState(), { wrapper: HouseholdStateProvider });
+    await waitFor(() => expect(result.current.destination).toBe('app'));
+
+    const pendingRefresh = deferred<Awaited<ReturnType<typeof api.me>>>();
+    mockedMe.mockReturnValueOnce(pendingRefresh.promise);
+    let refreshing!: Promise<unknown>;
+    await act(async () => { refreshing = result.current.refresh(); await Promise.resolve(); });
+
+    expect(result.current.destination).toBe('app');
+    expect(result.current.selectedHousehold?.id).toBe('household-a');
+    expect(result.current.me?.user.id).toBe('user');
+
+    pendingRefresh.resolve({
+      user: { id: 'user', email: 'person@example.test', display_name: 'Updated Person' },
+      households: [householdA, householdB],
+    });
+    await act(async () => { await refreshing; });
+
+    expect(result.current.destination).toBe('app');
+    expect(result.current.me?.user.display_name).toBe('Updated Person');
+  });
+
+  it('keeps the existing app usable after a same-session refresh failure', async () => {
+    mockedStorage.getItem.mockResolvedValue('household-a');
+    mockedMe.mockResolvedValue(meWithBothHouseholds());
+    const { result } = await renderHook(() => useHouseholdState(), { wrapper: HouseholdStateProvider });
+    await waitFor(() => expect(result.current.destination).toBe('app'));
+    mockedMe.mockRejectedValueOnce(new Error('network unavailable'));
+
+    await act(async () => { await result.current.refresh(); });
+
+    expect(result.current.destination).toBe('app');
+    expect(result.current.selectedHousehold?.id).toBe('household-a');
+    expect(result.current.me?.user.id).toBe('user');
+  });
+
+  it('routes a validated account with a missing name to completion and clears household data', async () => {
+    mockedStorage.getItem.mockResolvedValue('household-a');
+    mockedMe.mockResolvedValueOnce(meWithBothHouseholds());
+    const { result } = await renderHook(() => useHouseholdState(), { wrapper: HouseholdStateProvider });
+    await waitFor(() => expect(result.current.destination).toBe('app'));
+    const { ApiError } = jest.requireMock('@/lib/api') as { ApiError: new (status: number, message: string, code?: string) => Error };
+    mockedMe.mockRejectedValueOnce(new ApiError(409, 'Add a display name to continue.', 'DISPLAY_NAME_REQUIRED'));
+
+    await act(async () => { await result.current.refresh(); });
+
+    expect(result.current.destination).toBe('complete-profile');
+    expect(result.current.me).toBeNull();
+    expect(result.current.households).toEqual([]);
+    expect(result.current.selectedHousehold).toBeNull();
+  });
+
+  it('keeps profile completion mounted through a failed refresh and allows a later refresh to finish', async () => {
+    const { ApiError } = jest.requireMock('@/lib/api') as { ApiError: new (status: number, message: string, code?: string) => Error };
+    mockedMe.mockRejectedValueOnce(new ApiError(409, 'Add a display name to continue.', 'DISPLAY_NAME_REQUIRED'));
+    const { result } = await renderHook(() => useHouseholdState(), { wrapper: HouseholdStateProvider });
+    await waitFor(() => expect(result.current.destination).toBe('complete-profile'));
+
+    const pendingRefresh = deferred<Awaited<ReturnType<typeof api.me>>>();
+    mockedMe.mockReturnValueOnce(pendingRefresh.promise);
+    let refresh!: ReturnType<typeof result.current.refresh>;
+    await act(async () => { refresh = result.current.refresh(); await Promise.resolve(); });
+    expect(result.current.destination).toBe('complete-profile');
+
+    pendingRefresh.reject(new Error('network unavailable'));
+    await act(async () => { await refresh; });
+    expect(result.current.destination).toBe('complete-profile');
+
+    mockedMe.mockResolvedValueOnce({
+      user: { id: 'user', email: 'person@example.test', display_name: 'Person' },
+      households: [],
+    });
+    await act(async () => { await result.current.refresh(); });
+    expect(result.current.destination).toBe('create-or-join');
+  });
+
   it('resolves the requested household from current membership and rejects duplicate switch attempts synchronously', async () => {
     mockedStorage.getItem.mockResolvedValue('household-a');
     mockedMe.mockResolvedValue(meWithBothHouseholds());
@@ -106,7 +196,7 @@ describe('household selection state', () => {
       user: { id: 'user', email: 'person@example.test', display_name: 'Person' },
       households: [householdA],
     });
-    let refresh!: Promise<void>;
+    let refresh!: Promise<unknown>;
     await act(async () => { refresh = result.current.refresh(); await Promise.resolve(); });
     pendingStorage.resolve();
     await act(async () => { await refresh; await selection; });

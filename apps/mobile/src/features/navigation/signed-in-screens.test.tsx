@@ -6,6 +6,7 @@ import { Colors } from '@/constants/theme';
 
 let mockMode: 'light' | 'dark' = 'light';
 let mockDisplayName = 'Test Person';
+let mockClerkName: string | null = 'Test Person';
 let mockImageUrl: string | null = null;
 const mockSymbolProps: Record<string, unknown>[] = [];
 
@@ -18,7 +19,7 @@ jest.mock('@/hooks/use-household-state', () => ({
     selectedHousehold: { name: 'Home', role: 'owner' },
   }),
 }));
-jest.mock('@clerk/expo', () => ({ useUser: () => ({ user: { imageUrl: mockImageUrl } }) }));
+jest.mock('@clerk/expo', () => ({ useUser: () => ({ user: { imageUrl: mockImageUrl, fullName: mockClerkName } }) }));
 jest.mock('expo-symbols', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   const { View } = jest.requireActual<typeof import('react-native')>('react-native');
@@ -34,6 +35,7 @@ describe.each(['light', 'dark'] as const)('%s signed-in tab screens', (mode) => 
   beforeEach(() => {
     mockMode = mode;
     mockDisplayName = 'Test Person';
+    mockClerkName = 'Test Person';
     mockImageUrl = null;
     mockSymbolProps.length = 0;
   });
@@ -88,10 +90,12 @@ describe.each(['light', 'dark'] as const)('%s signed-in tab screens', (mode) => 
     ]));
   });
 
-  it('falls back to the existing account email when no display name is available', async () => {
+  it('does not use the email address as the Profile primary name when a display name is absent', async () => {
     mockDisplayName = '  ';
+    mockClerkName = 'person@example.test';
     const result = await render(<ProfileHubScreen />);
     expect(result.getAllByText('person@example.test')).toHaveLength(1);
-    expect(result.getByText('PE')).toBeTruthy();
+    expect(result.getByText('Your profile')).toBeTruthy();
+    expect(result.getByText('YP')).toBeTruthy();
   });
 });

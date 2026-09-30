@@ -1,14 +1,14 @@
 import { useAuth } from '@clerk/expo';
 import * as Clipboard from 'expo-clipboard';
 import { router, type Href } from 'expo-router';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { useHouseholdState } from '@/hooks/use-household-state';
-import { ApiError, api, type CreatedInvitation } from '@/lib/api';
+import { ApiError, api, type CreatedInvitation, type PendingInvitation } from '@/lib/api';
 
 type InvitationSnapshot = {
   submittedEmail: string;
@@ -22,6 +22,7 @@ const householdsPath = '/(app)/(tabs)/profile/my-households' as Href;
 
 function invitationError(error: unknown): string {
   if (error instanceof ApiError && error.status === 409) {
+    if (error.code === 'HOUSEHOLD_MEMBER_ALREADY_EXISTS') return 'This person is already a member of this household.';
     return 'An active invitation already exists for that email. Use the code you previously shared or wait for it to expire.';
   }
   if (error instanceof ApiError && error.status === 422) {
@@ -54,10 +55,14 @@ export function OwnerInvitationScreen({ householdId: routeHouseholdId }: { house
 
   const mountedRef = useRef(true);
   const contextRef = useRef({ key: contextKey, generation: 0 });
+  const latestGetToken = useRef(getToken);
   const createSequenceRef = useRef(0);
   const createInFlightRef = useRef<number | null>(null);
   const copySequenceRef = useRef(0);
   const copyInFlightRef = useRef<number | null>(null);
+  const listSequenceRef = useRef(0);
+  const listInFlightRef = useRef<number | null>(null);
+  const invitationActionRef = useRef<string | null>(null);
   const snapshotContextKeyRef = useRef<string | null>(null);
   const snapshotRef = useRef<InvitationSnapshot | null>(null);
 
@@ -67,6 +72,10 @@ export function OwnerInvitationScreen({ householdId: routeHouseholdId }: { house
   const [isCopying, setIsCopying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState<'success' | 'failure' | null>(null);
+  const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
+  const [isLoadingInvitations, setIsLoadingInvitations] = useState(false);
+  const [invitationListError, setInvitationListError] = useState<string | null>(null);
+  const [invitationActionId, setInvitationActionId] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     if (contextRef.current.key !== contextKey) {
@@ -75,6 +84,9 @@ export function OwnerInvitationScreen({ householdId: routeHouseholdId }: { house
       createInFlightRef.current = null;
       copySequenceRef.current += 1;
       copyInFlightRef.current = null;
+      listSequenceRef.current += 1;
+      listInFlightRef.current = null;
+      invitationActionRef.current = null;
       snapshotContextKeyRef.current = null;
       snapshotRef.current = null;
       setEmail('');
@@ -83,6 +95,10 @@ export function OwnerInvitationScreen({ householdId: routeHouseholdId }: { house
       setIsCopying(false);
       setError(null);
       setCopyFeedback(null);
+      setPendingInvitations([]);
+      setIsLoadingInvitations(false);
+      setInvitationListError(null);
+      setInvitationActionId(null);
     }
 
     if (!canUseScreen) router.replace(householdsPath);
@@ -97,17 +113,50 @@ export function OwnerInvitationScreen({ householdId: routeHouseholdId }: { house
       createInFlightRef.current = null;
       copySequenceRef.current += 1;
       copyInFlightRef.current = null;
+      listSequenceRef.current += 1;
+      listInFlightRef.current = null;
+      invitationActionRef.current = null;
       snapshotContextKeyRef.current = null;
       snapshotRef.current = null;
     };
   }, []);
 
-  const isCurrentContext = (contextKeyAtStart: string, generationAtStart: number) => (
+  useEffect(() => { latestGetToken.current = getToken; }, [getToken]);
+
+  const isCurrentContext = useCallback((contextKeyAtStart: string, generationAtStart: number) => (
     mountedRef.current
     && canUseScreen
     && contextRef.current.key === contextKeyAtStart
     && contextRef.current.generation === generationAtStart
-  );
+  ), [canUseScreen]);
+
+  const loadPendingInvitations = useCallback(async () => {
+    if (!canUseScreen || !householdId) return;
+    const contextKeyAtStart = contextRef.current.key;
+    const generationAtStart = contextRef.current.generation;
+    const operation = ++listSequenceRef.current;
+    listInFlightRef.current = operation;
+    setIsLoadingInvitations(true);
+    setInvitationListError(null);
+    try {
+      const response = await api.householdInvitations(() => latestGetToken.current(), householdId);
+      if (!isCurrentContext(contextKeyAtStart, generationAtStart) || listInFlightRef.current !== operation) return;
+      setPendingInvitations(response.invitations);
+    } catch {
+      if (isCurrentContext(contextKeyAtStart, generationAtStart) && listInFlightRef.current === operation) {
+        setInvitationListError('We couldn’t load invitations. Please try again.');
+      }
+    } finally {
+      if (isCurrentContext(contextKeyAtStart, generationAtStart) && listInFlightRef.current === operation) {
+        listInFlightRef.current = null;
+        setIsLoadingInvitations(false);
+      }
+    }
+  }, [canUseScreen, householdId, isCurrentContext]);
+
+  useEffect(() => {
+    if (canUseScreen) void Promise.resolve().then(() => loadPendingInvitations());
+  }, [canUseScreen, contextKey, loadPendingInvitations]);
 
   const createInvitation = async () => {
     if (!canUseScreen || !householdId || createInFlightRef.current !== null) return;
@@ -141,6 +190,7 @@ export function OwnerInvitationScreen({ householdId: routeHouseholdId }: { house
       copyInFlightRef.current = null;
       setSnapshot(nextSnapshot);
       setError(null);
+      void loadPendingInvitations();
       setIsCopying(false);
       setCopyFeedback(null);
     } catch (reason) {
@@ -151,6 +201,90 @@ export function OwnerInvitationScreen({ householdId: routeHouseholdId }: { house
       if (isCurrentContext(contextKeyAtStart, generationAtStart) && createInFlightRef.current === operation) {
         createInFlightRef.current = null;
         setIsCreating(false);
+      }
+    }
+  };
+
+  const revokeInvitation = async (invitation: PendingInvitation) => {
+    if (!householdId || invitationActionRef.current) return;
+    const contextKeyAtStart = contextRef.current.key;
+    const generationAtStart = contextRef.current.generation;
+    invitationActionRef.current = invitation.id;
+    listSequenceRef.current += 1;
+    listInFlightRef.current = null;
+    setIsLoadingInvitations(false);
+    setInvitationActionId(invitation.id);
+    setError(null);
+    if (snapshotRef.current?.invitationId === invitation.id) {
+      snapshotRef.current = null;
+      snapshotContextKeyRef.current = null;
+      copySequenceRef.current += 1;
+      copyInFlightRef.current = null;
+      setSnapshot(null);
+      setCopyFeedback(null);
+      setIsCopying(false);
+    }
+    try {
+      await api.revokeInvitation(getToken, householdId, invitation.id);
+      if (!isCurrentContext(contextKeyAtStart, generationAtStart) || invitationActionRef.current !== invitation.id) return;
+      setPendingInvitations((current) => current.filter((item) => item.id !== invitation.id));
+    } catch {
+      if (isCurrentContext(contextKeyAtStart, generationAtStart) && invitationActionRef.current === invitation.id) setError('We couldn’t revoke this invitation. Please try again.');
+    } finally {
+      if (isCurrentContext(contextKeyAtStart, generationAtStart) && invitationActionRef.current === invitation.id) {
+        invitationActionRef.current = null;
+        setInvitationActionId(null);
+      }
+    }
+  };
+
+  const reissueInvitation = async (invitation: PendingInvitation) => {
+    if (!householdId || invitationActionRef.current) return;
+    const contextKeyAtStart = contextRef.current.key;
+    const generationAtStart = contextRef.current.generation;
+    invitationActionRef.current = invitation.id;
+    listSequenceRef.current += 1;
+    listInFlightRef.current = null;
+    setIsLoadingInvitations(false);
+    setInvitationActionId(invitation.id);
+    setError(null);
+    // The server may commit replacement and lose its response. Never display
+    // the old one-time code once replacement has started.
+    snapshotRef.current = null;
+    snapshotContextKeyRef.current = null;
+    copySequenceRef.current += 1;
+    copyInFlightRef.current = null;
+    setSnapshot(null);
+    setCopyFeedback(null);
+    setIsCopying(false);
+    try {
+      const response = await api.reissueInvitation(getToken, householdId, invitation.id);
+      if (!isCurrentContext(contextKeyAtStart, generationAtStart) || invitationActionRef.current !== invitation.id) return;
+      const nextSnapshot: InvitationSnapshot = {
+        submittedEmail: invitation.normalized_email,
+        invitationId: response.invitation.id,
+        code: response.invitation.code,
+        expiresAt: response.invitation.expires_at,
+      };
+      snapshotRef.current = nextSnapshot;
+      snapshotContextKeyRef.current = contextKeyAtStart;
+      setSnapshot(nextSnapshot);
+      setPendingInvitations((current) => current.filter((item) => item.id !== invitation.id).concat({
+        id: response.invitation.id,
+        normalized_email: invitation.normalized_email,
+        expires_at: response.invitation.expires_at,
+      }));
+    } catch (reason) {
+      if (isCurrentContext(contextKeyAtStart, generationAtStart) && invitationActionRef.current === invitation.id) {
+        setError(invitationError(reason));
+        // Refresh metadata after an ambiguous failure, but never reconstruct
+        // or present a code from the old one-time snapshot.
+        void loadPendingInvitations();
+      }
+    } finally {
+      if (isCurrentContext(contextKeyAtStart, generationAtStart) && invitationActionRef.current === invitation.id) {
+        invitationActionRef.current = null;
+        setInvitationActionId(null);
       }
     }
   };
@@ -248,6 +382,22 @@ export function OwnerInvitationScreen({ householdId: routeHouseholdId }: { house
             {copyFeedback === 'failure' ? <ThemedText accessibilityRole="alert" themeColor="error">Couldn’t copy the code. Please try again.</ThemedText> : null}
           </View>
         ) : null}
+
+        <View style={{ gap: 12 }}>
+          <ThemedText accessibilityRole="header" type="smallBold">Pending invitations</ThemedText>
+          {isLoadingInvitations ? <ThemedText themeColor="textSecondary">Loading invitations…</ThemedText> : null}
+          {invitationListError ? <ThemedText accessibilityRole="alert" themeColor="error">{invitationListError}</ThemedText> : null}
+          {invitationListError ? <PrimaryButton onPress={() => { void loadPendingInvitations(); }} title="Retry invitations" /> : null}
+          {!isLoadingInvitations && !invitationListError && pendingInvitations.length === 0 ? <ThemedText themeColor="textSecondary">No active invitations.</ThemedText> : null}
+          {pendingInvitations.map((invitation) => (
+            <View key={invitation.id} style={{ gap: 8 }} testID={`pending-invitation-${invitation.id}`}>
+              <ThemedText>{invitation.normalized_email}</ThemedText>
+              <ThemedText themeColor="textSecondary">Expires {formatExpiration(invitation.expires_at)}</ThemedText>
+              <PrimaryButton disabled={invitationActionId !== null} onPress={() => { void reissueInvitation(invitation); }} title={invitationActionId === invitation.id ? 'Generating replacement…' : 'Generate replacement code'} />
+              <PrimaryButton disabled={invitationActionId !== null} onPress={() => { void revokeInvitation(invitation); }} title={invitationActionId === invitation.id ? 'Updating invitation…' : 'Revoke invitation'} />
+            </View>
+          ))}
+        </View>
       </View>
     </Screen>
   );

@@ -20,7 +20,7 @@ jest.mock('@clerk/expo', () => ({ useAuth: () => mockAuthState }));
 jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: () => mockHouseholdState }));
 jest.mock('@/lib/api', () => {
   const actual = jest.requireActual<typeof import('@/lib/api')>('@/lib/api');
-  return { ...actual, api: { ...actual.api, createInvitation: jest.fn() } };
+  return { ...actual, api: { ...actual.api, createInvitation: jest.fn(), householdInvitations: jest.fn(), revokeInvitation: jest.fn(), reissueInvitation: jest.fn() } };
 });
 jest.mock('expo-clipboard', () => ({ setStringAsync: jest.fn() }));
 jest.mock('expo-router', () => ({
@@ -47,6 +47,9 @@ const invitationResponse = {
 };
 
 const createInvitation = jest.mocked(api.createInvitation);
+const householdInvitations = jest.mocked(api.householdInvitations);
+const revokeInvitation = jest.mocked(api.revokeInvitation);
+const reissueInvitation = jest.mocked(api.reissueInvitation);
 const setClipboardString = jest.mocked(Clipboard.setStringAsync);
 
 describe('OwnerInvitationScreen', () => {
@@ -59,6 +62,9 @@ describe('OwnerInvitationScreen', () => {
       households: [{ id: 'household-a', name: 'Home A', role: 'owner', time_zone: 'UTC' }],
     };
     createInvitation.mockResolvedValue(invitationResponse);
+    householdInvitations.mockResolvedValue({ invitations: [] });
+    revokeInvitation.mockResolvedValue(undefined);
+    reissueInvitation.mockResolvedValue({ invitation: { ...invitationResponse.invitation, id: 'invitation-2', code: 'replacement-code' } });
     setClipboardString.mockResolvedValue(true);
   });
 
@@ -111,6 +117,42 @@ describe('OwnerInvitationScreen', () => {
 
     expect(await screen.findByText(/Couldn’t copy the code/u)).toBeTruthy();
     expect(screen.queryByText('native clipboard error')).toBeNull();
+  });
+
+  it('shows the distinct active-member conflict from invitation creation', async () => {
+    createInvitation.mockRejectedValueOnce(new ApiError(409, 'safe conflict', 'HOUSEHOLD_MEMBER_ALREADY_EXISTS'));
+    await render(<OwnerInvitationScreen householdId="household-a" />);
+    await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'member@example.com');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
+    expect(await screen.findByText('This person is already a member of this household.')).toBeTruthy();
+    expect(screen.queryByTestId('invitation-snapshot')).toBeNull();
+  });
+
+  it('lists pending invitations and reveals only a newly generated replacement code', async () => {
+    householdInvitations.mockResolvedValue({ invitations: [{ id: 'old-invitation', normalized_email: 'friend@example.com', expires_at: '2026-10-01T12:00:00Z' }] });
+    reissueInvitation.mockResolvedValueOnce({ invitation: { id: 'new-invitation', expires_at: '2026-10-08T12:00:00Z', code: 'fresh-code' } });
+    await render(<OwnerInvitationScreen householdId="household-a" />);
+    expect(await screen.findByText('friend@example.com')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Generate replacement code' }));
+    expect(await screen.findByLabelText('Invitation code')).toHaveTextContent('fresh-code');
+    expect(reissueInvitation).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'old-invitation');
+  });
+
+  it('hides the old code after an ambiguous reissue failure and refreshes invitation metadata', async () => {
+    const listed = [{ id: 'new-invitation', normalized_email: 'friend@example.com', expires_at: '2026-10-08T12:00:00Z' }];
+    householdInvitations.mockResolvedValueOnce({ invitations: [] }).mockResolvedValue({ invitations: listed });
+    createInvitation.mockResolvedValueOnce(invitationResponse);
+    reissueInvitation.mockRejectedValueOnce(new ApiError(500, 'private server detail'));
+    await render(<OwnerInvitationScreen householdId="household-a" />);
+    await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create invitation' }));
+    await screen.findByText(/one-time-test-code/u);
+    await waitFor(() => expect(screen.getByText('friend@example.com')).toBeTruthy());
+    await fireEvent.press(screen.getByRole('button', { name: 'Generate replacement code' }));
+    expect(await screen.findByText(/couldn’t create the invitation/u)).toBeTruthy();
+    expect(screen.queryByText('one-time-test-code')).toBeNull();
+    expect(await screen.findByTestId('pending-invitation-new-invitation')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Copy invitation code' })).toBeNull();
   });
 
   it('validates the recipient address locally and presents a safe 422 correction', async () => {

@@ -16,7 +16,7 @@ export async function acceptInvitationAndRefresh(
   acceptInvitation: AcceptInvitation,
   getToken: GetToken,
   code: string,
-  refresh: () => Promise<void>,
+  refresh: () => Promise<unknown>,
   navigateHome: () => void,
 ) {
   await acceptInvitation(getToken, code);
