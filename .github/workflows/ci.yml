@@ -44,6 +44,10 @@ jobs:
           npx jest --clearCache
           npm test -- --runInBand --no-cache
 
+      - name: Generate Expo TypeScript declarations
+        working-directory: apps/mobile
+        run: npx expo customize tsconfig.json
+
       - name: Type-check mobile app
         working-directory: apps/mobile
         run: npx tsc --noEmit
