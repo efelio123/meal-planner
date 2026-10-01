@@ -1,11 +1,9 @@
 # Free cloud staging and CI plan
 
-Status: implementation in progress on `feat/cloud-staging-ci-plan`; PR #11 is
-open with the workflow and approved SDK 57 patch updates committed. The initial
-hosted run exposed a missing generated Expo declaration in the clean
-checkout; a follow-up added the documented type-generation step, and the
-follow-up push and pull-request runs both passed. No provider resources or
-deployments have been created.
+Status: CI and the approved SDK 57 patch updates merged through PR #11. Render
+and Neon Free staging resources are provisioned, and the API is manually
+deployed. Hosted checks pass; Felipe-reported staging device results and
+remaining limits are recorded below.
 
 ## Goal and boundaries
 
@@ -282,9 +280,9 @@ workflow now runs the official Expo declaration-generation command before
 type-checking. Follow-up push and pull-request runs both passed: each mobile
 job passed normal and cold runs (27 suites / 178 tests each), TypeScript, lint,
 Expo dependency compatibility (`Dependencies are up to date`), and Expo Doctor
-(21/21); each PostgreSQL job passed all 56 tests with 0 skipped. Staging
-resource creation remains paused; no provider resources or deployments have
-been created.
+(21/21); each PostgreSQL job passed all 56 tests with 0 skipped. The approved
+Free-tier resources have since been provisioned and the API deployed; the
+physical-test results and outstanding acceptance are recorded below.
 
 After Felipe approved the four patch-only updates, the mobile manifest now
 uses `@expo/ui ~57.0.21`, `expo ~57.0.26`, `expo-constants ~57.0.20`, and
@@ -295,10 +293,34 @@ date, and temporary Expo Doctor passes 21/21. Mobile normal and cold runs each
 pass 27 suites / 178 tests; TypeScript and lint pass. The local disposable
 PostgreSQL validation above passed the migration/head checks and 56 API tests
 with 0 skips. The committed workflow's follow-up push and pull-request runs
-passed as recorded above. Staging resource creation remains paused pending
-review and explicit next-step approval, plus confirmation in the provider
-dashboard that all selected services are Free/$0.
+passed as recorded above.
 
-Before staging resource creation, the live provider account and billing
-screens must be reviewed and must clearly show the approved Free plans and
-$0 cost. No provider dashboard or payment setup has been performed yet.
+### Staging deployment and physical-test results
+
+Render and Neon staging resources have now been provisioned on the approved
+Free/$0 plans, and the API has been manually deployed. Felipe reports that
+`/v1/health` returned HTTP 200 and that the app created a household through
+the deployed API. The Render runtime's initial default root-certificate path
+was absent, and the system-root setting did not validate Neon’s certificate;
+the deployed connection now points `sslrootcert` at the runtime `certifi` CA
+bundle while retaining `sslmode=verify-full` and `channel_binding=require`.
+No TLS verification was disabled.
+
+Felipe reports that two physical devices completed the Render-backed
+invited-user/shared-household flow and saw the same shopping list. The devices'
+operating systems were not recorded, so this is not evidence of Android- or
+iOS-specific acceptance. Felipe also reports that after Render had slept, the
+app showed a loading indicator for about one minute and then loaded
+successfully. This records a successful cold wake, not acceptance of the
+roughly one-minute latency. Failed-wake retry behavior remains untested, and
+acceptance of that latency remains undecided.
+
+The selected path remains strictly $0/month, and local API testing remains the
+everyday development default. Felipe will manually review and clear
+staging-only test data within 30 days; deletion is not automated. Android
+device acceptance and native-build/smoke testing remain outstanding.
+Failed-wake retry behavior remains untested, acceptance of the roughly
+one-minute cold-wake latency remains undecided, and production reliability
+and broader release readiness remain outstanding.
+The free staging environment does not establish production uptime, recovery,
+scale, or release readiness.
