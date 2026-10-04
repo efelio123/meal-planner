@@ -507,3 +507,8 @@ container was checked by both URL name and `SELECT current_database()` as
 (head)` and the full API suite passed 90/90 with no skips. The temporary
 container was stopped and removed. No connection to `meal_planner_dev` was
 made, and no Catalog item was deleted.
+
+Felipe-reported iPhone check (2026-10-04): Felipe reports that the Category
+emoji sheet looks good on iPhone. This records that focused visual check only;
+broader gesture and device acceptance, including the remaining five-flow
+checklist, is still outstanding.

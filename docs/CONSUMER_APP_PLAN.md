@@ -94,9 +94,9 @@ verified the configured and connected database as
 skipped. The latest mobile normal and cold runs each passed 34 suites / 232
 tests; TypeScript and lint passed. The Pixel 10a check covered the emoji sheet
 above the software keyboard and Store removal styling only. The synthetic QA
-Catalog item remains active. iPhone keyboard behavior after this fix and
-broader gesture/device acceptance remain outstanding; no database tests were
-rerun for this commit.
+Catalog item remains active. Felipe reports that the emoji sheet looks good
+on iPhone; this is limited to that focused check. Broader gesture/device
+acceptance remains outstanding. No database tests were rerun for this commit.
 
 This is a status snapshot, not a change to the long-term scope below. Update it as milestones are validated.
 

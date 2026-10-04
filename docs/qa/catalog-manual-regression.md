@@ -315,3 +315,10 @@ layout are retained.
 - iPhone behavior after the cross-platform keyboard fix, Android touch-flick
   dismissal, and the remaining five-flow device checklist are still open.
   The synthetic `QA Catalog 1004-1420 Edited` item remains active.
+
+## Felipe-reported iPhone emoji-sheet check — 2026-10-04
+
+Felipe reports that the Category emoji sheet looks good on iPhone. This is a
+focused visual acceptance only; it does not establish broader gesture/device
+acceptance or completion of the five-flow checklist. The synthetic QA Catalog
+item remains active.
