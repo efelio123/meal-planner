@@ -31,7 +31,7 @@ it('configures the five ordered native tabs and history-based Back', async () =>
     'tab-plan',
     'tab-recipes',
     'tab-shopping',
-    'tab-pantry',
+    'tab-catalog',
     'tab-profile',
   ]);
 });

@@ -8,8 +8,8 @@ import '@/global.css';
 import { Platform } from 'react-native';
 
 export const Colors = {
-  light: { screen: '#ffffff', surface: '#f5f5f7', surfaceSelected: '#e7e7ec', text: '#1c1c1e', textSecondary: '#5d6068', border: '#767680', inputBackground: '#ffffff', inputText: '#1c1c1e', inputPlaceholder: '#5d6068', primary: '#155eef', primaryText: '#ffffff', link: '#155eef', error: '#b42318', errorSurface: '#fef3f2', disabled: '#a5a5ad', activity: '#155eef' },
-  dark: { screen: '#101114', surface: '#1d1e22', surfaceSelected: '#2b2d33', text: '#f5f5f7', textSecondary: '#c4c5cc', border: '#a9abb5', inputBackground: '#1d1e22', inputText: '#f5f5f7', inputPlaceholder: '#c4c5cc', primary: '#84adff', primaryText: '#101114', link: '#9abaff', error: '#ffb4ab', errorSurface: '#4a1715', disabled: '#71737c', activity: '#84adff' },
+  light: { screen: '#ffffff', surface: '#f5f5f7', elevatedSurface: '#ffffff', surfaceSelected: '#e7e7ec', text: '#1c1c1e', textSecondary: '#5d6068', border: '#767680', inputBackground: '#ffffff', inputText: '#1c1c1e', inputPlaceholder: '#5d6068', primary: '#155eef', primaryText: '#ffffff', link: '#155eef', error: '#b42318', errorSurface: '#fef3f2', disabled: '#a5a5ad', activity: '#155eef' },
+  dark: { screen: '#101114', surface: '#1d1e22', elevatedSurface: '#26282e', surfaceSelected: '#2b2d33', text: '#f5f5f7', textSecondary: '#c4c5cc', border: '#a9abb5', inputBackground: '#1d1e22', inputText: '#f5f5f7', inputPlaceholder: '#c4c5cc', primary: '#84adff', primaryText: '#101114', link: '#9abaff', error: '#ffb4ab', errorSurface: '#4a1715', disabled: '#71737c', activity: '#84adff' },
 } as const;
 
 export type ThemeMode = keyof typeof Colors;

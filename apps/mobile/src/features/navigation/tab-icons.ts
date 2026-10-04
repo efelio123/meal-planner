@@ -7,6 +7,6 @@ export const tabIcons = {
   plan: { ios: 'calendar', android: 'calendar_month', web: 'calendar_month' },
   recipes: { ios: 'book.closed', android: 'menu_book', web: 'menu_book' },
   shopping: { ios: 'cart', android: 'shopping_cart', web: 'shopping_cart' },
-  pantry: { ios: 'cabinet.fill', android: 'kitchen', web: 'kitchen' },
+  catalog: { ios: 'cabinet.fill', android: 'kitchen', web: 'kitchen' },
   profile: { ios: 'person.crop.circle', android: 'account_circle', web: 'account_circle' },
 } as const;
