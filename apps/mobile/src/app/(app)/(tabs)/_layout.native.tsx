@@ -27,8 +27,8 @@ export default function NativeTabLayout() {
         <NativeTabs.Trigger.Label>Shopping</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="cart" md="shopping_cart" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="pantry">
-        <NativeTabs.Trigger.Label>Pantry</NativeTabs.Trigger.Label>
+      <NativeTabs.Trigger name="catalog">
+        <NativeTabs.Trigger.Label>Catalog</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="cabinet.fill" md="kitchen" />
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">

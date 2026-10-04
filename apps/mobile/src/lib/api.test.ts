@@ -184,4 +184,66 @@ describe('mobile API client', () => {
     expect(fetchMock.mock.calls[0][1].body).toBeUndefined();
     expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer delete-item-token');
   });
+
+  it('uses one household-scoped unit-options request with a fresh token', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ shopping_units: { built_in: [], household: [] }, recipe_measurement_units: [] }), { status: 200 }));
+    const getToken = jest.fn().mockResolvedValue('catalog-options-token');
+
+    await api.catalogUnits(getToken, 'home-1');
+
+    expect(getToken).toHaveBeenCalledTimes(1);
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/catalog/units');
+    expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer catalog-options-token');
+  });
+
+  it('creates, updates, and archives catalog items using household-scoped URLs and JSON', async () => {
+    const getToken = jest.fn().mockResolvedValue('catalog-write-token');
+    const item = { name: 'Milk', item_type: 'food' as const, category_id: null, shopping_unit_code: 'gallon' };
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ item: { id: 'item-1', ...item } }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ item: { id: 'item-1', ...item, name: 'Oat milk' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await api.createCatalogItem(getToken, 'home-1', item);
+    await api.updateCatalogItem(getToken, 'home-1', 'item-1', { name: 'Oat milk' });
+    await api.deleteCatalogItem(getToken, 'home-1', 'item-1');
+
+    expect(getToken).toHaveBeenCalledTimes(3);
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/catalog/items');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual(item);
+    expect(new URL(fetchMock.mock.calls[1][0]).pathname).toBe('/v1/households/home-1/catalog/items/item-1');
+    expect(fetchMock.mock.calls[1][1].method).toBe('PATCH');
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toEqual({ name: 'Oat milk' });
+    expect(fetchMock.mock.calls[2][1].method).toBe('DELETE');
+    for (const call of fetchMock.mock.calls) expect(new Headers(call[1].headers).get('Authorization')).toBe('Bearer catalog-write-token');
+  });
+
+  it('supports category, store, and household shopping-unit management methods', async () => {
+    const getToken = jest.fn().mockResolvedValue('catalog-choice-token');
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ category: { id: 'category-1' } }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ store: { id: 'store-1' } }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ unit: { id: 'unit-1' } }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ category: { id: 'category-1' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await api.createCatalogCategory(getToken, 'home-1', 'food', 'Produce', '🥬');
+    await api.createCatalogStore(getToken, 'home-1', 'Market');
+    await api.createCatalogShoppingUnit(getToken, 'home-1', 'Crate');
+    await api.updateCatalogCategory(getToken, 'home-1', 'category-1', 'Pantry', '🫙');
+    await api.deleteCatalogCategory(getToken, 'home-1', 'category-1', 2);
+
+    expect(getToken).toHaveBeenCalledTimes(5);
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/catalog/categories');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({ item_type: 'food', name: 'Produce', emoji: '🥬' });
+    expect(new URL(fetchMock.mock.calls[1][0]).pathname).toBe('/v1/households/home-1/catalog/stores');
+    expect(new URL(fetchMock.mock.calls[2][0]).pathname).toBe('/v1/households/home-1/catalog/shopping-units');
+    expect(fetchMock.mock.calls[3][1].method).toBe('PATCH');
+    expect(JSON.parse(fetchMock.mock.calls[3][1].body as string)).toEqual({ name: 'Pantry', emoji: '🫙' });
+    expect(new URL(fetchMock.mock.calls[4][0]).searchParams.get('expected_active_item_count')).toBe('2');
+    expect(fetchMock.mock.calls[4][1].method).toBe('DELETE');
+    for (const call of fetchMock.mock.calls) expect(new Headers(call[1].headers).get('Authorization')).toBe('Bearer catalog-choice-token');
+  });
 });

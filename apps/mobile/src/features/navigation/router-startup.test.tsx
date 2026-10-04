@@ -3,8 +3,9 @@ import { createElement } from 'react';
 import { act, fireEvent } from '@testing-library/react-native';
 import { router, type Href } from 'expo-router';
 import { renderRouter, screen, waitFor } from 'expo-router/testing-library';
-import { Alert, Button, Text } from 'react-native';
-import { api, type ShoppingList } from '@/lib/api';
+import { Alert, Button, Keyboard, Platform, StyleSheet, Text } from 'react-native';
+import { ApiError, api, type CatalogItem, type ShoppingList } from '@/lib/api';
+import { catalogEmojiSheetKeyboardBehavior } from '@/features/catalog/catalog-emoji-input-sheet';
 import { useResetToHouseholdStartup } from '@/features/profile/use-reset-to-household-startup';
 
 let mockInitialDestination = 'app';
@@ -16,6 +17,7 @@ let mockHouseholds = [
   { id: 'household-b', name: 'Cabin', role: 'member', time_zone: 'America/Phoenix' },
 ];
 let mockSetSignedIn: ((value: boolean) => void) | undefined;
+let mockSetClerkIdentity: ((userId: string, sessionId: string) => void) | undefined;
 let mockSetDestination: ((destination: string) => void) | undefined;
 let mockSetSelectedHouseholdId: ((value: string) => void) | undefined;
 let mockSelectionOverride: { status: string; reason?: string } | null = null;
@@ -28,6 +30,16 @@ function deferred<T>() {
   let reject!: (reason: unknown) => void;
   const promise = new Promise<T>((resolvePromise, rejectPromise) => { resolve = resolvePromise; reject = rejectPromise; });
   return { promise, resolve, reject };
+}
+
+function catalogItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
+  return {
+    id: 'item-1', household_id: 'household-a', item_type: 'food', name: 'Milk',
+    category_id: null, category_name: null, shopping_unit_code: null, shopping_unit_label: null,
+    shopping_unit_source: null, custom_shopping_unit_id: null, preferred_store_id: null,
+    preferred_store_name: null, recipe_measurement_dimension: null, recipe_measurement_unit_code: null,
+    recipe_measurement_unit_label: null, created_at: '', updated_at: '', ...overrides,
+  };
 }
 
 jest.mock('@clerk/expo', () => ({
@@ -49,13 +61,15 @@ jest.mock('@clerk/expo', () => ({
     return {
       ClerkProvider: ({ children }: PropsWithChildren) => {
         const [isSignedIn, setIsSignedIn] = React.useState(mockInitialSignedIn);
+        const [identity, setIdentity] = React.useState({ userId: 'user-a', sessionId: 'session-a' });
         mockSetSignedIn = setIsSignedIn;
+        mockSetClerkIdentity = (userId, sessionId) => setIdentity({ userId, sessionId });
         return React.createElement(AuthContext.Provider, {
           value: {
             isLoaded: true,
             isSignedIn,
-            sessionId: isSignedIn ? 'session-a' : null,
-            userId: isSignedIn ? 'user-a' : null,
+            sessionId: isSignedIn ? identity.sessionId : null,
+            userId: isSignedIn ? identity.userId : null,
             getToken: async () => 'session-token',
           },
         }, children);
@@ -122,6 +136,7 @@ jest.mock('@/components/animated-icon', () => ({ AnimatedSplashOverlay: () => nu
 jest.mock('expo-splash-screen', () => ({ preventAutoHideAsync: jest.fn() }));
 jest.mock('expo-system-ui', () => ({ setBackgroundColorAsync: jest.fn() }));
 jest.mock('@/lib/api', () => ({
+  ApiError: jest.requireActual<typeof import('@/lib/api')>('@/lib/api').ApiError,
   api: {
     shoppingList: jest.fn(),
     createInvitation: jest.fn(),
@@ -139,6 +154,23 @@ jest.mock('@/lib/api', () => ({
     addShoppingListItem: jest.fn(),
     setShoppingListItemChecked: jest.fn(),
     deleteShoppingListItem: jest.fn(),
+    catalogUnits: jest.fn(),
+    catalogCategories: jest.fn(),
+    catalogStores: jest.fn(),
+    catalogItems: jest.fn(),
+    catalogItem: jest.fn(),
+    createCatalogItem: jest.fn(),
+    updateCatalogItem: jest.fn(),
+    deleteCatalogItem: jest.fn(),
+    createCatalogCategory: jest.fn(),
+    updateCatalogCategory: jest.fn(),
+    deleteCatalogCategory: jest.fn(),
+    createCatalogStore: jest.fn(),
+    updateCatalogStore: jest.fn(),
+    deleteCatalogStore: jest.fn(),
+    createCatalogShoppingUnit: jest.fn(),
+    updateCatalogShoppingUnit: jest.fn(),
+    deleteCatalogShoppingUnit: jest.fn(),
   },
 }));
 jest.mock('expo-linking', () => ({
@@ -227,12 +259,17 @@ describe('signed-in startup routing', () => {
       { id: 'household-b', name: 'Cabin', role: 'member', time_zone: 'America/Phoenix' },
     ];
     mockSetSignedIn = undefined;
+    mockSetClerkIdentity = undefined;
     mockSetDestination = undefined;
     mockSetSelectedHouseholdId = undefined;
     mockSelectionOverride = null;
     mockSelectCalls = [];
     mockRefreshResults = [];
     jest.mocked(api.shoppingList).mockResolvedValue(shoppingListResponse());
+    jest.mocked(api.catalogItems).mockResolvedValue({ items: [] });
+    jest.mocked(api.catalogUnits).mockResolvedValue({ shopping_units: { built_in: [], household: [] }, recipe_measurement_units: [] });
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [] });
+    jest.mocked(api.catalogStores).mockResolvedValue({ stores: [] });
     jest.mocked(api.householdMembers).mockResolvedValue({ members: [] });
     jest.mocked(api.householdInvitations).mockResolvedValue({ invitations: [] });
     jest.mocked(api.householdMember).mockResolvedValue({ member: {
@@ -240,6 +277,7 @@ describe('signed-in startup routing', () => {
       role: 'member', joined_at: '2026-09-01T00:00:00Z', is_self: false,
     } });
   });
+  afterEach(() => { jest.restoreAllMocks(); });
 
   it('redirects a cold signed-in launch to the temporary Shopping tab', async () => {
     const renderResult = renderRouter(
@@ -252,7 +290,7 @@ describe('signed-in startup routing', () => {
     expect(renderResult.getPathname()).toBe('/shopping');
     expect(screen.getByText('Your shopping list is empty.')).toBeTruthy();
     const tabs = findTabState(renderResult.getRouterState() as NavigationState);
-    expect(tabs?.routeNames).toEqual(['plan', 'recipes', 'shopping', 'pantry', 'profile']);
+    expect(tabs?.routeNames).toEqual(['plan', 'recipes', 'shopping', 'catalog', 'profile']);
     expect(tabs?.index).toBe(2);
     expect(tabs?.routes?.[tabs.index ?? -1]?.name).toBe('shopping');
     expect(tabs?.routes?.map((route) => route.state?.type)).toEqual([
@@ -346,7 +384,7 @@ describe('signed-in startup routing', () => {
     expect(api.shoppingList).toHaveBeenCalledTimes(1);
 
     await fireEvent.changeText(screen.getByLabelText('Shopping-list item'), 'Draft for later');
-    for (const tab of ['plan', 'recipes', 'pantry', 'profile', 'shopping']) {
+    for (const tab of ['plan', 'recipes', 'catalog', 'profile', 'shopping']) {
       await navigateTo(renderResult, `/${tab}`);
     }
 
@@ -972,5 +1010,749 @@ describe('signed-in startup routing', () => {
     await screen.findByLabelText('Recipient email');
     expect(screen.getByLabelText('Recipient email').props.value).toBe('');
     expect(screen.queryByText('closed-route-code')).toBeNull();
+  });
+
+  it('keeps Catalog mounted across tab switches and loads only when explicitly visited', async () => {
+    jest.mocked(api.catalogItems).mockResolvedValue({ items: [catalogItem({ name: 'Apple', category_id: 'produce', category_name: 'Produce' })] });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog');
+    expect(await screen.findByText('Apple')).toBeTruthy();
+    expect(api.catalogItems).toHaveBeenCalledTimes(1);
+    await fireEvent.changeText(screen.getByLabelText('Search household items'), 'Apple');
+    await fireEvent.press(screen.getByRole('button', { name: 'Food' }));
+
+    await navigateTo(renderResult, '/shopping');
+    await navigateTo(renderResult, '/catalog');
+    expect(api.catalogItems).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Search household items').props.value).toBe('Apple');
+    expect(screen.getByRole('button', { name: 'Food' }).props.accessibilityState.selected).toBe(true);
+  });
+
+  it('rejects a delayed Catalog response from the previous household', async () => {
+    const householdA = deferred<{ items: { id: string; household_id: string; item_type: 'food'; name: string; category_id: null; category_name: null; shopping_unit_code: null; shopping_unit_label: null; shopping_unit_source: null; custom_shopping_unit_id: null; preferred_store_id: null; preferred_store_name: null; recipe_measurement_dimension: null; recipe_measurement_unit_code: null; recipe_measurement_unit_label: null; created_at: string; updated_at: string }[] }>();
+    const row = (id: string, householdId: string, name: string) => ({
+      id, household_id: householdId, item_type: 'food' as const, name, category_id: null, category_name: null,
+      shopping_unit_code: null, shopping_unit_label: null, shopping_unit_source: null, custom_shopping_unit_id: null,
+      preferred_store_id: null, preferred_store_name: null, recipe_measurement_dimension: null,
+      recipe_measurement_unit_code: null, recipe_measurement_unit_label: null, created_at: '', updated_at: '',
+    });
+    jest.mocked(api.catalogItems)
+      .mockReturnValueOnce(householdA.promise)
+      .mockResolvedValueOnce({ items: [row('item-b', 'household-b', 'Cabin item')] });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog');
+    await waitFor(() => expect(api.catalogItems).toHaveBeenCalledTimes(1));
+
+    await act(async () => { mockSetSelectedHouseholdId?.('household-b'); });
+    expect(await screen.findByText('Cabin item')).toBeTruthy();
+    await act(async () => { householdA.resolve({ items: [row('item-a', 'household-a', 'Old home item')] }); });
+    expect(screen.getByText('Cabin item')).toBeTruthy();
+    expect(screen.queryByText('Old home item')).toBeNull();
+    expect(api.catalogItems).toHaveBeenCalledTimes(2);
+  });
+
+  it('preserves an Add Item draft and selects a choice created from its picker', async () => {
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [{
+      id: 'produce-category', item_type: 'food', name: 'Produce', emoji: null, active_item_count: 0, created_at: '', updated_at: '',
+    }] });
+    jest.mocked(api.createCatalogCategory).mockResolvedValue({ category: {
+      id: 'produce-category', item_type: 'food', name: 'Produce', emoji: null, active_item_count: 0, created_at: '', updated_at: '',
+    } });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/add');
+    await screen.findByLabelText('Item name');
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'Draft apple');
+    await fireEvent.press(screen.getByLabelText('Category: Not selected'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Create category' }));
+    expect(renderResult.getPathname()).toBe('/catalog/choices/category/create');
+    await screen.findByLabelText('category name');
+    await fireEvent.changeText(screen.getByLabelText('category name'), 'Produce');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/catalog/add'));
+    expect(screen.getByLabelText('Item name').props.value).toBe('Draft apple');
+    expect(await screen.findByLabelText('Category: Produce')).toBeTruthy();
+    expect(api.createCatalogCategory).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'food', 'Produce', null);
+  });
+
+  it('keeps optional shopping units unselected and makes household-created units searchable', async () => {
+    jest.mocked(api.catalogUnits).mockResolvedValue({
+      shopping_units: {
+        built_in: [{ code: 'unit', label: 'Unit', unit_group: 'package_count' }],
+        household: [{ id: 'crate-id', label: 'Crate' }],
+      },
+      recipe_measurement_units: [],
+    });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/add');
+    await screen.findByLabelText('Item name');
+    expect(screen.getByLabelText('Typical shopping unit (optional): Not selected')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Typical shopping unit (optional): Not selected'));
+    await fireEvent.changeText(screen.getByLabelText('Search Typical shopping unit (optional)'), 'crate');
+    expect(await screen.findByText('Household · Crate')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Household · Crate'));
+    expect(screen.getByLabelText('Typical shopping unit (optional): Household · Crate')).toBeTruthy();
+  });
+
+  it('uses searchable category sheets and compact unsearchable short-store sheets', async () => {
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [
+      { id: 'food-1', item_type: 'food', name: 'Produce', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+      { id: 'food-2', item_type: 'food', name: 'Dairy & Eggs', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+      { id: 'food-3', item_type: 'food', name: 'Meat & Seafood', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+      { id: 'food-4', item_type: 'food', name: 'Bakery', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+      { id: 'food-5', item_type: 'food', name: 'Pantry', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+      { id: 'food-6', item_type: 'food', name: 'Frozen', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+      { id: 'food-7', item_type: 'food', name: 'Beverages', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+    ] });
+    jest.mocked(api.catalogStores).mockResolvedValue({ stores: [{ id: 'market', name: 'Market', created_at: '', updated_at: '' }] });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/add');
+
+    const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
+    await fireEvent.press(await screen.findByLabelText('Category: Not selected'));
+    expect(dismissKeyboard).toHaveBeenCalled();
+    expect(await screen.findByLabelText('Search Category')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Create category' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Manage categories' })).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Search Category'), 'Produce');
+    expect(screen.getByLabelText('Search Category')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Produce' }));
+
+    await fireEvent.press(screen.getByLabelText('Preferred store (optional): Not selected'));
+    expect(screen.queryByLabelText('Search Preferred store (optional)')).toBeNull();
+    expect(screen.getByRole('button', { name: 'No preferred store' })).toBeTruthy();
+    expect(screen.getByText('Market')).toBeTruthy();
+  });
+
+  it('clears the empty-name error as soon as the item name is corrected', async () => {
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/add');
+    await screen.findByLabelText('Category: Not selected');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add to catalog' }).props.accessibilityState.disabled).toBe(false));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add to catalog' }));
+    expect(await screen.findByText('Enter an item name.')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'Apples');
+    expect(screen.queryByText('Enter an item name.')).toBeNull();
+  });
+
+  it('preserves an Add Item draft when a preferred store is created from its visible field', async () => {
+    jest.mocked(api.createCatalogStore).mockResolvedValue({ store: { id: 'store-1', name: 'Market', created_at: '', updated_at: '' } });
+    jest.mocked(api.catalogStores).mockResolvedValue({ stores: [{ id: 'store-1', name: 'Market', created_at: '', updated_at: '' }] });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/add');
+    await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Draft oats');
+    await fireEvent.press(screen.getByLabelText('Preferred store (optional): Not selected'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Create store' }));
+    await screen.findByLabelText('store name');
+    await fireEvent.changeText(screen.getByLabelText('store name'), 'Market');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/catalog/add'));
+    expect(screen.getByLabelText('Item name').props.value).toBe('Draft oats');
+    expect(await screen.findByLabelText('Preferred store (optional): Market')).toBeTruthy();
+  });
+
+  it('preserves an Add Item draft when a household shopping unit is created', async () => {
+    jest.mocked(api.createCatalogShoppingUnit).mockResolvedValue({ unit: { id: 'crate-id', name: 'Crate', created_at: '', updated_at: '' } });
+    jest.mocked(api.catalogUnits).mockResolvedValue({ shopping_units: { built_in: [], household: [{ id: 'crate-id', label: 'Crate' }] }, recipe_measurement_units: [] });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/add');
+    await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Draft flour');
+    await fireEvent.press(screen.getByLabelText('Typical shopping unit (optional): Not selected'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Create shopping unit' }));
+    await screen.findByLabelText('shopping unit name');
+    await fireEvent.changeText(screen.getByLabelText('shopping unit name'), 'Crate');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/catalog/add'));
+    expect(screen.getByLabelText('Item name').props.value).toBe('Draft flour');
+    expect(await screen.findByLabelText('Typical shopping unit (optional): Household · Crate')).toBeTruthy();
+  });
+
+  it('refreshes archived picker choices after a rejected save without losing valid draft selections', async () => {
+    let categoryArchived = false;
+    jest.mocked(api.catalogCategories).mockImplementation(async () => ({ categories: categoryArchived ? [] : [{
+      id: 'produce-category', item_type: 'food', name: 'Produce', emoji: null, active_item_count: 0, created_at: '', updated_at: '',
+    }] }));
+    jest.mocked(api.catalogStores).mockResolvedValue({ stores: [{ id: 'store-1', name: 'Market', created_at: '', updated_at: '' }] });
+    jest.mocked(api.catalogUnits).mockResolvedValue({
+      shopping_units: { built_in: [{ code: 'unit', label: 'Unit', unit_group: 'package_count' }], household: [] },
+      recipe_measurement_units: [],
+    });
+    jest.mocked(api.createCatalogItem).mockImplementation(async () => {
+      categoryArchived = true;
+      throw new ApiError(409, 'A choice is no longer available.', 'CATALOG_REFERENCE_ARCHIVED');
+    });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/add');
+    await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Draft strawberries');
+    await fireEvent.press(screen.getByLabelText('Category: Not selected'));
+    await fireEvent.press(await screen.findByText('Produce'));
+    await fireEvent.press(screen.getByLabelText('Typical shopping unit (optional): Not selected'));
+    await fireEvent.press(await screen.findByText('Unit'));
+    await fireEvent.press(screen.getByLabelText('Preferred store (optional): Not selected'));
+    await fireEvent.press(await screen.findByText('Market'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Add to catalog' }));
+
+    expect(await screen.findByText(/A selected choice was removed/u)).toBeTruthy();
+    expect(screen.getByLabelText('Item name').props.value).toBe('Draft strawberries');
+    expect(screen.getByLabelText('Category: Not selected')).toBeTruthy();
+    expect(screen.getByLabelText('Typical shopping unit (optional): Unit')).toBeTruthy();
+    expect(screen.getByLabelText('Preferred store (optional): Market')).toBeTruthy();
+  });
+
+  it('does not allow an Edit item update until the original item load succeeds', async () => {
+    jest.mocked(api.catalogItem)
+      .mockRejectedValueOnce(new Error('temporary item load failure'))
+      .mockResolvedValueOnce({ item: catalogItem({ name: 'Original milk', category_id: 'dairy', category_name: 'Dairy' }) });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/item/item-1/edit');
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Retry loading item' })).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'Unhydrated replacement');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    expect(api.updateCatalogItem).not.toHaveBeenCalled();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry loading item' }));
+    expect(await screen.findByLabelText('Item name')).toHaveProperty('props.value', 'Original milk');
+    expect(api.catalogItem).toHaveBeenCalledTimes(2);
+    expect(api.updateCatalogItem).not.toHaveBeenCalled();
+  });
+
+  it('carries the Household category type from Add item through Manage to Create', async () => {
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [{
+      id: 'household-category', item_type: 'household', name: 'Cleaning', emoji: null, active_item_count: 0, created_at: '', updated_at: '',
+    }] });
+    jest.mocked(api.createCatalogCategory).mockResolvedValue({ category: {
+      id: 'household-category-new', item_type: 'household', name: 'Laundry', emoji: null, active_item_count: 0, created_at: '', updated_at: '',
+    } });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/add');
+    await fireEvent.press(screen.getByRole('radio', { name: 'Household' }));
+    await fireEvent.press(screen.getByLabelText('Category: Not selected'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Manage categories' }));
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/catalog/choices/category'));
+    await screen.findByText('Manage categories for this household.');
+    await waitFor(() => expect(api.catalogCategories).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'household'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Create category' }));
+    await screen.findByLabelText('category name');
+    await fireEvent.changeText(screen.getByLabelText('category name'), 'Laundry');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(api.createCatalogCategory).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'household', 'Laundry', null));
+    expect(renderResult.getPathname()).toBe('/catalog/choices/category');
+  });
+
+  it('requires an explicit type when creating a category from the global Categories manager', async () => {
+    jest.mocked(api.createCatalogCategory).mockResolvedValue({ category: {
+      id: 'new-household-category', item_type: 'household', name: 'Laundry', emoji: null, active_item_count: 0, created_at: '', updated_at: '',
+    } });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/manage');
+    await fireEvent.press(await screen.findByText('Categories'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Create category' }));
+    await fireEvent.changeText(await screen.findByLabelText('category name'), 'Laundry');
+    expect(screen.getByRole('button', { name: 'Create' }).props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(screen.getByRole('radio', { name: 'Household' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(api.createCatalogCategory).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'household', 'Laundry', null));
+  });
+
+  it('preserves the category name and type while entering an emoji in the text sheet', async () => {
+    jest.mocked(api.createCatalogCategory).mockResolvedValue({ category: {
+      id: 'pantry-category', item_type: 'food', name: 'Pantry', emoji: '🫙', active_item_count: 0, created_at: '', updated_at: '',
+    } });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/manage');
+    await fireEvent.press(await screen.findByText('Categories'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Create category' }));
+    await fireEvent.changeText(await screen.findByLabelText('category name'), 'Pantry');
+    await fireEvent.press(screen.getByRole('radio', { name: 'Food' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Emoji: Not set' }));
+    const emojiInput = await screen.findByLabelText('Category emoji value');
+    await fireEvent.changeText(emojiInput, '🫙');
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.getByLabelText('category name').props.value).toBe('Pantry');
+    expect(screen.getByRole('radio', { name: 'Food' }).props.accessibilityState.checked).toBe(true);
+    expect(screen.getByRole('button', { name: 'Emoji: 🫙' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(api.createCatalogCategory).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'food', 'Pantry', '🫙'));
+  });
+
+  it('preserves an existing emoji when the text sheet is opened and left unchanged', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const category = { id: 'wave-category', item_type: 'food' as const, name: 'Greetings', emoji: '👋🏻', active_item_count: 0, created_at: '', updated_at: '' };
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
+    jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/choices/category/wave-category');
+    await waitFor(() => expect(screen.getByLabelText('category name').props.value).toBe('Greetings'));
+    expect(screen.getByRole('button', { name: 'Emoji: 👋🏻' })).toBeTruthy();
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Emoji: 👋🏻' }));
+    expect((await screen.findByLabelText('Category emoji value')).props.value).toBe('👋🏻');
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.getByRole('button', { name: 'Emoji: 👋🏻' })).toBeTruthy();
+    await fireEvent.press(await screen.findByLabelText('Save category'));
+
+    await waitFor(() => expect(api.updateCatalogCategory).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'wave-category', 'Greetings', '👋🏻'));
+  });
+
+  it('clears an existing emoji only after Clear is explicitly confirmed with Done', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const category = { id: 'wave-category', item_type: 'food' as const, name: 'Greetings', emoji: '👋🏻', active_item_count: 0, created_at: '', updated_at: '' };
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
+    jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category: { ...category, emoji: null } });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/choices/category/wave-category');
+    await waitFor(() => expect(screen.getByLabelText('category name').props.value).toBe('Greetings'));
+
+    await fireEvent.press(screen.getByRole('button', { name: 'Emoji: 👋🏻' }));
+    expect((await screen.findByLabelText('Category emoji value')).props.value).toBe('👋🏻');
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getByLabelText('Category emoji value').props.value).toBe('');
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.getByRole('button', { name: 'Emoji: Not set' })).toBeTruthy();
+    await fireEvent.press(await screen.findByLabelText('Save category'));
+
+    await waitFor(() => expect(api.updateCatalogCategory).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'wave-category', 'Greetings', null));
+  });
+
+  it('discards an open emoji draft when the household scope changes', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const categoryA = { id: 'shared-id', item_type: 'food' as const, name: 'Home Produce', emoji: '🥬', active_item_count: 0, created_at: '', updated_at: '' };
+    const categoryB = { ...categoryA, name: 'Cabin Produce', emoji: '🍎' };
+    jest.mocked(api.catalogCategories).mockImplementation(async (_getToken, householdId) => ({
+      categories: [householdId === 'household-a' ? categoryA : categoryB],
+    }));
+    jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category: categoryB });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/choices/category/shared-id');
+    await waitFor(() => expect(screen.getByLabelText('category name').props.value).toBe('Home Produce'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Emoji: 🥬' }));
+    await fireEvent.changeText(await screen.findByLabelText('Category emoji value'), '🫙');
+
+    await act(async () => { mockSetSelectedHouseholdId?.('household-b'); });
+
+    await waitFor(() => expect(screen.queryByTestId('catalog-emoji-input-sheet')).toBeNull());
+    await waitFor(() => expect(screen.getByLabelText('category name').props.value).toBe('Cabin Produce'));
+    expect(screen.getByRole('button', { name: 'Emoji: 🍎' })).toBeTruthy();
+    await fireEvent.press(await screen.findByLabelText('Save category'));
+    await waitFor(() => expect(api.updateCatalogCategory).toHaveBeenCalledWith(expect.any(Function), 'household-b', 'shared-id', 'Cabin Produce', '🍎'));
+  });
+
+  it('keeps invalid emoji text in the sheet, shows inline feedback, and rejects multiple emoji', async () => {
+    jest.mocked(api.createCatalogCategory).mockResolvedValue({ category: {
+      id: 'test-category', item_type: 'food', name: 'Testing', emoji: '👩‍🍳', active_item_count: 0, created_at: '', updated_at: '',
+    } });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/manage');
+    await fireEvent.press(await screen.findByText('Categories'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Create category' }));
+    await fireEvent.changeText(await screen.findByLabelText('category name'), 'Testing');
+    await fireEvent.press(screen.getByRole('radio', { name: 'Food' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Emoji: Not set' }));
+    const emojiInput = await screen.findByLabelText('Category emoji value');
+    expect(emojiInput.props.keyboardType).toBe('default');
+    expect(emojiInput.props.inputMode).toBe('text');
+    await fireEvent.changeText(emojiInput, 'hello');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter one emoji, or leave the field empty.');
+    expect(screen.getByRole('button', { name: 'Create' }).props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    expect(api.createCatalogCategory).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.getByLabelText('Category emoji value').props.value).toBe('hello');
+    expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
+    expect(api.createCatalogCategory).not.toHaveBeenCalled();
+
+    await fireEvent.changeText(screen.getByLabelText('Category emoji value'), '😀😀');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Enter one emoji, or leave the field empty.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.getByLabelText('Category emoji value').props.value).toBe('😀😀');
+    expect(api.createCatalogCategory).not.toHaveBeenCalled();
+
+    await fireEvent.changeText(screen.getByLabelText('Category emoji value'), '👩‍🍳');
+    expect(screen.queryByRole('alert')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+    expect(screen.getByRole('button', { name: 'Emoji: 👩‍🍳' })).toBeTruthy();
+    expect(screen.getByLabelText('category name').props.value).toBe('Testing');
+    expect(screen.getByRole('radio', { name: 'Food' }).props.accessibilityState.checked).toBe(true);
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(api.createCatalogCategory).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'food', 'Testing', '👩‍🍳'));
+  });
+
+  it('shows an active-item count and confirms category removal with that count', async () => {
+    const category = { id: 'dairy', item_type: 'food' as const, name: 'Dairy', emoji: '🧀', active_item_count: 3, created_at: '', updated_at: '' };
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
+    jest.mocked(api.deleteCatalogCategory).mockResolvedValue(undefined);
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/manage');
+    await fireEvent.press(await screen.findByText('Categories'));
+    await fireEvent.press(await screen.findByText('Dairy'));
+    expect(await screen.findByText('3 items')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Delete category' }));
+    expect(await screen.findByText(/move 3 active items to Uncategorized/u)).toBeTruthy();
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Delete category' })[1]);
+    await waitFor(() => expect(api.deleteCatalogCategory).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'dairy', 3));
+  });
+
+  it('aligns the category name, type, and active-item count to a shared trailing inset', async () => {
+    const category = { id: 'dairy', item_type: 'food' as const, name: 'Dairy', emoji: '🧀', active_item_count: 3, created_at: '', updated_at: '' };
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/manage');
+    await fireEvent.press(await screen.findByText('Categories'));
+    await fireEvent.press(await screen.findByText('Dairy'));
+
+    const nameStyle = StyleSheet.flatten((await screen.findByLabelText('category name')).props.style);
+    const typeStyle = StyleSheet.flatten(screen.getByTestId('category-type-value').props.style);
+    const countStyle = StyleSheet.flatten(screen.getByTestId('category-item-count').props.style);
+    expect(nameStyle).toEqual(expect.objectContaining({ flex: 1, paddingHorizontal: 0, textAlign: 'right' }));
+    expect(typeStyle).toEqual(expect.objectContaining({ alignItems: 'flex-end', flex: 1 }));
+    expect(countStyle).toEqual(expect.objectContaining({ textAlign: 'right' }));
+    expect(screen.getByRole('button', { name: 'Emoji: 🧀' })).toBeTruthy();
+  });
+
+  it('keeps the emoji sheet keyboard-safe on Android without carrying the iPhone safe-area gap', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    const category = { id: 'dairy', item_type: 'food' as const, name: 'Dairy', emoji: '🧀', active_item_count: 3, created_at: '', updated_at: '' };
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/manage');
+    await fireEvent.press(await screen.findByText('Categories'));
+    await fireEvent.press(await screen.findByText('Dairy'));
+    await screen.findByText('3 items');
+    await fireEvent.press(screen.getByRole('button', { name: 'Emoji: 🧀' }));
+
+    const sheet = screen.getByTestId('catalog-emoji-input-sheet');
+    expect(catalogEmojiSheetKeyboardBehavior).toBe('padding');
+    expect(StyleSheet.flatten(sheet.props.style).paddingBottom).toBe(18);
+    const emojiInput = screen.getByLabelText('Category emoji value');
+    await fireEvent(emojiInput, 'focus');
+    expect(StyleSheet.flatten(screen.getByTestId('catalog-emoji-input-sheet').props.style).paddingBottom).toBe(12);
+    await fireEvent(emojiInput, 'blur');
+    expect(StyleSheet.flatten(screen.getByTestId('catalog-emoji-input-sheet').props.style).paddingBottom).toBe(18);
+  });
+
+  it('filters Manage Stores without losing the management route', async () => {
+    jest.mocked(api.catalogStores).mockResolvedValue({ stores: [
+      { id: 'market', name: 'Market', created_at: '', updated_at: '' },
+      { id: 'corner', name: 'Corner Shop', created_at: '', updated_at: '' },
+    ] });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/manage');
+    await fireEvent.press(await screen.findByText('Stores'));
+    expect(await screen.findByText('Market')).toBeTruthy();
+    expect(screen.getByText('Corner Shop')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Search stores'), 'corner');
+    expect(screen.getByText('Corner Shop')).toBeTruthy();
+    expect(screen.queryByText('Market')).toBeNull();
+    expect(renderResult.getPathname()).toBe('/catalog/choices/store');
+  });
+
+  it('retains Household category type through Manage to Edit', async () => {
+    const category = { id: 'household-category', item_type: 'household' as const, name: 'Cleaning', emoji: null, active_item_count: 0, created_at: '', updated_at: '' };
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
+    jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category: { ...category, name: 'Laundry' } });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/add');
+    await fireEvent.press(screen.getByRole('radio', { name: 'Household' }));
+    await fireEvent.press(screen.getByLabelText('Category: Not selected'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Manage categories' }));
+    await screen.findByText('Manage categories for this household.');
+    await waitFor(() => expect(api.catalogCategories).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'household'));
+    await fireEvent.press(await screen.findByText('Cleaning'));
+    await waitFor(() => expect(api.catalogCategories).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'household'));
+    await waitFor(() => expect(screen.getByLabelText('category name').props.value).toBe('Cleaning'));
+    expect(screen.getByText('Household')).toBeTruthy();
+    expect(api.updateCatalogCategory).not.toHaveBeenCalled();
+  });
+
+  it('clears search and filters on household or Clerk identity changes but preserves them on tab switches', async () => {
+    jest.mocked(api.catalogItems)
+      .mockResolvedValueOnce({ items: [catalogItem({ name: 'Apple', category_id: 'produce', category_name: 'Produce' })] })
+      .mockResolvedValueOnce({ items: [catalogItem({ id: 'item-b', household_id: 'household-b', item_type: 'household', name: 'Cabin soap' })] })
+      .mockResolvedValueOnce({ items: [catalogItem({ id: 'item-c', household_id: 'household-b', name: 'Identity bread' })] });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog');
+    await screen.findByText('Apple');
+    await fireEvent.changeText(screen.getByLabelText('Search household items'), 'Apple');
+    await fireEvent.press(screen.getByRole('button', { name: 'Food' }));
+    await navigateTo(renderResult, '/shopping');
+    await navigateTo(renderResult, '/catalog');
+    expect(screen.getByLabelText('Search household items').props.value).toBe('Apple');
+    expect(screen.getByRole('button', { name: 'Food' }).props.accessibilityState.selected).toBe(true);
+
+    await act(async () => { mockSetSelectedHouseholdId?.('household-b'); });
+    expect(await screen.findByText('Cabin soap')).toBeTruthy();
+    expect(screen.getByLabelText('Search household items').props.value).toBe('');
+    expect(screen.getByRole('button', { name: 'All' }).props.accessibilityState.selected).toBe(true);
+    await fireEvent.changeText(screen.getByLabelText('Search household items'), 'Cabin');
+    await fireEvent.press(screen.getByRole('button', { name: 'Household' }));
+
+    await act(async () => { mockSetClerkIdentity?.('user-b', 'session-b'); });
+    expect(await screen.findByText('Identity bread')).toBeTruthy();
+    expect(screen.getByLabelText('Search household items').props.value).toBe('');
+    expect(screen.getByRole('button', { name: 'All' }).props.accessibilityState.selected).toBe(true);
+    expect(api.catalogItems).toHaveBeenCalledTimes(3);
+  });
+
+  it('keeps same-named Food and Household categories as distinct All-view groups', async () => {
+    jest.mocked(api.catalogItems).mockResolvedValue({ items: [
+      catalogItem({ id: 'food-apple', name: 'Apple', category_id: 'food-produce', category_name: 'Produce' }),
+      catalogItem({ id: 'household-soap', item_type: 'household', name: 'Soap', category_id: 'household-produce', category_name: 'Produce' }),
+    ] });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog');
+    const sectionHeadings = screen.getAllByRole('header').map((heading) => heading.props.children);
+    expect(sectionHeadings).toContain('Food');
+    expect(sectionHeadings).toContain('Household');
+    expect(screen.getAllByText('Produce')).toHaveLength(2);
+    expect(screen.queryByRole('header', { name: 'Produce' })).toBeNull();
+    expect(screen.queryByText('Food ·')).toBeNull();
+    expect(screen.queryByText('Household ·')).toBeNull();
+    expect(screen.getByText('Apple')).toBeTruthy();
+    expect(screen.getByText('Soap')).toBeTruthy();
+  });
+
+  it('shows a Retry action when item detail loading fails', async () => {
+    jest.mocked(api.catalogItem).mockRejectedValueOnce(new Error('temporary detail failure')).mockResolvedValueOnce({ item: catalogItem() });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/item/item-1');
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry loading item' }));
+    expect(await screen.findByText('Milk')).toBeTruthy();
+    expect(api.catalogItem).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the category emoji beside the category on Item Details', async () => {
+    const item = catalogItem({ category_id: 'dairy', category_name: 'Dairy' });
+    jest.mocked(api.catalogItem).mockResolvedValue({ item });
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [
+      { id: 'dairy', item_type: 'food', name: 'Dairy', emoji: '🥛', active_item_count: 1, created_at: '', updated_at: '' },
+    ] });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/item/item-1');
+    expect(await screen.findByText('🥛 Dairy')).toBeTruthy();
+  });
+
+  it('refreshes the mounted item detail after editing its name and category', async () => {
+    const originalItem = catalogItem({ category_id: 'dairy', category_name: 'Dairy' });
+    const updatedItem = catalogItem({ name: 'Oat milk', category_id: 'chilled', category_name: 'Chilled' });
+    jest.mocked(api.catalogItems).mockResolvedValue({ items: [originalItem] });
+    jest.mocked(api.catalogItem)
+      .mockResolvedValueOnce({ item: originalItem })
+      .mockResolvedValueOnce({ item: originalItem })
+      .mockResolvedValueOnce({ item: updatedItem });
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [
+      { id: 'dairy', item_type: 'food', name: 'Dairy', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+      { id: 'chilled', item_type: 'food', name: 'Chilled', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+    ] });
+    jest.mocked(api.updateCatalogItem).mockResolvedValue({ item: updatedItem });
+
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog');
+    await fireEvent.press(await screen.findByText('Milk'));
+    expect(await screen.findByText('Dairy')).toBeTruthy();
+    expect(screen.getByText('Shopping preferences')).toBeTruthy();
+    expect(screen.getByText('Recipe measurement')).toBeTruthy();
+    expect(screen.queryByText('Catalog details')).toBeNull();
+    expect(renderResult.getPathname()).toBe('/catalog/item/item-1');
+
+    await navigateTo(renderResult, '/catalog/item/item-1/edit');
+    await waitFor(() => expect(screen.getByLabelText('Item name').props.value).toBe('Milk'));
+    await fireEvent.press(screen.getByLabelText('Category: Dairy'));
+    await fireEvent.press(await screen.findByText('Chilled'));
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'Oat milk');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByText('Oat milk')).toBeTruthy();
+    expect(await screen.findByText('Chilled')).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/catalog/item/item-1');
+    expect(api.updateCatalogItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'item-1', expect.objectContaining({
+      name: 'Oat milk', category_id: 'chilled',
+    }));
+    expect(api.catalogItem).toHaveBeenCalledTimes(3);
+  });
+
+  it('ignores a delayed item-detail refresh after the household changes', async () => {
+    const originalItem = catalogItem({ category_id: 'dairy', category_name: 'Dairy' });
+    const staleUpdatedItem = catalogItem({ name: 'Stale household result', category_id: 'chilled', category_name: 'Chilled' });
+    const householdItem = catalogItem({ household_id: 'household-b', name: 'Cabin soap', item_type: 'household' });
+    const delayedRefresh = deferred<{ item: CatalogItem }>();
+    jest.mocked(api.catalogItems).mockResolvedValue({ items: [originalItem] });
+    jest.mocked(api.catalogItem)
+      .mockResolvedValueOnce({ item: originalItem })
+      .mockResolvedValueOnce({ item: originalItem })
+      .mockReturnValueOnce(delayedRefresh.promise)
+      .mockResolvedValueOnce({ item: householdItem });
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [
+      { id: 'dairy', item_type: 'food', name: 'Dairy', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+      { id: 'chilled', item_type: 'food', name: 'Chilled', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+    ] });
+    jest.mocked(api.updateCatalogItem).mockResolvedValue({ item: staleUpdatedItem });
+
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog');
+    await fireEvent.press(await screen.findByText('Milk'));
+    expect(await screen.findByText('Dairy')).toBeTruthy();
+    await navigateTo(renderResult, '/catalog/item/item-1/edit');
+    await waitFor(() => expect(screen.getByLabelText('Item name').props.value).toBe('Milk'));
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'Updated in household A');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/catalog/item/item-1'));
+    await waitFor(() => expect(api.catalogItem).toHaveBeenCalledTimes(3));
+
+    await act(async () => { mockSetSelectedHouseholdId?.('household-b'); });
+    expect(await screen.findByText('Cabin soap')).toBeTruthy();
+    expect(api.catalogItem).toHaveBeenCalledTimes(4);
+
+    await act(async () => {
+      delayedRefresh.resolve({ item: staleUpdatedItem });
+      await delayedRefresh.promise;
+    });
+
+    expect(screen.getByText('Cabin soap')).toBeTruthy();
+    expect(screen.queryByText('Stale household result')).toBeNull();
+  });
+
+  it('offers Retry when the post-edit detail refresh fails', async () => {
+    const originalItem = catalogItem({ category_id: 'dairy', category_name: 'Dairy' });
+    const updatedItem = catalogItem({ name: 'Oat milk', category_id: 'dairy', category_name: 'Dairy' });
+    jest.mocked(api.catalogItems).mockResolvedValue({ items: [originalItem] });
+    jest.mocked(api.catalogItem)
+      .mockResolvedValueOnce({ item: originalItem })
+      .mockResolvedValueOnce({ item: originalItem })
+      .mockRejectedValueOnce(new Error('temporary detail refresh failure'))
+      .mockResolvedValueOnce({ item: updatedItem });
+    jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [
+      { id: 'dairy', item_type: 'food', name: 'Dairy', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
+    ] });
+    jest.mocked(api.updateCatalogItem).mockResolvedValue({ item: updatedItem });
+
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog');
+    await fireEvent.press(await screen.findByText('Milk'));
+    await screen.findByText('Dairy');
+    await navigateTo(renderResult, '/catalog/item/item-1/edit');
+    await waitFor(() => expect(screen.getByLabelText('Item name').props.value).toBe('Milk'));
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'Oat milk');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Retry loading item' })).toBeTruthy();
+    expect(screen.getByText('Milk')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry loading item' }));
+
+    expect(await screen.findByText('Oat milk')).toBeTruthy();
+    expect(screen.getByText('Dairy')).toBeTruthy();
+    expect(api.catalogItem).toHaveBeenCalledTimes(4);
+  });
+
+  it('shows a Retry action when choice-management loading fails', async () => {
+    let foodManagerLoads = 0;
+    jest.mocked(api.catalogCategories).mockImplementation(async (_getToken, _householdId, itemType) => {
+      if (itemType === 'food' && foodManagerLoads++ === 0) throw new Error('temporary categories failure');
+      return { categories: [{ id: 'food-category', item_type: 'food', name: 'Produce', emoji: null, active_item_count: 0, created_at: '', updated_at: '' }] };
+    });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/add');
+    await fireEvent.press(screen.getByLabelText('Category: Not selected'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Manage categories' }));
+    expect(await screen.findByText('Manage categories for this household.')).toBeTruthy();
+    expect(await screen.findByRole('alert')).toBeTruthy();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Retry loading choices' }));
+    expect(await screen.findByText('Produce')).toBeTruthy();
+    expect(api.catalogCategories).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'food');
+  });
+
+  it('clears a draft-only category removed from Manage and explains the cleared selection', async () => {
+    let categoryArchived = false;
+    const category = { id: 'food-category', item_type: 'food' as const, name: 'Produce', emoji: null, active_item_count: 0, created_at: '', updated_at: '' };
+    jest.mocked(api.catalogCategories).mockImplementation(async (_getToken, _householdId, itemType) => ({
+      categories: !categoryArchived && (!itemType || itemType === 'food') ? [category] : [],
+    }));
+    jest.mocked(api.deleteCatalogCategory).mockImplementation(async () => { categoryArchived = true; });
+    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await renderResult;
+    await screen.findByText('Your shopping list is empty.');
+    await navigateTo(renderResult, '/catalog/add');
+    await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Strawberries');
+    await fireEvent.press(screen.getByLabelText('Category: Not selected'));
+    await fireEvent.press(await screen.findByText('Produce'));
+    await fireEvent.press(screen.getByLabelText('Category: Produce'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Manage categories' }));
+    await fireEvent.press(await screen.findByText('Produce'));
+    await screen.findByText('Items in this category');
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Delete category' })[0]);
+    expect(await screen.findByText(/Delete “Produce”\?/u)).toBeTruthy();
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Delete category' })[1]);
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/catalog/choices/category'));
+    await act(async () => { router.back(); });
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/catalog/add'));
+
+    expect(await screen.findByLabelText('Category: Not selected')).toBeTruthy();
+    expect(await screen.findByText(/selected category, store, or shopping unit is no longer active/u)).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Add to catalog' }));
+    await waitFor(() => expect(api.createCatalogItem).toHaveBeenCalled());
+    expect(api.createCatalogItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({ category_id: null }));
   });
 });

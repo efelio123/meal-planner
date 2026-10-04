@@ -84,6 +84,14 @@ async def test_household_reads_serialize_rows_created_by_the_api(
         with disposable_engine.begin() as connection:
             if household_id:
                 connection.execute(
+                    text("DELETE FROM catalog_household_seed_sets WHERE household_id = :household_id"),
+                    {"household_id": household_id},
+                )
+                connection.execute(
+                    text("DELETE FROM catalog_categories WHERE household_id = :household_id"),
+                    {"household_id": household_id},
+                )
+                connection.execute(
                     text("DELETE FROM household_members WHERE household_id = :household_id"),
                     {"household_id": household_id},
                 )

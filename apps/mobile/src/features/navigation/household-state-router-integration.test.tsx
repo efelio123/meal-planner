@@ -68,6 +68,15 @@ jest.mock('expo-symbols', () => {
 const mockedApi = jest.mocked(api);
 const mockedStorage = jest.mocked(AsyncStorage);
 
+function nodeContainsText(node: unknown, text: string): boolean {
+  if (node === text) return true;
+  if (Array.isArray(node)) return node.some((child) => nodeContainsText(child, text));
+  if (node && typeof node === 'object' && 'children' in node) {
+    return nodeContainsText((node as { children: unknown }).children, text);
+  }
+  return false;
+}
+
 describe('household state with the actual Expo Router provider', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -125,7 +134,9 @@ describe('household state with the actual Expo Router provider', () => {
     await screen.findByText('Your shopping list is empty.');
     await act(async () => { router.navigate('/profile/my-households'); });
     expect(await screen.findByText('Home')).toBeTruthy();
-    const refreshableScreen = screen.getAllByTestId('screen').find((node) => node.props.refreshControl);
+    const refreshableScreen = screen.getAllByTestId('screen').find((node) => (
+      node.props.refreshControl && nodeContainsText(node.children, 'My households')
+    ));
     expect(refreshableScreen).toBeTruthy();
 
     await act(async () => { refreshableScreen?.props.refreshControl.props.onRefresh(); });

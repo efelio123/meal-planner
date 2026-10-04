@@ -9,21 +9,47 @@ a material product or technical decision changes.
 
 ## Planning and approval
 
-- For every medium or large feature, create a concise plan document before
-  implementation. The plan must state the goal, affected areas, proposed
-  changes, important design decisions, validation, and any open questions.
+- For every medium or large feature, create a concise plan document under
+  `docs/plans/` before implementation. The plan must state the goal, affected
+  areas, proposed changes, important design decisions, validation, and any
+  open questions.
 - Present that plan for Felipe's review and wait for explicit approval before
   making code, schema, configuration, or other implementation changes for the
   feature. Revise the plan first if its scope or design materially changes.
 - A small, self-contained, low-risk change may be made without a formal plan;
   explain the change and validation clearly.
 
+## Agent roles and handoff
+
+- By default, the Codex chat agent works with Felipe on product/design decisions,
+  writes and revises plans in `docs/plans/`, and reviews implementation results.
+  It may update the roadmap or this working agreement when decisions change.
+- The VS Code coding agent implements approved plans, including application
+  code, tests, migrations, dependencies, and configuration. The Codex chat
+  agent must not take over a larger planned implementation unless Felipe
+  explicitly asks it to. Approval of a plan does not by itself change this
+  division of work.
+- After the VS Code agent delivers the larger implementation, either agent may
+  handle a small, self-contained, low-risk bug fix in that slice. The Codex
+  chat agent may make such a fix when Felipe asks for it, while preserving
+  unrelated work and running proportionate validation. Scope-changing or
+  substantial follow-ups return to planning and the VS Code agent by default.
+- After approval, the planning agent provides a copyable handoff prompt that
+  points to the plan and applicable design references, identifies the current
+  branch and uncommitted work to preserve, and states validation and review
+  expectations. The coding agent reports what changed and what remains
+  unverified. Make clear which agent owns each follow-up.
+- For other small changes that do not need a formal plan, use the VS Code
+  coding agent by default. Avoid simultaneous edits by both agents in the
+  shared worktree.
+
 ## Working style
 
 - Work incrementally. Explain decisions, tradeoffs, and implementation details
-  in depth so Felipe understands every change. Agents may write the code unless
-  Felipe explicitly asks to write it himself. When a focused hands-on exercise
-  would materially help Felipe learn, recommend it before deferring that piece.
+  in depth so Felipe understands every change. The VS Code coding agent may
+  write the code unless Felipe explicitly asks to write it himself. When a
+  focused hands-on exercise would materially help Felipe learn, recommend it
+  before deferring that piece.
 - Preserve unrelated work and use read-only inspection before changing an
   unfamiliar repository or potentially shared file.
 - Use feature branches and focused commits for repository work. Show a
@@ -33,6 +59,9 @@ a material product or technical decision changes.
   it does not. Do not implement or commit work directly on `main` unless
   Felipe explicitly agrees to that exception.
 - Run validation proportionate to the change and report what was checked.
+- For app UI reviews, compare related screens as well as each reference image.
+  Similar actions should have consistent styling and interaction states unless
+  a difference is intentional and documented.
 - Run the full disposable-PostgreSQL suite for major features or substantial
   schema/data changes, not for every small follow-up. For a focused change,
   run relevant targeted tests; include a database test when database behavior
