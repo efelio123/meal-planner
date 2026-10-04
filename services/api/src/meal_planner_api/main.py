@@ -1,10 +1,11 @@
 from time import perf_counter
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Request, Response, status
+from fastapi import Depends, FastAPI, Query, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field, StrictBool
 
+from meal_planner_api import catalog
 from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.household_management import (
     delete_household,
@@ -98,6 +99,52 @@ class SetShoppingListItemCheckedRequest(BaseModel):
     is_checked: StrictBool
 
 
+CatalogItemType = Literal["food", "household"]
+RecipeDimension = Literal["volume", "mass", "count"]
+
+
+class CatalogItemCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=160)
+    item_type: CatalogItemType
+    category_id: UUID | None = None
+    shopping_unit_code: str | None = Field(default=None, max_length=40)
+    custom_shopping_unit_id: UUID | None = None
+    preferred_store_id: UUID | None = None
+    recipe_measurement_dimension: RecipeDimension | None = None
+    recipe_measurement_unit_code: str | None = Field(default=None, max_length=40)
+
+
+class CatalogItemUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    item_type: CatalogItemType | None = None
+    category_id: UUID | None = None
+    shopping_unit_code: str | None = Field(default=None, max_length=40)
+    custom_shopping_unit_id: UUID | None = None
+    preferred_store_id: UUID | None = None
+    recipe_measurement_dimension: RecipeDimension | None = None
+    recipe_measurement_unit_code: str | None = Field(default=None, max_length=40)
+
+
+class CatalogChoiceCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    item_type: CatalogItemType | None = None
+
+
+class CatalogChoiceUpdateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+
+
+class CatalogCategoryCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    item_type: CatalogItemType
+    emoji: str | None = Field(default=None, max_length=16)
+
+
+class CatalogCategoryUpdateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    emoji: str | None = Field(default=None, max_length=16)
+
+
 @app.get("/v1/me", tags=["onboarding"])
 def get_me(user: User, request: Request) -> dict:
     from meal_planner_api.startup_diagnostics import request_id_for
@@ -162,6 +209,107 @@ def delete_household_membership(household_id: UUID, user: User) -> Response:
 @app.delete("/v1/households/{household_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["households"])
 def delete_household_route(household_id: UUID, user: User) -> Response:
     delete_household(user, str(household_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/v1/households/{household_id}/catalog/units", tags=["catalog"])
+def get_catalog_units(household_id: UUID, user: User) -> dict:
+    return catalog.list_units(user, str(household_id))
+
+
+@app.get("/v1/households/{household_id}/catalog/categories", tags=["catalog"])
+def get_catalog_categories(household_id: UUID, user: User, item_type: CatalogItemType | None = None) -> dict:
+    return {"categories": catalog.list_categories(user, str(household_id), item_type)}
+
+
+@app.post("/v1/households/{household_id}/catalog/categories", status_code=status.HTTP_201_CREATED, tags=["catalog"])
+def post_catalog_category(household_id: UUID, payload: CatalogCategoryCreateRequest, user: User) -> dict:
+    return {"category": catalog.create_category(user, str(household_id), payload.item_type, payload.name, payload.emoji)}
+
+
+@app.patch("/v1/households/{household_id}/catalog/categories/{category_id}", tags=["catalog"])
+def patch_catalog_category(household_id: UUID, category_id: UUID, payload: CatalogCategoryUpdateRequest, user: User) -> dict:
+    return {"category": catalog.update_category(
+        user,
+        str(household_id),
+        str(category_id),
+        payload.name,
+        payload.emoji,
+        emoji_provided="emoji" in payload.model_fields_set,
+    )}
+
+
+@app.delete("/v1/households/{household_id}/catalog/categories/{category_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["catalog"])
+def delete_catalog_category(
+    household_id: UUID,
+    category_id: UUID,
+    user: User,
+    expected_active_item_count: int = Query(ge=0),
+) -> Response:
+    catalog.archive_category(user, str(household_id), str(category_id), expected_active_item_count)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/v1/households/{household_id}/catalog/stores", tags=["catalog"])
+def get_catalog_stores(household_id: UUID, user: User) -> dict:
+    return {"stores": catalog.list_stores(user, str(household_id))}
+
+
+@app.post("/v1/households/{household_id}/catalog/stores", status_code=status.HTTP_201_CREATED, tags=["catalog"])
+def post_catalog_store(household_id: UUID, payload: CatalogChoiceCreateRequest, user: User) -> dict:
+    return {"store": catalog.create_store(user, str(household_id), payload.name)}
+
+
+@app.patch("/v1/households/{household_id}/catalog/stores/{store_id}", tags=["catalog"])
+def patch_catalog_store(household_id: UUID, store_id: UUID, payload: CatalogChoiceUpdateRequest, user: User) -> dict:
+    return {"store": catalog.update_store(user, str(household_id), str(store_id), payload.name)}
+
+
+@app.delete("/v1/households/{household_id}/catalog/stores/{store_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["catalog"])
+def delete_catalog_store(household_id: UUID, store_id: UUID, user: User) -> Response:
+    catalog.archive_store(user, str(household_id), str(store_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post("/v1/households/{household_id}/catalog/shopping-units", status_code=status.HTTP_201_CREATED, tags=["catalog"])
+def post_catalog_shopping_unit(household_id: UUID, payload: CatalogChoiceCreateRequest, user: User) -> dict:
+    return {"unit": catalog.create_custom_unit(user, str(household_id), payload.name)}
+
+
+@app.patch("/v1/households/{household_id}/catalog/shopping-units/{unit_id}", tags=["catalog"])
+def patch_catalog_shopping_unit(household_id: UUID, unit_id: UUID, payload: CatalogChoiceUpdateRequest, user: User) -> dict:
+    return {"unit": catalog.update_custom_unit(user, str(household_id), str(unit_id), payload.name)}
+
+
+@app.delete("/v1/households/{household_id}/catalog/shopping-units/{unit_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["catalog"])
+def delete_catalog_shopping_unit(household_id: UUID, unit_id: UUID, user: User) -> Response:
+    catalog.archive_custom_unit(user, str(household_id), str(unit_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/v1/households/{household_id}/catalog/items", tags=["catalog"])
+def get_catalog_items(household_id: UUID, user: User, item_type: CatalogItemType | None = None, search: str | None = None) -> dict:
+    return {"items": catalog.list_items(user, str(household_id), item_type, search)}
+
+
+@app.post("/v1/households/{household_id}/catalog/items", status_code=status.HTTP_201_CREATED, tags=["catalog"])
+def post_catalog_item(household_id: UUID, payload: CatalogItemCreateRequest, user: User) -> dict:
+    return {"item": catalog.create_item(user, str(household_id), payload.model_dump(mode="json"))}
+
+
+@app.get("/v1/households/{household_id}/catalog/items/{item_id}", tags=["catalog"])
+def get_catalog_item(household_id: UUID, item_id: UUID, user: User) -> dict:
+    return {"item": catalog.get_item(user, str(household_id), str(item_id))}
+
+
+@app.patch("/v1/households/{household_id}/catalog/items/{item_id}", tags=["catalog"])
+def patch_catalog_item(household_id: UUID, item_id: UUID, payload: CatalogItemUpdateRequest, user: User) -> dict:
+    return {"item": catalog.update_item(user, str(household_id), str(item_id), payload.model_dump(mode="json"), payload.model_fields_set)}
+
+
+@app.delete("/v1/households/{household_id}/catalog/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["catalog"])
+def delete_catalog_item(household_id: UUID, item_id: UUID, user: User) -> Response:
+    catalog.archive_item(user, str(household_id), str(item_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

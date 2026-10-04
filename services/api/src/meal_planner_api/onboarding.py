@@ -25,6 +25,19 @@ def _bad_request(detail: str) -> HTTPException:
 
 
 DISPLAY_NAME_PLACEHOLDER = "Name not set yet"
+STARTER_CATALOG_CATEGORIES = (
+    ("food", "Produce", "🥬"),
+    ("food", "Dairy & Eggs", "🧀"),
+    ("food", "Meat & Seafood", "🥩"),
+    ("food", "Bakery", "🍞"),
+    ("food", "Pantry", "🫙"),
+    ("food", "Frozen", "❄️"),
+    ("food", "Beverages", "🥤"),
+    ("household", "Cleaning", "🧽"),
+    ("household", "Paper Goods", "🧻"),
+    ("household", "Personal Care", "🧴"),
+)
+CATALOG_CATEGORY_SEED_SET = "starter_categories_v1"
 
 
 def _usable_display_name(value: str | None) -> str | None:
@@ -157,6 +170,48 @@ def list_households(
         log_timing(request_id, "database_households_query", elapsed_ms(database_started_at))
 
 
+def _seed_household_catalog_categories(connection, household_id: str) -> None:
+    """Apply the starter set once for a newly created, still-live household."""
+    household = connection.execute(text("""
+        SELECT id::text, deleted_at FROM households
+        WHERE id = :household_id FOR UPDATE
+    """), {"household_id": household_id}).mappings().one_or_none()
+    if household is None or household["deleted_at"] is not None:
+        return
+
+    completed = connection.execute(text("""
+        SELECT 1 FROM catalog_household_seed_sets
+        WHERE household_id = :household_id AND seed_set = :seed_set
+    """), {"household_id": household_id, "seed_set": CATALOG_CATEGORY_SEED_SET}).scalar_one_or_none()
+    if completed is not None:
+        return
+
+    for item_type, name, emoji in STARTER_CATALOG_CATEGORIES:
+        connection.execute(text("""
+            INSERT INTO catalog_categories
+                (household_id, item_type, name, normalized_name, emoji)
+            SELECT
+                :household_id,
+                :item_type,
+                :name,
+                lower(btrim(regexp_replace(:name, '[[:space:]]+', ' ', 'g'))),
+                :emoji
+            WHERE NOT EXISTS (
+                SELECT 1 FROM catalog_categories
+                WHERE household_id = :household_id
+                  AND item_type = :item_type
+                  AND normalized_name = lower(btrim(regexp_replace(:name, '[[:space:]]+', ' ', 'g')))
+            )
+            ON CONFLICT DO NOTHING
+        """), {"household_id": household_id, "item_type": item_type, "name": name, "emoji": emoji})
+
+    connection.execute(text("""
+        INSERT INTO catalog_household_seed_sets (household_id, seed_set)
+        VALUES (:household_id, :seed_set)
+        ON CONFLICT (household_id, seed_set) DO NOTHING
+    """), {"household_id": household_id, "seed_set": CATALOG_CATEGORY_SEED_SET})
+
+
 def create_household(user: CurrentUser, name: str, time_zone: str, engine: Engine | None = None) -> dict:
     if not name.strip() or not time_zone.strip():
         raise _bad_request("Household name and time zone are required.")
@@ -172,6 +227,7 @@ def create_household(user: CurrentUser, name: str, time_zone: str, engine: Engin
             VALUES (:household_id, :user_id, 'owner')"""), {"household_id": household["id"], "user_id": user.id})
         connection.execute(text("""INSERT INTO shopping_lists (household_id)
             VALUES (:household_id) ON CONFLICT (household_id) DO NOTHING"""), {"household_id": household["id"]})
+        _seed_household_catalog_categories(connection, household["id"])
         return {**household, "role": "owner"}
 
 
