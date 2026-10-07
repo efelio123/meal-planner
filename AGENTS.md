@@ -58,13 +58,24 @@ a material product or technical decision changes.
   fits that feature; create or switch to a clearly named feature branch when
   it does not. Do not implement or commit work directly on `main` unless
   Felipe explicitly agrees to that exception.
-- Write the slice's code and tests before running them. Do not run tests during
-  implementation; once the slice is mostly built and the intended edits are
-  complete, run one coordinated, proportionate test pass and debug failures
-  together. Report what passed and what remains unverified.
+- Complete the slice's intended code, migration, and test edits before running
+  validation. Do not run tests, typechecks, lint, or migration checks between
+  incremental implementation steps just for early feedback. Once the intended
+  implementation is complete, run one coordinated, proportionate validation
+  pass, debug its failures, and rerun the relevant checks. Report what passed
+  and what remains unverified. Read-only inspection during implementation is
+  fine.
 - For app UI reviews, compare related screens as well as each reference image.
   Similar actions should have consistent styling and interaction states unless
   a difference is intentional and documented.
+- For short mobile selection and entry flows, study
+  `docs/plans/native-sheets-app-wide.md` and the existing native-sheet route,
+  context, and screen implementation before adding a sheet. Reuse the accepted
+  draggable native-sheet pattern instead of reintroducing custom drag gestures
+  or a full-screen modal. Preserve nested Back/dismiss behavior, underlying
+  drafts and searches, keyboard/safe-area layout, and household/session scope.
+  Keep full detail/manage pages as stack screens and destructive confirmations
+  explicit. The mobile-specific rules are in `apps/mobile/AGENTS.md`.
 - For routine feature and bug-fix UI checks, test the current appearance only;
   do not switch between light and dark mode each time. Run a dedicated light-
   and dark-mode visual pass before major deployments.

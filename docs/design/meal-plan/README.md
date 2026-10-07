@@ -1,0 +1,29 @@
+# Meal-planning visual references
+
+These four dark-theme PNGs capture the views Felipe approved on October 7,
+2026. They are visual targets for the household-scoped Plan slice, not a
+replacement for the behavior and edge cases in
+`docs/plans/household-scoped-meal-planning.md`.
+
+| View | Reference |
+| --- | --- |
+| Monday-start weekly Plan, selected day, and centered small meal chevrons | `weekly-plan.png` |
+| Whole-week shopping review and three-meal ingredient breakdown | `shopping-review.png` |
+| Add-meal sheet | `add-meal-sheet.png` |
+| Edit-planned-meal sheet | `edit-planned-meal.png` |
+
+The images were rendered from Felipe-approved interactive concepts. Compare
+each running screen side by side with its reference, and compare related
+screens to each other for typography, spacing, cards, actions, and navigation.
+The system-owned sheet frame, status bar, and tab bar may vary by platform;
+report any other intentional visual difference instead of silently accepting
+it. The rendered examples contain synthetic recipes and dates, not product
+seed data or fixed copy requirements.
+
+## Deferred concept: optional side
+
+`future-optional-side.png` records Felipe's preferred direction for a later
+version: a side appears beneath the main recipe for one planned meal, without
+changing the saved main recipe. It is **not** an approved v1 implementation
+reference. The side's data, editing, and shopping-review behavior need their
+own product decisions and plan before implementation.

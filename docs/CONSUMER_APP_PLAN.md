@@ -163,20 +163,20 @@ Save family recipes
         ->
 Plan meals for the week together
         ->
-Indicate what is already on hand
+Review the week's recipe ingredients together
         ->
-Calculate only the missing quantities
+Choose what to buy; combine matching ingredients and units
         ->
 Use one shared shopping list
 ```
 
 The working product hypothesis is:
 
-> Busy couples and families need a faster way to plan meals collaboratively from their own recipes and buy only the quantities they are actually missing, without continuously maintaining a perfectly accurate pantry inventory.
+> Busy couples and families need a faster way to plan meals collaboratively from their own recipes and decide what to buy without maintaining pantry inventory.
 
 The likely positioning is:
 
-> A low-maintenance family meal planner that uses your own recipes, asks what you have only when it matters, and creates the exact shared shopping list for the week.
+> A low-maintenance family meal planner that uses your own recipes, shows the week's combined ingredients, and lets the household choose what goes on its shared shopping list.
 
 ## Competitive context
 
@@ -191,14 +191,15 @@ The broad category is validated but crowded. Existing products include Paprika, 
 
 Therefore, `recipes + planning + pantry + shopping` is not sufficient differentiation on its own.
 
-The most promising wedge is reducing pantry-management friction. Instead of forcing users to maintain an exact permanent inventory, the application can show only ingredients relevant to the planned meals, ask for full/partial/zero quantities on hand, and generate the remaining shopping requirements.
+The most promising wedge is reducing pantry-management friction. The approved consumer v1 has a reusable Catalog, not inventory: it shows ingredients from the displayed week's meals, combines matching item/unit requirements, and asks members to select what they want to buy. Adding a meal does not prompt for on-hand quantities or alter Shopping.
 
 Example:
 
 ```text
-Recipe requirement: 2 gallons of milk
-Quantity on hand:   1 gallon
-Shopping quantity:  1 gallon
+Monday recipe:     2 Unit tomatoes
+Wednesday recipe:  2 Unit tomatoes
+Friday recipe:     2 Unit tomatoes
+Review row:        6 Unit tomatoes; member chooses whether to add it
 ```
 
 Additional differentiators worth testing, but not all building at once:
@@ -208,7 +209,7 @@ Additional differentiators worth testing, but not all building at once:
 - Leftover, takeout, away, and repeat-meal handling
 - Remembering family ratings, substitutions, and preferences
 - Avoiding meals made too recently
-- Pantry-lite behavior rather than exhaustive inventory maintenance
+- An optional on-hand aid, only if later user research justifies it
 - Planning around expensive proteins or foods that need to be used soon
 
 Do not initially compete on having the largest recipe database, AI-generated recipes, nutrition tracking, grocery delivery, barcode-complete inventory, or a social recipe network.
@@ -225,8 +226,7 @@ Version 1 should include:
 - Create, edit, archive, search, and view recipes
 - Food catalog with normalized names, categories, and default units
 - Weekly meal-planning calendar
-- Full, partial, or zero quantity-on-hand input while planning
-- Missing-quantity calculation
+- A week-wide, explicit shopping-needs review with member-selected additions
 - Consolidation of ingredients shared by multiple planned recipes
 - Shared shopping list
 - Check, uncheck, edit, and remove shopping items
@@ -443,7 +443,7 @@ The first beta uses email verification codes only: no app password and no Google
 - Add health and readiness endpoints.
 - Add structured logging and request IDs.
 
-The operation that schedules a meal and creates shopping requirements should be transactional and idempotent. A failure must not leave half a meal or duplicate shopping items behind.
+Scheduling a meal must not write Shopping items. The later, explicit operation that adds selected reviewed ingredients to Shopping should be transactional and idempotent; a lost response must not duplicate items.
 
 ## Mobile experience priorities
 
@@ -453,8 +453,8 @@ Critical user journeys:
 2. Invite a partner.
 3. Create, import later, or select a saved recipe.
 4. Place meals on a weekly calendar.
-5. Enter quantities already on hand.
-6. Review the consolidated list of missing ingredients.
+5. Review the displayed week's consolidated recipe ingredients.
+6. Select what to buy and explicitly add it to Shopping.
 7. Shop collaboratively and check items off.
 8. Adjust the plan when the week changes.
 
@@ -526,7 +526,7 @@ Use Paprika, AnyList, MealBoard, Samsung Food, and Plan to Eat or Mealime for a 
 
 - Save three personal recipes.
 - Plan five dinners.
-- Handle ingredients already on hand.
+- Review what the household actually needs without an inventory ledger.
 - Generate a shopping list.
 - Share the workflow with a partner.
 - Shop from the result.
@@ -649,16 +649,15 @@ Exit condition:
 Implement in this order:
 
 1. Shared shopping list
-2. Food catalog/pantry-lite
+2. Food catalog (reusable items, not inventory)
 3. Recipe creation and library
 4. Weekly meal planner
-5. Quantity-on-hand entry
-6. Missing-ingredient consolidation
-7. Household invitations and settings
+5. Week-wide ingredient consolidation and explicit shopping selection
+6. Household invitations and settings
 
 Exit condition:
 
-- A household can complete the recipe -> plan -> on-hand -> shopping -> checked-off loop on both platforms.
+- A household can complete the recipe -> plan -> review/select -> shopping -> checked-off loop on both platforms.
 
 ### Phase 6: Security, quality, and operations (3-5 weeks)
 
@@ -689,7 +688,7 @@ Track:
 - Shopping-list usage
 - Week-two and week-four retention
 - List corrections and duplicate items
-- Pantry/on-hand abandonment
+- Shopping-review abandonment or confusion
 - Invitation success
 - Crash-free sessions
 - Support requests and confusion points
@@ -813,7 +812,7 @@ This milestone validates authentication, multitenancy, mobile networking, shared
 
 - Building a generic feature clone without a compelling reason to switch
 - Cross-household data exposure
-- Pantry maintenance becoming too tedious for sustained use
+- Shopping review becoming too tedious for sustained use
 - Incorrect ingredient matching, consolidation, or unit conversion
 - Recipe-content copyright or licensing problems
 - Offline mutation conflicts
@@ -827,14 +826,14 @@ This milestone validates authentication, multitenancy, mobile networking, shared
 - **M0 - Existing prototype:** The private family dashboard proves the domain workflow.
 - **M1 - Secure cloud foundation:** Staging API, managed database, authentication, and household isolation work.
 - **M2 - Shared-list vertical slice:** Two household members use an installable mobile build and a shared list.
-- **M3 - Core-loop build:** Recipes, planning, quantities on hand, and generated shopping lists work end to end.
+- **M3 - Core-loop build:** Recipes, planning, week-wide ingredient review, and member-selected shared-shopping additions work end to end.
 - **M4 - Private beta:** 10-20 households test the app repeatedly.
 - **M5 - Store ready:** Security, reliability, privacy, account deletion, support, and store assets are complete.
 - **M6 - Public release:** iOS and Android versions are available through staged rollout.
 
 ## Immediate next milestone
 
-The cloud-backed, household-isolated shared-shopping-list foundation is in place. Catalog merged through PR #13 and Recipes through PR #14 as `ac5dcf0`; the Recipes migration is not deployed to staging. On a separately verified `meal_planner_disposable_test` container, migrations reached `household_recipes (head)` and the full API suite passed 120 tests with no skips. The separate native-sheet slice has since replaced the rejected custom Ingredient Details drag; Felipe considers Recipes v1 and the sheet UI finished for now, while broader device/reference acceptance remains pending. Its local mobile normal and no-cache runs each passed 41 suites / 263 tests, plus TypeScript, lint, web export, and whitespace checks. Hosted Mobile CI for PR #14 failed the five Expo patch-alignment recommendations; Felipe explicitly approved merging with that known result and deferred those updates. Catalog remains inventory-free, and meal planning follows later.
+The cloud-backed, household-isolated shared-shopping-list foundation is in place. Catalog merged through PR #13 and Recipes through PR #14 as `ac5dcf0`; the Recipes migration is not deployed to staging. On a separately verified `meal_planner_disposable_test` container, migrations reached `household_recipes (head)` and the full API suite passed 120 tests with no skips. The separate native-sheet slice has since replaced the rejected custom Ingredient Details drag; Felipe considers Recipes v1 and the sheet UI finished for now, while broader device/reference acceptance remains pending. Its local mobile normal and no-cache runs each passed 41 suites / 263 tests, plus TypeScript, lint, web export, and whitespace checks. Hosted Mobile CI for PR #14 failed the five Expo patch-alignment recommendations; Felipe explicitly approved merging with that known result and deferred those updates. Catalog remains inventory-free. Felipe approved the next household-scoped weekly Plan and explicit shopping-review slice in `docs/plans/household-scoped-meal-planning.md` for coding-agent implementation, with four v1 images in `docs/design/meal-plan/`. The optional-side image there is a deferred later-version concept, not v1 scope. No Plan application code or migration has been implemented yet.
 
 Cloud staging and CI merged through PR #11 and are provisioned for test-only use on Render Free and Neon Free. The committed workflow passes on push and pull-request triggers, including disposable PostgreSQL validation (56 tests, 0 skipped) and mobile checks; the approved Expo patch alignment passes compatibility/Doctor checks. Felipe reports that two physical devices completed the invited-user/shared-household flow through the Render-backed API and saw the same shopping list; device operating systems were not recorded. After Render slept, the app showed a loading indicator for about one minute and then loaded successfully. This is an observed successful cold wake; failed-wake retry behavior remains untested, and acceptance of the roughly one-minute latency remains undecided. Keep the total cost at $0/month, local API as the everyday development default, and staging data test-only with Felipe manually reviewing and clearing it within 30 days. Staging does not establish production reliability, backup/recovery readiness, broad release validation, or store readiness; Android-specific acceptance and native-build/smoke testing remain outstanding. See `docs/plans/free-cloud-staging-and-ci.md`.
 
@@ -849,6 +848,7 @@ Cloud staging and CI merged through PR #11 and are provisioned for test-only use
 - Use `com.efelio.mealplanner` for the iOS bundle identifier and Android package, with `mealplanner` as the Expo scheme.
 - Make household multitenancy and authorization foundational work.
 - Keep the current invitation-testing slice code-only; add text-shareable invitation URLs that open the app and prepopulate the code in a later approved slice.
-- Prioritize the low-maintenance, quantity-aware, household meal-planning loop.
+- Prioritize the low-maintenance, household meal-planning loop: combine matching recipe ingredients for the week, then let members select what to buy without tracking on-hand inventory.
+- Keep one recipe per day/meal slot for the first Plan version. Consider an optional side attached to a planned meal later, without making it part of the saved main recipe.
 - Keep the initial beta free and defer speculative features.
 - Profile hub implementation merged to `main` through PR #9 and accepted by Felipe after iPhone testing; it replaces Settings with Profile while retaining account, household, and household-targeted invitation destinations. Household management merged to `main` through PR #10; only the reported role-update and pull-to-refresh iPhone checks are accepted, while Android and broader device acceptance remain outstanding. Cloud staging/CI merged through PR #11; its CI checks pass, and the Free/$0 Render/Neon staging API is deployed for test-only use. Felipe reports a two-device invited-user/shared-list flow succeeded against staging, with OS unconfirmed, and a Render cold wake displayed loading for about one minute before succeeding. Failed-wake retry behavior remains untested, and acceptance of the roughly one-minute latency remains undecided. Keep local API as the default, manually clear staging-only test data within 30 days, and treat Android-specific acceptance, native-build/smoke testing, production reliability, and broader release readiness as outstanding. See `docs/plans/profile-hub-replacement.md`, `docs/plans/household-management.md`, and `docs/plans/free-cloud-staging-and-ci.md`.
