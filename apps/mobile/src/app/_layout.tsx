@@ -2,7 +2,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
@@ -13,9 +13,36 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { HouseholdStateProvider, useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme, useThemeMode } from '@/hooks/use-theme';
 import { getStartupDiagnostics } from '@/lib/startup-diagnostics';
-import { NativeSheetProvider } from '@/features/native-sheets/native-sheet-context';
+import { NativeSheetProvider, useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
+import { nativeSheetRouteOptions } from '@/features/native-sheets/native-sheet-route-options';
 
 SplashScreen.preventAutoHideAsync();
+
+function RootStack({ destination, isSignedIn }: { destination: string; isSignedIn: boolean | undefined }) {
+  const theme = useTheme();
+  const { get } = useNativeSheetFlow();
+  return <Stack>
+    <Stack.Screen name="index" options={{ headerShown: false }} />
+    <Stack.Protected guard={!isSignedIn}>
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+    </Stack.Protected>
+    <Stack.Protected guard={!!isSignedIn && destination === 'app'}>
+      <Stack.Screen name="(app)" options={{ headerShown: false }} />
+    </Stack.Protected>
+    <Stack.Protected guard={!!isSignedIn && (destination === 'create-or-join' || destination === 'select-household' || destination === 'complete-profile')}>
+      <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
+    </Stack.Protected>
+    <Stack.Protected guard={!!isSignedIn && destination === 'api-error'}>
+      <Stack.Screen name="(api-error)" options={{ headerShown: false }} />
+    </Stack.Protected>
+    <Stack.Protected guard={!!isSignedIn && ['app', 'create-or-join', 'select-household', 'complete-profile'].includes(destination)}>
+      <Stack.Screen name="native-sheet/[sheetId]" options={({ route }) => {
+        const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
+        return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);
+      }} />
+    </Stack.Protected>
+  </Stack>;
+}
 
 function RootNavigator() {
   const theme = useTheme();
@@ -45,24 +72,7 @@ function RootNavigator() {
   if (!isLoaded || destination === 'loading') return <View style={{ alignItems: 'center', backgroundColor: theme.screen, flex: 1, justifyContent: 'center' }}><ActivityIndicator color={theme.activity} /></View>;
   return (
     <NativeSheetProvider scope={`${isSignedIn ? 'signed-in' : 'signed-out'}:${userId ?? ''}:${sessionId ?? ''}:${selectedHousehold?.id ?? ''}`}>
-    <Stack>
-      <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Protected guard={!isSignedIn}>
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={!!isSignedIn && destination === 'app'}>
-        <Stack.Screen name="(app)" options={{ headerShown: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={!!isSignedIn && (destination === 'create-or-join' || destination === 'select-household' || destination === 'complete-profile')}>
-        <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={!!isSignedIn && destination === 'api-error'}>
-        <Stack.Screen name="(api-error)" options={{ headerShown: false }} />
-      </Stack.Protected>
-      <Stack.Protected guard={!!isSignedIn && ['app', 'create-or-join', 'select-household', 'complete-profile'].includes(destination)}>
-        <Stack.Screen name="native-sheet/[sheetId]" options={{ headerShown: false }} />
-      </Stack.Protected>
-    </Stack>
+      <RootStack destination={destination} isSignedIn={isSignedIn} />
     </NativeSheetProvider>
   );
 }

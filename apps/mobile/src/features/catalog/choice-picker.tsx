@@ -77,7 +77,7 @@ function ChoiceSheet({ label, choices, selectedId, emptyChoiceLabel, searchable,
   </KeyboardAvoidingView>;
 }
 
-export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCreate, onManage, onOpen, onCustomSelect, emptyChoiceLabel, searchable: searchableOverride, createLabel, manageLabel, disabled = false, compact = false }: {
+export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCreate, onManage, onOpen, onCustomSelect, emptyChoiceLabel, searchable: searchableOverride, createLabel, manageLabel, sheetRoute, disabled = false, compact = false }: {
   label: string;
   value: string;
   selectedId?: string;
@@ -92,6 +92,8 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
   searchable?: boolean;
   createLabel?: string;
   manageLabel?: string;
+  /** Use the owning stack for a sheet that must sit above another sheet. */
+  sheetRoute?: '/(app)/(tabs)/recipes/sheet/unit';
   disabled?: boolean;
   compact?: boolean;
 }) {
@@ -121,7 +123,7 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
       />,
       { detents: choices.length <= 3 ? [0.38, 0.76] : [0.58, 0.94] },
     );
-    router.push({ pathname: '/native-sheet/[sheetId]', params: { sheetId } } as never);
+    router.push({ pathname: sheetRoute ?? '/native-sheet/[sheetId]', params: { sheetId } } as never);
   };
 
   return <View style={[styles.field, compact && styles.compactField]}>

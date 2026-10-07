@@ -62,23 +62,21 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
     setRequestVersion((current) => current + 1);
   };
 
-  return <RecipeKeyboardSafeSheet scrollable={false} testID="recipe-ingredient-keyboard-area">
-    <View testID="recipe-ingredient-search-sheet" style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
+  return <ScrollView testID="recipe-ingredient-search-sheet" contentContainerStyle={styles.nativeContent} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={[styles.nativeScroll, { backgroundColor: theme.elevatedSurface }]}>
       <View style={styles.header}><ThemedText accessibilityRole="header" style={styles.title}>Add ingredient</ThemedText><Pressable accessibilityRole="button" onPress={() => { Keyboard.dismiss(); router.back(); }}><ThemedText themeColor="link">Done</ThemedText></Pressable></View>
       <ThemedInput accessibilityLabel="Search Food Catalog" onChangeText={setQuery} placeholder="Search Food Catalog" returnKeyType="search" value={query} />
       {loading ? <ActivityIndicator accessibilityLabel="Loading Food Catalog" color={theme.activity} /> : null}
       {error ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText><PrimaryButton disabled={loading} onPress={retry} title="Retry" /></View> : null}
-      {!error ? <ScrollView testID="recipe-food-results" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={styles.foodResults}>
+      {!error ? <View testID="recipe-food-results">
         <View style={[styles.foodList, { backgroundColor: theme.screen }]}>
           {filtered.map((food, index) => <Pressable key={food.id} accessibilityRole="button" onPress={() => { if (units) onSelect({ id: food.id, name: food.name, categoryEmoji: null }, units); }} style={[styles.foodRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
             <ThemedText style={styles.foodName}>{food.name}</ThemedText><ThemedText themeColor="textSecondary">{food.category_name ?? 'Uncategorized'}</ThemedText>
           </Pressable>)}
           {!loading && filtered.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.emptyFood}>{query.trim() ? 'No Food items match your search.' : 'No Food items in this household yet.'}</ThemedText> : null}
         </View>
-      </ScrollView> : null}
+      </View> : null}
       <Pressable accessibilityRole="button" onPress={() => { Keyboard.dismiss(); router.back(); requestAnimationFrame(onCreate); }} style={[styles.createAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link">Create Food item in Catalog</ThemedText><ThemedText themeColor="link">›</ThemedText></Pressable>
-    </View>
-  </RecipeKeyboardSafeSheet>;
+  </ScrollView>;
 }
 
 export function RecipeIngredientDetailsSheet({ food, initialDraft, existingIndex, returnToSearch, householdId, expectedFlowScope, getToken, isCurrent, initialUnits, onSave }: {
@@ -130,27 +128,23 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingIndex
   };
   const cancel = () => { Keyboard.dismiss(); router.dismiss(dismissCount); };
 
-  return <RecipeKeyboardSafeSheet scrollable={false} testID="recipe-ingredient-details-keyboard-area">
-    <View testID="recipe-ingredient-details-sheet" style={[styles.sheet, styles.detailSheet, { backgroundColor: theme.elevatedSurface }]}>
+  return <ScrollView testID="recipe-ingredient-details-scroll" contentContainerStyle={styles.nativeContent} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={[styles.nativeScroll, { backgroundColor: theme.elevatedSurface }]}>
       <View style={styles.header}>
         <Pressable accessibilityLabel={returnToSearch ? 'Back to Food Catalog' : 'Back to recipe'} accessibilityRole="button" onPress={() => { Keyboard.dismiss(); router.back(); }} style={styles.backAction}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }} size={24} tintColor={theme.link} /></Pressable>
         <ThemedText accessibilityRole="header" style={styles.title}>Ingredient details</ThemedText>
         <Pressable accessibilityRole="button" onPress={cancel}><ThemedText themeColor="link">Cancel</ThemedText></Pressable>
       </View>
-      <ScrollView testID="recipe-ingredient-details-scroll" alwaysBounceVertical={false} bounces={false} contentContainerStyle={styles.detailContent} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" overScrollMode="never" style={styles.detailBody}>
         <View style={[styles.selectedFoodCard, { backgroundColor: theme.screen }]}><View style={[styles.foodInitial, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{food.name.slice(0, 1).toUpperCase()}</ThemedText></View><View style={styles.foodSummary}><ThemedText style={styles.foodName}>{food.name}</ThemedText><ThemedText themeColor="textSecondary">Food Catalog item</ThemedText></View></View>
         <View style={styles.splitFields}>
           <View style={styles.field}><ThemedText themeColor="textSecondary">Amount</ThemedText><ThemedInput accessibilityLabel="Ingredient amount" keyboardType="decimal-pad" onChangeText={(amount) => setDraft((current) => ({ ...current, amount }))} placeholder="e.g. 2 or 1/2" value={draft.amount} /></View>
-          <View style={styles.field}><ChoicePicker label="Unit" choices={unitChoices} searchable selectedId={draft.customUnitLabel ? '__custom__' : draft.unitCode || ''} value={draft.customUnitLabel || draft.unitLabel || 'No unit'} emptyChoiceLabel="No unit" disabled={loadingUnits || Boolean(unitError)} onOpen={Keyboard.dismiss} onSelect={(unitCode) => { const choice = units?.recipe_measurement_units.find((unit) => unit.code === unitCode); setDraft((current) => ({ ...current, unitCode, unitLabel: choice?.label ?? '', customUnitLabel: '' })); }} onCustomSelect={(customUnitLabel) => setDraft((current) => ({ ...current, customUnitLabel, unitCode: '', unitLabel: '' }))} /></View>
+          <View style={styles.field}><ChoicePicker label="Unit" choices={unitChoices} searchable selectedId={draft.customUnitLabel ? '__custom__' : draft.unitCode || ''} value={draft.customUnitLabel || draft.unitLabel || 'No unit'} emptyChoiceLabel="No unit" disabled={loadingUnits || Boolean(unitError)} onOpen={Keyboard.dismiss} onSelect={(unitCode) => { const choice = units?.recipe_measurement_units.find((unit) => unit.code === unitCode); setDraft((current) => ({ ...current, unitCode, unitLabel: choice?.label ?? '', customUnitLabel: '' })); }} onCustomSelect={(customUnitLabel) => setDraft((current) => ({ ...current, customUnitLabel, unitCode: '', unitLabel: '' }))} sheetRoute="/(app)/(tabs)/recipes/sheet/unit" /></View>
         </View>
         {loadingUnits ? <ActivityIndicator accessibilityLabel="Loading recipe units" color={theme.activity} /> : null}
         {unitError ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{unitError}</ThemedText><PrimaryButton disabled={loadingUnits} onPress={retryUnitLoad} title="Retry units" /></View> : null}
         <View style={styles.field}><ThemedText themeColor="textSecondary">Note (optional)</ThemedText><ThemedInput accessibilityLabel="Ingredient note" onChangeText={(note) => setDraft((current) => ({ ...current, note }))} placeholder="e.g. finely chopped, to taste" value={draft.note} /></View>
         {amountError ? <ThemedText accessibilityRole="alert" themeColor="error">{amountError}</ThemedText> : null}
         <PrimaryButton disabled={Boolean(amountError) || loadingUnits || Boolean(unitError)} onPress={save} title={existingIndex === null ? 'Add ingredient' : 'Save ingredient'} />
-      </ScrollView>
-    </View>
-  </RecipeKeyboardSafeSheet>;
+  </ScrollView>;
 }
 
 export function RecipeCoverSheet({ draft, onChooseInitials, onChooseEmoji }: {
@@ -189,19 +183,17 @@ export function RecipeEmojiSheet({ value, onUse, onClear }: { value: string; onU
 }
 
 const styles = StyleSheet.create({
+  nativeScroll: { flex: 1 },
+  nativeContent: { gap: 16, paddingBottom: 32, paddingHorizontal: 22, paddingTop: 28 },
   sheet: { flex: 1, gap: 12, paddingHorizontal: 22, paddingTop: 12, paddingBottom: 12 },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 44 },
   title: { fontSize: 21, fontWeight: '700' },
-  foodResults: { flex: 1, minHeight: 80 },
   foodList: { borderRadius: 16, overflow: 'hidden' },
   foodRow: { minHeight: 58, paddingHorizontal: 14, paddingVertical: 12 },
   foodName: { fontSize: 16, fontWeight: '700' },
   emptyFood: { padding: 16 },
   createAction: { alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, minHeight: 58, paddingTop: 8 },
   errorBlock: { gap: 8 },
-  detailSheet: { paddingBottom: 0 },
-  detailBody: { flex: 1 },
-  detailContent: { gap: 16, paddingBottom: 12 },
   selectedFoodCard: { alignItems: 'center', borderRadius: 14, flexDirection: 'row', gap: 12, padding: 12 },
   foodInitial: { alignItems: 'center', borderRadius: 12, height: 52, justifyContent: 'center', width: 52 },
   foodSummary: { flex: 1, gap: 3 },

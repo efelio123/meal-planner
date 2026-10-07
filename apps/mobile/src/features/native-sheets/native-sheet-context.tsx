@@ -57,8 +57,10 @@ export function NativeSheetProvider({ children, scope }: PropsWithChildren<{ sco
 
   const get = useCallback((id: string) => {
     const entry = entriesRef.current[id];
-    return entry?.scope === currentScope.current ? entry : null;
-  }, []);
+    // A scope prop can change before the cleanup effect runs. Never expose an
+    // entry from the previous household or session during that render.
+    return entry?.scope === scope ? entry : null;
+  }, [scope]);
 
   const remove = useCallback((id: string) => {
     const callback = callbacks.current[id];

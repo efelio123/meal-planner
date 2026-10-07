@@ -1,11 +1,11 @@
-import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
-import { Platform, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useNativeSheetFlow } from './native-sheet-context';
 
-export function NativeSheetScreen() {
+export function NativeSheetScreen({ direct = false }: { direct?: boolean }) {
   const { sheetId } = useLocalSearchParams<{ sheetId: string }>();
   const router = useRouter();
   const navigation = useNavigation();
@@ -26,25 +26,34 @@ export function NativeSheetScreen() {
 
   useEffect(() => {
     if (!entry) return;
-    return navigation.addListener('beforeRemove', () => flow.remove(entry.id));
+    return navigation.addListener('beforeRemove', () => {
+      // Removing the registry entry rerenders this route before the native
+      // dismissal finishes. It is already leaving; do not issue a second Back.
+      requestedFallbackBack.current = true;
+      flow.remove(entry.id);
+    });
   }, [entry, flow, navigation]);
+
+  useEffect(() => {
+    if (!entry) return;
+    return () => {
+      // Native gesture removal can bypass the JS navigation notification.
+      // Unmount is the final cleanup point for the entry and dismiss callback.
+      requestedFallbackBack.current = true;
+      flow.remove(entry.id);
+    };
+  }, [entry, flow]);
 
   if (!entry) return null;
 
-  return <>
-    <Stack.Screen options={{
-      headerShown: false,
-      presentation: Platform.OS === 'web' ? 'modal' : 'formSheet',
-      sheetAllowedDetents: entry.detents,
-      sheetInitialDetentIndex: entry.initialDetent,
-      sheetGrabberVisible: true,
-      sheetCornerRadius: 24,
-      contentStyle: { backgroundColor: theme.elevatedSurface },
-    }} />
-    <View testID="native-sheet-content" style={[styles.content, { backgroundColor: theme.elevatedSurface }]}>
-      {entry.content}
-    </View>
-  </>;
+  // Stacked Recipes form sheets need the scrollable sheet content to be the
+  // native route's root, as in the accepted gesture prototype. Keep the
+  // container for the existing shared Catalog/time-zone route.
+  if (direct) return entry.content;
+
+  return <View testID="native-sheet-content" style={[styles.content, { backgroundColor: theme.elevatedSurface }]}>
+    {entry.content}
+  </View>;
 }
 
 const styles = StyleSheet.create({ content: { flex: 1 } });

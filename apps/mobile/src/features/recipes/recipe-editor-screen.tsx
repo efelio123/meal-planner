@@ -284,9 +284,9 @@ export function RecipeEditorScreen() {
 
   const getCurrentToken = useCallback(() => latestGetToken.current(), []);
   const isCurrentEditorScope = useCallback(() => mounted.current && scopeRef.current === scope, [scope]);
-  const pushNativeSheet = useCallback((content: React.ReactNode, detents: number[]) => {
+  const pushNativeSheet = useCallback((kind: 'food' | 'details' | 'cover' | 'emoji', content: React.ReactNode, detents: number[]) => {
     const sheetId = sheetFlow.present(content, { detents });
-    router.push({ pathname: '/native-sheet/[sheetId]', params: { sheetId } } as never);
+    router.push({ pathname: `/(app)/(tabs)/recipes/sheet/${kind}`, params: { sheetId } } as never);
   }, [router, sheetFlow]);
 
   const saveIngredient = useCallback((ingredient: RecipeIngredientDraft, index: number | null) => {
@@ -308,6 +308,7 @@ export function RecipeEditorScreen() {
       note: '',
     };
     pushNativeSheet(
+      'details',
       <RecipeIngredientDetailsSheet
         food={food}
         initialDraft={initialDraft}
@@ -338,6 +339,7 @@ export function RecipeEditorScreen() {
     if (!householdId || !editorLoaded || saving) return;
     Keyboard.dismiss();
     pushNativeSheet(
+      'food',
       <RecipeFoodSheet
         householdId={householdId}
         expectedFlowScope={sheetFlow.scope}
@@ -352,6 +354,7 @@ export function RecipeEditorScreen() {
 
   const openRecipeEmojiEntry = () => {
     pushNativeSheet(
+      'emoji',
       <RecipeEmojiSheet
         value={draft.coverEmoji}
         onUse={(emoji) => setDraft((current) => ({ ...current, coverKind: 'emoji', coverEmoji: emoji }))}
@@ -362,6 +365,7 @@ export function RecipeEditorScreen() {
   };
 
   const openRecipeCover = () => pushNativeSheet(
+    'cover',
     <RecipeCoverSheet
       draft={draft}
       onChooseInitials={() => setDraft((current) => ({ ...current, coverKind: 'initials', coverEmoji: '' }))}
