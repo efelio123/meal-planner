@@ -1,13 +1,11 @@
 import { Stack } from 'expo-router';
-import { CatalogProvider } from '@/features/catalog/catalog-context';
 import { profileNativeStackOptions } from '@/features/profile/profile-navigation-options';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function CatalogLayout() {
   const theme = useTheme();
   return (
-    <CatalogProvider>
-      <Stack screenOptions={{
+    <Stack screenOptions={{
         headerStyle: { backgroundColor: theme.surface },
         headerTintColor: theme.text,
         headerTitleStyle: { color: theme.text },
@@ -22,7 +20,6 @@ export default function CatalogLayout() {
         <Stack.Screen name="choices/[kind]/index" options={{ title: 'Catalog choices' }} />
         <Stack.Screen name="choices/[kind]/create" options={{ title: 'Create choice' }} />
         <Stack.Screen name="choices/[kind]/[choiceId]" options={{ title: 'Edit choice' }} />
-      </Stack>
-    </CatalogProvider>
+    </Stack>
   );
 }

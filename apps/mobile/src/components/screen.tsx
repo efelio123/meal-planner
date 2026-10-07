@@ -10,11 +10,12 @@ type ScreenProps = PropsWithChildren<{
   nativeTabScreen?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void | Promise<void>;
+  testID?: string;
 }>;
 
 const defaultSafeAreaEdges: Edge[] = ['top', 'right', 'bottom', 'left'];
 
-export function Screen({ children, contentAlignment = 'center', safeAreaEdges = defaultSafeAreaEdges, nativeTabScreen = false, refreshing = false, onRefresh }: ScreenProps) {
+export function Screen({ children, contentAlignment = 'center', safeAreaEdges = defaultSafeAreaEdges, nativeTabScreen = false, refreshing = false, onRefresh, testID = 'screen' }: ScreenProps) {
   const theme = useTheme();
   const nativeIosInsets = nativeTabScreen && Platform.OS === 'ios';
   return (
@@ -22,6 +23,8 @@ export function Screen({ children, contentAlignment = 'center', safeAreaEdges = 
       <ScrollView
         contentContainerStyle={[styles.content, contentAlignment === 'top' && styles.contentTop]}
         contentInsetAdjustmentBehavior={nativeIosInsets ? 'automatic' : 'never'}
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
         refreshControl={onRefresh && Platform.OS !== 'web' ? (
           <RefreshControl
@@ -33,7 +36,7 @@ export function Screen({ children, contentAlignment = 'center', safeAreaEdges = 
           />
         ) : undefined}
         style={{ backgroundColor: theme.screen }}
-        testID="screen"
+        testID={testID}
       >
         {children}
       </ScrollView>

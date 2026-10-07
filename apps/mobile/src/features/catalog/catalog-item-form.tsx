@@ -10,6 +10,7 @@ import { useHouseholdState } from '@/hooks/use-household-state';
 import { ApiError, api, type CatalogCategory, type CatalogItem, type CatalogItemInput, type CatalogItemType, type CatalogShoppingUnit, type CatalogUnits, type GetToken, type RecipeMeasurementUnit } from '@/lib/api';
 import { ChoicePicker, type ChoiceOption } from './choice-picker';
 import { useCatalogContext, type CatalogChoiceKind } from './catalog-context';
+import { useRecipeContext } from '@/features/recipes/recipe-context';
 
 type FormState = {
   name: string;
@@ -25,14 +26,15 @@ const emptyForm: FormState = { name: '', itemType: 'food', categoryId: '', shopp
 function byName(choices: { id: string; name: string }[]) { return choices.map((choice) => ({ id: choice.id, label: choice.name })); }
 function unitId(choice: CatalogShoppingUnit) { return choice.id ? `custom:${choice.id}` : `built-in:${choice.code}`; }
 
-export function CatalogItemForm() {
+export function CatalogItemForm({ recipeIngredientMode = false }: { recipeIngredientMode?: boolean } = {}) {
   const { getToken, selectedHousehold } = useHouseholdState();
   const theme = useTheme();
   const { sessionId, userId } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams<{ itemId?: string }>();
+  const params = useLocalSearchParams<{ itemId?: string; originScope?: string }>();
   const itemId = typeof params.itemId === 'string' ? params.itemId : null;
   const { changeKind, choiceResult, markChanged, revision, setChoiceResult } = useCatalogContext();
+  const { setCreatedFood } = useRecipeContext();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
@@ -166,7 +168,8 @@ export function CatalogItemForm() {
   const routeToChoices = (kind: CatalogChoiceKind, mode: 'create' | 'manage') => {
     const params = kind === 'category' ? `?itemType=${form.itemType}` : '';
     const suffix = mode === 'create' ? '/create' : '';
-    router.push(`/(app)/(tabs)/catalog/choices/${kind}${suffix}${params}` as never);
+    const base = recipeIngredientMode ? '/(app)/(tabs)/recipes/catalog-choices' : '/(app)/(tabs)/catalog/choices';
+    router.push(`${base}/${kind}${suffix}${params}` as never);
   };
 
   const save = async () => {
@@ -187,10 +190,14 @@ export function CatalogItemForm() {
       recipe_measurement_unit_code: form.itemType === 'food' ? form.recipeUnitCode || null : null,
     };
     try {
-      if (itemId) await api.updateCatalogItem(() => latestGetToken.current(), householdId, itemId, payload);
-      else await api.createCatalogItem(() => latestGetToken.current(), householdId, payload);
+      const saved = itemId
+        ? await api.updateCatalogItem(() => latestGetToken.current(), householdId, itemId, payload)
+        : await api.createCatalogItem(() => latestGetToken.current(), householdId, payload);
       if (!mounted.current || scopeRef.current !== startedScope) return;
       markChanged('items');
+      if (recipeIngredientMode && !itemId && typeof params.originScope === 'string') {
+        setCreatedFood({ originScope: params.originScope, item: saved.item });
+      }
       router.back();
     } catch (reason) {
       if (mounted.current && scopeRef.current === startedScope) {
@@ -220,7 +227,7 @@ export function CatalogItemForm() {
 
   return (
     <View style={styles.routeRoot}>
-    <Stack.Screen options={{ title: itemId ? 'Edit item' : 'Add item' }} />
+    <Stack.Screen options={{ title: itemId ? 'Edit item' : recipeIngredientMode ? 'Create Food item' : 'Add item' }} />
     <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
       <View style={styles.content}>
         <ThemedText themeColor="textSecondary">Save an item once for everyone in your household to use in the catalog.</ThemedText>
@@ -229,13 +236,13 @@ export function CatalogItemForm() {
         <ThemedText style={styles.label}>Item name</ThemedText>
         <ThemedInput ref={itemNameRef} accessibilityLabel="Item name" onChangeText={(name) => { updateForm((current) => ({ ...current, name })); if (name.trim()) setError((current) => current === 'Enter an item name.' ? null : current); }} placeholder="Item name" value={form.name} />
         <ThemedText style={styles.label}>Type</ThemedText>
-        <View style={styles.types}>
+        {!recipeIngredientMode ? <View style={styles.types}>
           {(['food', 'household'] as const).map((itemType) => (
             <Pressable key={itemType} accessibilityRole="radio" accessibilityState={{ checked: form.itemType === itemType }} onPress={() => updateForm((current) => ({ ...current, itemType, categoryId: '', recipeDimension: '', recipeUnitCode: '' }))} style={[styles.typeButton, { borderColor: form.itemType === itemType ? theme.primary : theme.border }]}>
               <ThemedText>{itemType === 'food' ? 'Food' : 'Household'}</ThemedText>
             </Pressable>
           ))}
-        </View>
+        </View> : <ThemedText themeColor="textSecondary">Food</ThemedText>}
         {selectionMessage ? <ThemedText themeColor="textSecondary">{selectionMessage}</ThemedText> : null}
         <ChoicePicker compact label="Category" choices={categoryChoices} selectedId={form.categoryId} value={selectedCategory} emptyChoiceLabel="No category" createLabel="Create category" manageLabel="Manage categories" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(categoryId) => { updateForm((current) => ({ ...current, categoryId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('category', 'create')} onManage={() => routeToChoices('category', 'manage')} />
         <ChoicePicker compact label="Typical shopping unit (optional)" choices={shoppingChoices} searchable selectedId={form.shoppingUnitId} value={selectedUnit} createLabel="Create shopping unit" manageLabel="Manage shopping units" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(shoppingUnitId) => { updateForm((current) => ({ ...current, shoppingUnitId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('shopping-unit', 'create')} onManage={() => routeToChoices('shopping-unit', 'manage')} />
@@ -258,7 +265,7 @@ export function CatalogItemForm() {
           ) : null}
         </>
         {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
-        <PrimaryButton disabled={saving || initialLoading || Boolean(itemId && loadedItemScope !== scope)} onPress={() => void save()} title={saving ? 'Saving…' : itemId ? 'Save changes' : 'Add to catalog'} />
+        <PrimaryButton disabled={saving || initialLoading || Boolean(itemId && loadedItemScope !== scope)} onPress={() => void save()} title={saving ? 'Saving…' : itemId ? 'Save changes' : recipeIngredientMode ? 'Create & use ingredient' : 'Add to catalog'} />
       </View>
     </Screen>
     </View>

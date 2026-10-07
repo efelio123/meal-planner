@@ -36,6 +36,8 @@ describe('Catalog root visual regression', () => {
 
   it('shows category and optional unit without emoji, extra counts, or helper copy', async () => {
     const view = await render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, right: 0, bottom: 34, left: 0 } }}><CatalogScreen /></SafeAreaProvider>);
+    expect(view.getByTestId('screen').props.automaticallyAdjustKeyboardInsets).toBe(true);
+    expect(view.getByTestId('screen').props.keyboardDismissMode).toBe('interactive');
     expect(view.getByText('Produce · bag')).toBeTruthy();
     expect(view.queryByText('🥬')).toBeNull();
     expect(view.getByText(/bag/)).toBeTruthy();

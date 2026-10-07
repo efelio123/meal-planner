@@ -28,7 +28,7 @@ async function loadChoices(getToken: GetToken, householdId: string, kind: Catalo
   return (await api.catalogUnits(getToken, householdId)).shopping_units.household.map((unit) => ({ id: unit.id!, name: unit.label, created_at: '', updated_at: '' }));
 }
 
-export function CatalogChoiceManagement() {
+export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?: 'catalog' | 'recipes' } = {}) {
   const params = useLocalSearchParams<{ kind: string; itemType?: string }>();
   const kind = isKind(params.kind) ? params.kind : null;
   const itemType = params.itemType === 'food' || params.itemType === 'household' ? params.itemType : undefined;
@@ -78,8 +78,9 @@ export function CatalogChoiceManagement() {
   const title = kind === 'category' ? 'Categories' : kind === 'store' ? 'Stores' : 'Shopping units';
   const routeToCreate = useCallback(() => {
     if (!kind) return;
-    router.push(`/(app)/(tabs)/catalog/choices/${kind}/create${itemType ? `?itemType=${itemType}` : ''}` as never);
-  }, [itemType, kind, router]);
+    const base = routeBase === 'recipes' ? 'recipes/catalog-choices' : 'catalog/choices';
+    router.push(`/(app)/(tabs)/${base}/${kind}/create${itemType ? `?itemType=${itemType}` : ''}` as never);
+  }, [itemType, kind, routeBase, router]);
   const createAction = useCallback(() => (
     <Pressable accessibilityLabel={`Create ${kind === 'shopping-unit' ? 'shopping unit' : kind ?? 'choice'}`} accessibilityRole="button" onPress={routeToCreate} style={styles.headerAction}>
       <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus', android: 'add', web: 'add' }} size={22} tintColor={theme.link} />
@@ -115,7 +116,7 @@ export function CatalogChoiceManagement() {
               {filterGroup(group.choices).map((choice, index) => {
                 const choiceType = (choice as ManagedChoice).item_type ?? itemType;
                 return (
-                  <Link key={choice.id} href={`/(app)/(tabs)/catalog/choices/${kind ?? 'category'}/${choice.id}${choiceType ? `?itemType=${choiceType}` : ''}` as never} asChild>
+                  <Link key={choice.id} href={`/(app)/(tabs)/${routeBase === 'recipes' ? 'recipes/catalog-choices' : 'catalog/choices'}/${kind ?? 'category'}/${choice.id}${choiceType ? `?itemType=${choiceType}` : ''}` as never} asChild>
                     <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.row, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }])}>
                       {(choice as ManagedChoice).emoji ? <ThemedText style={styles.choiceEmoji}>{(choice as ManagedChoice).emoji}</ThemedText> : null}
                       <ThemedText style={styles.choiceName}>{choice.name}</ThemedText>
