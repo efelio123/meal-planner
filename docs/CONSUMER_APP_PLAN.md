@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: October 3, 2026
+Last updated: October 6, 2026
 
 ## Purpose of this document
 
@@ -98,7 +98,48 @@ Catalog item remains active. Felipe reports that the emoji sheet looks good
 on iPhone; this is limited to that focused check. Broader gesture/device
 acceptance remains outstanding. No database tests were rerun for this commit.
 
+Catalog merge and Recipes implementation update (2026-10-05): Catalog merged
+into `main` through PR #13 at `78051f6`, after four hosted checks passed.
+Felipe reported that the final iPhone emoji sheet looks good; broader gesture
+and device acceptance is still outstanding. The approved household-scoped
+Recipes slice in `docs/plans/household-scoped-recipes.md` is being implemented
+on `feat/household-recipes-plan`; its implementation is now committed locally
+for PR review, not merged or deployed. The approved screen direction uses a
+grid/list switch, name initials by default with optional emoji/photo cover,
+Food Catalog-linked ingredients, editable amounts/units/notes, numbered
+directions, separate hours-and-minutes prep/cook input, and optional details.
+A recipe needs a name and at least one Catalog ingredient. Recipe screens do
+not add items to Shopping; that belongs to later meal planning. Felipe chose
+to defer photo upload (initials and emoji only), accept positive numbers and
+fractions for ingredient amounts with ranges in notes, and expose Archived
+recipes with Restore under Profile → My households → the specific Household
+details page for all active members. Felipe approved the archived-list visual
+reference; Felipe approved the full Recipes plan for implementation on
+October 5, 2026. Earlier validation for the implementation: mobile
+normal and cold baseline tests each passed 38 suites / 248 tests; TypeScript,
+mobile lint, API Ruff, and 75 selected non-database API tests passed. A later
+mobile-only phone-UX follow-up passed normal and final no-cache runs of 39
+suites / 258 tests each, plus TypeScript and lint. It reuses the full Catalog Food form from Recipes and
+addresses ingredient navigation, unit entry, validation feedback, and detail
+styling; its native appearance remains to be reviewed. The full
+disposable-PostgreSQL migration/API suite was not run at that earlier point.
+On October 6, a fresh disposable container was verified by URL and live
+database name, migrated to `household_recipes (head)`, and the full API suite
+passed 120 tests with no skips. Current mobile normal and no-cache runs each
+passed 40 suites / 262 tests, plus TypeScript, lint, API Ruff, and whitespace
+checks. Broader physical-device/reference acceptance remains pending, and the
+current custom Ingredient Details drag is not accepted on iPhone. No new
+mobile dependency was added.
+
 This is a status snapshot, not a change to the long-term scope below. Update it as milestones are validated.
+
+Native-sheet direction (2026-10-06): Felipe reports that the development-only
+stacked Recipes `formSheet` prototype has the desired drag feel on iPhone. A
+retroactive migration of the app's interactive selection/entry sheets is
+proposed in `docs/plans/native-sheets-app-wide.md`, not yet implemented or
+accepted across other flows. Full detail/manage pages and destructive
+confirmations are outside that presentation change. Android, web, production
+draft/state behavior, and reference-image parity still require validation.
 
 ## Product decision
 
@@ -786,7 +827,7 @@ This milestone validates authentication, multitenancy, mobile networking, shared
 
 ## Immediate next milestone
 
-The cloud-backed, household-isolated shared-shopping-list foundation is in place. The current active feature slice is the approved household-scoped Catalog on `feat/household-catalog`, with implementation and high-fidelity visual/starter-category work in the uncommitted worktree. The approved chooser rollback is implemented: category emoji editing uses an ordinary text-entry sheet, and the `unicode-emoji-json` mobile package is removed. Because the only configured local API URL points to `meal_planner_dev`, which was not accessed, the expanded API emoji validator and its fixture/tests remain as a data-compatibility safeguard. Latest mobile normal and direct no-cache cold runs each passed 34 suites / 230 tests; focused actual-router/validator tests passed. TypeScript, lint, API Ruff, 21 focused API validator tests (including parity over 1,914 fixture entries), and whitespace checks passed. The first normal run had two 5-second timeouts, but both affected tests passed individually and the subsequent full normal run passed. No database tests were run for this rollback. Device keyboard/paste acceptance remains outstanding. The earlier full disposable-PostgreSQL result was 64/64 before the starter-category migration; after that migration, the latest reported run was 67 passed / 1 failed, with a cleanup-test correction requested but no subsequent full result recorded. Starter-category migration/backfill and tenant-isolation validation therefore remain open pending a verified disposable-database rerun; never use `meal_planner_dev`. The saved Android checklist could not be rerun in the latest session because no emulator/app was available, and iPhone review remains for Felipe. Continue one focused vertical slice at a time; Catalog is not inventory, and its recipe/shopping-list integration remains a later milestone.
+The cloud-backed, household-isolated shared-shopping-list foundation is in place. The household-scoped Catalog slice, starter categories, and API emoji compatibility work were merged to `main` through PR #13; its broader device checks remain outstanding. The approved emoji-editor rollback uses the ordinary text-entry sheet and removed the `unicode-emoji-json` mobile dependency. The current approved feature is household-scoped Recipes on `feat/household-recipes-plan`; its implementation, handwritten migration, tests, and retained visual references are committed locally for PR review, not merged or deployed. On a separately verified `meal_planner_disposable_test` container, migrations reached `household_recipes (head)` and the full API suite passed 120 tests with no skips. Mobile normal and no-cache runs each passed 40 suites / 262 tests; TypeScript, lint, API Ruff, web export, and whitespace checks passed. Broader device/reference acceptance remains pending, and the current custom Ingredient Details drag is not accepted on iPhone; the native-sheet migration is planned as a separate branch after Recipes. Continue one focused vertical slice at a time; Catalog is not inventory, and meal planning remains a later milestone.
 
 Cloud staging and CI merged through PR #11 and are provisioned for test-only use on Render Free and Neon Free. The committed workflow passes on push and pull-request triggers, including disposable PostgreSQL validation (56 tests, 0 skipped) and mobile checks; the approved Expo patch alignment passes compatibility/Doctor checks. Felipe reports that two physical devices completed the invited-user/shared-household flow through the Render-backed API and saw the same shopping list; device operating systems were not recorded. After Render slept, the app showed a loading indicator for about one minute and then loaded successfully. This is an observed successful cold wake; failed-wake retry behavior remains untested, and acceptance of the roughly one-minute latency remains undecided. Keep the total cost at $0/month, local API as the everyday development default, and staging data test-only with Felipe manually reviewing and clearing it within 30 days. Staging does not establish production reliability, backup/recovery readiness, broad release validation, or store readiness; Android-specific acceptance and native-build/smoke testing remain outstanding. See `docs/plans/free-cloud-staging-and-ci.md`.
 
