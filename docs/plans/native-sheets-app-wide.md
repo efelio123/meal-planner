@@ -1,4 +1,4 @@
-# Native sheets for app-wide selection and entry — approved, awaiting branch
+# Native sheets for app-wide selection and entry — approved, branch prepared
 
 ## Goal and decision
 
@@ -13,10 +13,20 @@ into sheets solely for consistency. A Delete household or Remove member warning
 must remain a deliberate confirmation, not become easy to dismiss by accident.
 
 Felipe approved this plan and requested a separate branch and focused commits.
-Implementation waits for the Recipes PR to merge. The accepted prototype
-proves the iPhone gesture feel for synthetic Food and
-Ingredient Details; it does not yet validate production data, Android, web,
-or other sheet flows.
+Recipes merged through PR #14 as `ac5dcf0`, and
+`feat/native-sheets-app-wide` now starts from that commit. The accepted
+prototype proves the iPhone gesture feel for synthetic Food and Ingredient
+Details; it does not yet validate production data, Android, web, or other
+sheet flows. No native-sheet migration is implemented on this branch yet.
+
+PR #14's two hosted Mobile checks failed only at `expo install --check` because
+five Expo SDK 57 patch recommendations moved; its two PostgreSQL API checks
+passed. Felipe explicitly approved merging Recipes despite that CI result and
+approved patch alignment for a later follow-up. Do not silently bundle those
+dependency updates into this sheet migration just to change CI status. The
+affected packages are `@expo/ui`, `expo`, `expo-constants`, `expo-linking`, and
+`expo-router`; record their exact target ranges and revalidate when the
+separate patch follow-up is scheduled.
 
 ## Inventory and scope
 
@@ -106,14 +116,13 @@ cannot be made reliable with the native route approach.
 
 ## Rollout boundary
 
-Implement this as a separate slice on a dedicated branch, with focused commits
-that do not mix native-sheet migration with the current Recipes feature work.
-First finish the Recipes PR review/merge and account for the accepted
-prototype; preserve the unrelated unapproved swipe-Back plan. Once Recipes
-has been reviewed and merged, create `feat/native-sheets-app-wide` from updated
-`main` and migrate the flows there. Do not switch branches, move uncommitted
-files, commit, push, or deploy as part of planning. Do not ship a duplicate
-development-only prototype entry in the finished migration.
+Implement this as a separate slice on `feat/native-sheets-app-wide`, which was
+created from updated `main` at `ac5dcf0`. Use focused commits that do not mix
+native-sheet migration with the merged Recipes feature work. Preserve the
+existing uncommitted timezone-picker files and unrelated unapproved swipe-Back
+plan; inspect them before editing overlapping code. Do not ship a duplicate
+development-only prototype entry in the finished migration. Push or deploy
+only after the implementation and validation are reviewed.
 
 If a flow cannot safely use native sheets (especially Unit over Ingredient
 Details or the web fallback), stop that flow, keep its existing working

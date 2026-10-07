@@ -102,9 +102,9 @@ Catalog merge and Recipes implementation update (2026-10-05): Catalog merged
 into `main` through PR #13 at `78051f6`, after four hosted checks passed.
 Felipe reported that the final iPhone emoji sheet looks good; broader gesture
 and device acceptance is still outstanding. The approved household-scoped
-Recipes slice in `docs/plans/household-scoped-recipes.md` is being implemented
-on `feat/household-recipes-plan`; its implementation is now committed locally
-for PR review, not merged or deployed. The approved screen direction uses a
+Recipes slice in `docs/plans/household-scoped-recipes.md` was implemented on
+`feat/household-recipes-plan` and merged through PR #14 as
+`ac5dcf0`, but has not been deployed. The approved screen direction uses a
 grid/list switch, name initials by default with optional emoji/photo cover,
 Food Catalog-linked ingredients, editable amounts/units/notes, numbered
 directions, separate hours-and-minutes prep/cook input, and optional details.
@@ -134,12 +134,16 @@ mobile dependency was added.
 This is a status snapshot, not a change to the long-term scope below. Update it as milestones are validated.
 
 Native-sheet direction (2026-10-06): Felipe reports that the development-only
-stacked Recipes `formSheet` prototype has the desired drag feel on iPhone. A
-retroactive migration of the app's interactive selection/entry sheets is
-proposed in `docs/plans/native-sheets-app-wide.md`, not yet implemented or
-accepted across other flows. Full detail/manage pages and destructive
-confirmations are outside that presentation change. Android, web, production
-draft/state behavior, and reference-image parity still require validation.
+stacked Recipes `formSheet` prototype has the desired drag feel on iPhone. The
+approved retroactive migration of interactive selection/entry sheets is in
+`docs/plans/native-sheets-app-wide.md`. Its separate branch starts from the
+Recipes merge; no production sheet migration is implemented yet. Full
+detail/manage pages and destructive confirmations are outside that
+presentation change. Android, web, production draft/state behavior, and
+reference-image parity still require validation. Both hosted PostgreSQL checks
+on PR #14 passed; both hosted Mobile jobs failed only at Expo's patch-version
+compatibility check. Felipe approved merging with that known result and
+deferred the five approved SDK 57 patch alignments to a later follow-up.
 
 ## Product decision
 
@@ -827,7 +831,7 @@ This milestone validates authentication, multitenancy, mobile networking, shared
 
 ## Immediate next milestone
 
-The cloud-backed, household-isolated shared-shopping-list foundation is in place. The household-scoped Catalog slice, starter categories, and API emoji compatibility work were merged to `main` through PR #13; its broader device checks remain outstanding. The approved emoji-editor rollback uses the ordinary text-entry sheet and removed the `unicode-emoji-json` mobile dependency. The current approved feature is household-scoped Recipes on `feat/household-recipes-plan`; its implementation, handwritten migration, tests, and retained visual references are committed locally for PR review, not merged or deployed. On a separately verified `meal_planner_disposable_test` container, migrations reached `household_recipes (head)` and the full API suite passed 120 tests with no skips. Mobile normal and no-cache runs each passed 40 suites / 262 tests; TypeScript, lint, API Ruff, web export, and whitespace checks passed. Broader device/reference acceptance remains pending, and the current custom Ingredient Details drag is not accepted on iPhone; the native-sheet migration is planned as a separate branch after Recipes. Continue one focused vertical slice at a time; Catalog is not inventory, and meal planning remains a later milestone.
+The cloud-backed, household-isolated shared-shopping-list foundation is in place. The household-scoped Catalog slice, starter categories, and API emoji compatibility work merged through PR #13. Household-scoped Recipes merged through PR #14 as `ac5dcf0`; its migration is not deployed to staging. On a separately verified `meal_planner_disposable_test` container, migrations reached `household_recipes (head)` and the full API suite passed 120 tests with no skips. Mobile normal and no-cache runs each passed 40 suites / 262 tests; TypeScript, lint, API Ruff, web export, and whitespace checks passed locally. Hosted Mobile CI failed the five Expo patch-alignment recommendations; Felipe explicitly approved merging with that known result and deferred those approved updates. Broader device/reference acceptance remains pending, and the custom Ingredient Details drag is not accepted on iPhone. The next slice is the approved native-sheet migration on its separate branch; Catalog remains inventory-free, and meal planning follows later.
 
 Cloud staging and CI merged through PR #11 and are provisioned for test-only use on Render Free and Neon Free. The committed workflow passes on push and pull-request triggers, including disposable PostgreSQL validation (56 tests, 0 skipped) and mobile checks; the approved Expo patch alignment passes compatibility/Doctor checks. Felipe reports that two physical devices completed the invited-user/shared-household flow through the Render-backed API and saw the same shopping list; device operating systems were not recorded. After Render slept, the app showed a loading indicator for about one minute and then loaded successfully. This is an observed successful cold wake; failed-wake retry behavior remains untested, and acceptance of the roughly one-minute latency remains undecided. Keep the total cost at $0/month, local API as the everyday development default, and staging data test-only with Felipe manually reviewing and clearing it within 30 days. Staging does not establish production reliability, backup/recovery readiness, broad release validation, or store readiness; Android-specific acceptance and native-build/smoke testing remain outstanding. See `docs/plans/free-cloud-staging-and-ci.md`.
 

@@ -1,8 +1,9 @@
 # Household-scoped Recipes: design and implementation plan
 
-Status: implementation is committed on `feat/household-recipes-plan` for PR
-review; it is not merged or deployed. The fresh disposable-PostgreSQL migration reached `household_recipes`
-(head), and the full API suite passed 120 tests with no skips on 2026-10-06.
+Status: implementation merged to `main` through PR #14 as `ac5dcf0`; it has
+not been deployed to staging. The fresh disposable-PostgreSQL migration reached
+`household_recipes` (head), and the full API suite passed 120 tests with no
+skips on 2026-10-06.
 Mobile normal and no-cache runs each passed 40 suites / 262 tests; TypeScript,
 lint, API Ruff, and whitespace checks passed. Broader physical-device and
 reference-image acceptance remain pending. In particular, the current custom
