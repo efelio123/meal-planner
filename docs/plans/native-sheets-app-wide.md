@@ -1,4 +1,9 @@
-# Native sheets for app-wide selection and entry — approved, branch prepared
+# Native sheets for app-wide selection and entry
+
+Status: first-version implementation finished on `feat/native-sheets-app-wide`.
+Felipe reports the corrected Catalog Category sheet drags correctly and the
+Recipes ingredient screens look good on iPhone. Broader gesture, keyboard,
+Android, and reference-image acceptance remains for later device testing.
 
 ## Goal and decision
 
@@ -14,10 +19,54 @@ must remain a deliberate confirmation, not become easy to dismiss by accident.
 
 Felipe approved this plan and requested a separate branch and focused commits.
 Recipes merged through PR #14 as `ac5dcf0`, and
-`feat/native-sheets-app-wide` now starts from that commit. The accepted
-prototype proves the iPhone gesture feel for synthetic Food and Ingredient
-Details; it does not yet validate production data, Android, web, or other
-sheet flows. No native-sheet migration is implemented on this branch yet.
+`feat/native-sheets-app-wide` starts from that commit. The accepted prototype
+proved the iPhone gesture feel for synthetic Food and Ingredient Details.
+The first migration implementation was committed locally as `a17a5cf` and
+`b55feca`, but Felipe's iPhone check rejected its presentation: Catalog
+Category and Recipes Add Ingredient opened as full-screen, non-draggable pages.
+Their titles/actions overlapped the status bar. The corrected implementation
+then restored native presentation before this slice was finalized.
+
+The likely presentation defect is in the shared route setup, not its list
+content: the accepted prototype registered `presentation: 'formSheet'`, detents,
+and grabber options on the parent Recipes `Stack.Screen` before navigation.
+The migration's root stack registers `native-sheet/[sheetId]` with only
+`headerShown: false`, then `native-sheet-screen.tsx` applies sheet options via
+an in-screen `<Stack.Screen>` after navigation. The installed Expo Router
+implements that in-screen component with `navigation.setOptions`; presentation
+may already have been chosen when the native screen was created. Confirm this
+on the running app rather than treating the hypothesis as proven. Configure
+the presentation and correct per-flow detents in the owning navigator before
+the sheet route opens, or use another approach demonstrated to present a real
+native `formSheet`. Compare against the earlier working prototype and Expo's
+[form-sheet layout example](https://docs.expo.dev/router/advanced/modals/).
+First prove Recipes Food and Details and Catalog Category on iPhone, including
+status-bar clearance and finger-following slow/fast drag, before expanding
+the correction across the remaining migrated flows. Add a navigator-level
+regression test; content-only route tests cannot establish native presentation.
+
+Correction completed: the shared root route is now configured by its owning
+stack before navigation, and Felipe reports that Catalog Category again opens
+as a draggable partial-height sheet on iPhone. Recipes now uses distinct Food,
+Details, Unit, Cover, and Emoji routes in its own stack, matching the prototype
+structure. Felipe's first retest still showed Food/Details content overlapping
+their own headers. The migration-only keyboard-avoidance wrapper and nested
+scroll layout around Food and Details were removed; each sheet now has one
+root scrollable surface, matching the accepted prototype. Recipes routes also
+render their sheet content directly rather than adding the shared container
+view; Catalog's accepted container route is unchanged. Felipe reports that
+the ingredient screens now look good on his iPhone after this correction.
+The shared route also removes its saved sheet entry on unmount if a native
+gesture does not emit a JavaScript Back notification; cleanup is idempotent.
+That is visual acceptance of the reported ingredient screens, not yet a
+recorded keyboard-open, drag/back, Unit, Cover/Emoji, time-zone, or Android
+acceptance. Do not interpret router tests as proof of those native behaviors.
+The local post-correction mobile normal and no-cache runs each passed 41 suites
+/ 263 tests; TypeScript, lint, web export, and `git diff --check` passed.
+No database tests were run for this presentation-only change.
+The remaining React Native `Modal` uses found in the mobile feature code are
+the deliberate Catalog item/category removal and recipe archive confirmations;
+no custom `PanResponder` sheet remains in the app source.
 
 PR #14's two hosted Mobile checks failed only at `expo install --check` because
 five Expo SDK 57 patch recommendations moved; its two PostgreSQL API checks

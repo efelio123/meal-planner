@@ -58,19 +58,22 @@ a material product or technical decision changes.
   fits that feature; create or switch to a clearly named feature branch when
   it does not. Do not implement or commit work directly on `main` unless
   Felipe explicitly agrees to that exception.
-- Run validation proportionate to the change and report what was checked.
+- Write the slice's code and tests before running them. Do not run tests during
+  implementation; once the slice is mostly built and the intended edits are
+  complete, run one coordinated, proportionate test pass and debug failures
+  together. Report what passed and what remains unverified.
 - For app UI reviews, compare related screens as well as each reference image.
   Similar actions should have consistent styling and interaction states unless
   a difference is intentional and documented.
 - For routine feature and bug-fix UI checks, test the current appearance only;
   do not switch between light and dark mode each time. Run a dedicated light-
   and dark-mode visual pass before major deployments.
-- Run the full disposable-PostgreSQL suite for major features or substantial
-  schema/data changes, not for every small follow-up. For a focused change,
-  run relevant targeted tests; include a database test when database behavior
-  changes. Report skipped tests as unrun, not passing, and preserve the last
-  full-suite result as historical validation rather than claiming it covers
-  later edits.
+- In that final test pass, run the full disposable-PostgreSQL suite for major
+  features or substantial schema/data changes, not for every small follow-up.
+  For a focused change, run relevant targeted tests; include a database test
+  when database behavior changes. Report skipped tests as unrun, not passing,
+  and preserve the last full-suite result as historical validation rather than
+  claiming it covers later edits.
 - Before implementing with a technology or library, consult its current official
   documentation and verify guidance against the version installed or resolved in
   the project.

@@ -1,11 +1,36 @@
 # Recipes physical-device regression checklist
 
+Felipe considers Recipes v1 finished for now and reports the corrected
+ingredient sheets look good on iPhone. This is not a completed pass of every
+scenario below; keep this checklist for his later testing.
+
 Use this checklist for repeatable iPhone and Android/emulator acceptance of the
 household-scoped Recipes slice. It is a **manual test plan**, not a record of
 passing device tests. Compare each live screen side by side with the approved
 PNGs in [`../design/recipes/`](../design/recipes/README.md). Record deviations,
 including spacing, typography, cards, headers, sheets, and keyboard behavior;
 do not infer visual fidelity from automated tests.
+
+### Native-sheet migration retest — October 6, 2026
+
+The first migration opened Catalog Category and Recipes Food as full-screen,
+non-draggable pages with status-bar overlap. Moving shared sheet presentation
+options to the owning navigator restored the draggable Catalog Category sheet
+on Felipe's iPhone. Recipes now uses distinct in-stack routes for Food, Details,
+Unit, Cover, and Emoji. An initial iPhone retest of Food → Details still showed
+list/form content overlapping sheet headers. The custom-modal-era keyboard
+wrapper and nested scroll layout were removed from Food and Details; each
+sheet now has one root scrollable surface like the accepted native prototype.
+The Recipes route no longer inserts the shared container view above that root.
+Felipe reports the ingredient screens look good on iPhone after this correction.
+Still check explicitly that both headers and grabbers remain visible with the
+keyboard open and closed, Details drags down to the preserved Food search, and
+Unit stacks over Details and returns with amount/note intact.
+The shared route cleanup now marks a dismissed sheet as already leaving before
+removing its saved content, preventing a second fallback Back during a native
+swipe. Verify Details → Food → recipe editor dismisses one layer per swipe.
+The Android emulator has no installed signed-in app, so Android sheet behavior
+is still unverified. Automated routing checks do not establish native geometry.
 
 ## Run record and safe setup
 
