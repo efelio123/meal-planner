@@ -2,26 +2,21 @@ import { useAuth } from '@clerk/expo';
 import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Keyboard, Modal, Platform, Pressable, ScrollView, StyleSheet, useAnimatedValue, useWindowDimensions, View } from 'react-native';
-import { GestureHandlerRootView, PanGestureHandler, State, type PanGestureHandlerStateChangeEvent } from 'react-native-gesture-handler';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { ActivityIndicator, Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
-import { ApiError, api, type CatalogItem, type CatalogUnits, type GetToken, type Recipe, type RecipeInput, type RecipeUpdateInput } from '@/lib/api';
-import { categoryEmojiValidationError } from '@/features/catalog/catalog-emoji-validation';
-import { ChoicePicker } from '@/features/catalog/choice-picker';
+import { ApiError, api, type CatalogUnits, type GetToken, type Recipe, type RecipeInput, type RecipeUpdateInput } from '@/lib/api';
+import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { formatRecipeAmount } from './recipe-presentation';
 import { useRecipeContext } from './recipe-context';
 import { RecipeCover } from './recipe-cover';
-import { RecipeKeyboardSafeSheet } from './recipe-keyboard-safe-sheet';
-import { ingredientSheetTranslateRange, shouldDismissIngredientSheet } from './recipe-sheet-gesture';
 import { draftFromRecipe, ingredientDraftFromRecipe, ingredientInputFromDraft, isValidRecipeAmount, moveDirectionStep, newCreateRequestId, newRecipeDraft, recipeOptionalFieldsError, type RecipeDirectionDraft, type RecipeDraft, type RecipeIngredientDraft } from './recipe-form-utils';
+import { RecipeCoverSheet, RecipeEmojiSheet, RecipeFoodSheet, RecipeIngredientDetailsSheet, type RecipeFoodChoice } from './recipe-native-sheets';
 
-type SelectedFood = { id: string; name: string; categoryEmoji: string | null };
 type SavePayload = RecipeInput | RecipeUpdateInput;
 
 function localStep(instruction = ''): RecipeDirectionDraft {
@@ -45,10 +40,9 @@ export function RecipeEditorScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const theme = useTheme();
-  const { height: viewportHeight } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
   const { getToken, selectedHousehold } = useHouseholdState();
   const { sessionId, userId } = useAuth();
+  const sheetFlow = useNativeSheetFlow();
   const { createdFood, markChanged: markRecipeChanged, setCreatedFood } = useRecipeContext();
   const householdId = selectedHousehold?.id ?? null;
   const scope = `${userId ?? ''}:${sessionId ?? ''}:${householdId ?? ''}:${recipeId ?? 'new'}`;
@@ -73,26 +67,6 @@ export function RecipeEditorScreen() {
   const [error, setError] = useState<string | null>(null);
   const [moreDetails, setMoreDetails] = useState(false);
 
-  const [coverChoicesOpen, setCoverChoicesOpen] = useState(false);
-  const [emojiEntryOpen, setEmojiEntryOpen] = useState(false);
-  const [emojiDraft, setEmojiDraft] = useState('');
-  const [emojiError, setEmojiError] = useState<string | null>(null);
-
-  const [ingredientSearchOpen, setIngredientSearchOpen] = useState(false);
-  const [foodSearch, setFoodSearch] = useState('');
-  const [foodItems, setFoodItems] = useState<CatalogItem[]>([]);
-  const [catalogUnits, setCatalogUnits] = useState<CatalogUnits | null>(null);
-  const [catalogOptionsLoading, setCatalogOptionsLoading] = useState(false);
-  const [catalogOptionsError, setCatalogOptionsError] = useState<string | null>(null);
-  const [selectedFood, setSelectedFood] = useState<SelectedFood | null>(null);
-  const [ingredientDraft, setIngredientDraft] = useState<RecipeIngredientDraft | null>(null);
-  const [editingIngredientIndex, setEditingIngredientIndex] = useState<number | null>(null);
-  const [ingredientDetailsOpen, setIngredientDetailsOpen] = useState(false);
-  const [ingredientAmountError, setIngredientAmountError] = useState<string | null>(null);
-  const ingredientDragY = useAnimatedValue(0);
-  const [ingredientAreaHeight, setIngredientAreaHeight] = useState(viewportHeight);
-  const [ingredientSheetHeight, setIngredientSheetHeight] = useState(0);
-  const maxIngredientLift = Math.max(0, ingredientAreaHeight - ingredientSheetHeight - insets.top - 12);
 
   const editorLoaded = loadedScope === scope;
   useEffect(() => { latestGetToken.current = getToken; }, [getToken]);
@@ -147,10 +121,6 @@ export function RecipeEditorScreen() {
     setConflictNeedsReload(false);
     setError(null);
     setMoreDetails(false);
-    setCoverChoicesOpen(false);
-    setEmojiEntryOpen(false);
-    setIngredientSearchOpen(false);
-    setIngredientDetailsOpen(false);
   }, [editing, scope]);
 
   useEffect(() => {
@@ -312,62 +282,22 @@ export function RecipeEditorScreen() {
     }
   };
 
-  const openIngredientSearch = async () => {
-    setIngredientSearchOpen(true);
-    setFoodSearch('');
-    setCatalogOptionsLoading(true);
-    setCatalogOptionsError(null);
-    if (!householdId) return;
-    const requestScope = scopeRef.current;
-    try {
-      const [itemResult, unitResult] = await Promise.all([
-        api.catalogItems(() => latestGetToken.current(), householdId),
-        api.catalogUnits(() => latestGetToken.current(), householdId),
-      ]);
-      if (scopeRef.current !== requestScope) return;
-      setFoodItems(itemResult.items.filter((item) => item.item_type === 'food'));
-      setCatalogUnits(unitResult);
-    } catch {
-      if (scopeRef.current === requestScope) setCatalogOptionsError('We couldn’t load Food Catalog items. Try again.');
-    } finally {
-      if (scopeRef.current === requestScope) setCatalogOptionsLoading(false);
-    }
-  };
+  const getCurrentToken = useCallback(() => latestGetToken.current(), []);
+  const isCurrentEditorScope = useCallback(() => mounted.current && scopeRef.current === scope, [scope]);
+  const pushNativeSheet = useCallback((content: React.ReactNode, detents: number[]) => {
+    const sheetId = sheetFlow.present(content, { detents });
+    router.push({ pathname: '/native-sheet/[sheetId]', params: { sheetId } } as never);
+  }, [router, sheetFlow]);
 
-  const backToIngredientSearch = useCallback(() => {
-    Keyboard.dismiss();
-    setFoodSearch('');
-    setIngredientDetailsOpen(false);
-    setIngredientSearchOpen(true);
+  const saveIngredient = useCallback((ingredient: RecipeIngredientDraft, index: number | null) => {
+    if (index === null) setIngredients((current) => [...current, ingredient]);
+    else setIngredients((current) => current.map((item, itemIndex) => itemIndex === index ? ingredient : item));
+    setIngredientsDirty(true);
   }, []);
-  const closeIngredientFlow = useCallback(() => {
-    Keyboard.dismiss();
-    setIngredientDetailsOpen(false);
-    setIngredientSearchOpen(false);
-  }, []);
-  useEffect(() => {
-    if (!ingredientDetailsOpen) ingredientDragY.setValue(0);
-  }, [ingredientDetailsOpen, ingredientDragY]);
-  const ingredientDragPosition = ingredientDragY.interpolate(ingredientSheetTranslateRange(maxIngredientLift, viewportHeight));
-  const ingredientDetailsDrag = Animated.event([{ nativeEvent: { translationY: ingredientDragY } }], { useNativeDriver: true });
-  const finishIngredientDrag = (event: PanGestureHandlerStateChangeEvent) => {
-    if (event.nativeEvent.state !== State.END && event.nativeEvent.state !== State.CANCELLED) return;
-    const { translationY, velocityY } = event.nativeEvent;
-    if (event.nativeEvent.state === State.END && shouldDismissIngredientSheet(translationY, velocityY)) {
-      Animated.timing(ingredientDragY, { toValue: viewportHeight, duration: 180, useNativeDriver: true }).start(({ finished }) => {
-        if (finished) backToIngredientSearch();
-      });
-    } else {
-      Animated.spring(ingredientDragY, { toValue: 0, useNativeDriver: true }).start();
-    }
-  };
 
-  const startIngredient = useCallback((food: SelectedFood, existing?: RecipeIngredientDraft, index?: number) => {
-    // Keep the same native Modal mounted as the user moves between search and details.
+  const openIngredientDetails = useCallback((food: RecipeFoodChoice, existing: RecipeIngredientDraft | undefined, index: number | null, returnToSearch: boolean, units: CatalogUnits | null = null) => {
     Keyboard.dismiss();
-    setIngredientSearchOpen(false);
-    setSelectedFood(food);
-    setIngredientDraft(existing ?? {
+    const initialDraft = existing ?? {
       catalogItemId: food.id,
       catalogItemName: food.name,
       categoryEmoji: food.categoryEmoji,
@@ -376,56 +306,76 @@ export function RecipeEditorScreen() {
       unitLabel: '',
       customUnitLabel: '',
       note: '',
-    });
-    setEditingIngredientIndex(index ?? null);
-    setIngredientAmountError(null);
-    setIngredientDetailsOpen(true);
-  }, []);
+    };
+    pushNativeSheet(
+      <RecipeIngredientDetailsSheet
+        food={food}
+        initialDraft={initialDraft}
+        existingIndex={index}
+        returnToSearch={returnToSearch}
+        householdId={householdId!}
+        expectedFlowScope={sheetFlow.scope}
+        getToken={getCurrentToken}
+        isCurrent={isCurrentEditorScope}
+        initialUnits={units}
+        onSave={saveIngredient}
+      />,
+      [0.52, 0.92],
+    );
+  }, [getCurrentToken, householdId, isCurrentEditorScope, pushNativeSheet, saveIngredient, sheetFlow.scope]);
+
+  const startIngredient = useCallback((food: RecipeFoodChoice, existing?: RecipeIngredientDraft, index?: number) => {
+    if (!householdId) return;
+    openIngredientDetails(food, existing, index ?? null, false);
+  }, [householdId, openIngredientDetails]);
+
+  const openFoodCreate = useCallback(() => {
+    if (!householdId || !isCurrentEditorScope()) return;
+    router.push(`/(app)/(tabs)/recipes/catalog-food?originScope=${encodeURIComponent(`${scope}:${createRequestId.current}`)}` as never);
+  }, [householdId, isCurrentEditorScope, router, scope]);
+
+  const openIngredientSearch = () => {
+    if (!householdId || !editorLoaded || saving) return;
+    Keyboard.dismiss();
+    pushNativeSheet(
+      <RecipeFoodSheet
+        householdId={householdId}
+        expectedFlowScope={sheetFlow.scope}
+        getToken={getCurrentToken}
+        isCurrent={isCurrentEditorScope}
+        onSelect={(food, units) => openIngredientDetails(food, undefined, null, true, units)}
+        onCreate={openFoodCreate}
+      />,
+      [0.58, 0.94],
+    );
+  };
+
+  const openRecipeEmojiEntry = () => {
+    pushNativeSheet(
+      <RecipeEmojiSheet
+        value={draft.coverEmoji}
+        onUse={(emoji) => setDraft((current) => ({ ...current, coverKind: 'emoji', coverEmoji: emoji }))}
+        onClear={() => setDraft((current) => ({ ...current, coverKind: 'initials', coverEmoji: '' }))}
+      />,
+      [0.46, 0.78],
+    );
+  };
+
+  const openRecipeCover = () => pushNativeSheet(
+    <RecipeCoverSheet
+      draft={draft}
+      onChooseInitials={() => setDraft((current) => ({ ...current, coverKind: 'initials', coverEmoji: '' }))}
+      onChooseEmoji={openRecipeEmojiEntry}
+    />,
+    [0.48, 0.76],
+  );
 
   useFocusEffect(useCallback(() => {
     if (!createdFood) return;
     setCreatedFood(null);
     if (createdFood.originScope !== `${scope}:${createRequestId.current}` || createdFood.item.household_id !== householdId) return;
-    setFoodItems((current) => [...current, createdFood.item]);
     startIngredient({ id: createdFood.item.id, name: createdFood.item.name, categoryEmoji: null });
   }, [createdFood, householdId, scope, setCreatedFood, startIngredient]));
-
-  const finishIngredient = () => {
-    if (!ingredientDraft) return;
-    const validation = amountError(ingredientDraft.amount);
-    if (validation) { setIngredientAmountError(validation); return; }
-    if (editingIngredientIndex === null) setIngredients((current) => [...current, ingredientDraft]);
-    else setIngredients((current) => current.map((item, index) => index === editingIngredientIndex ? ingredientDraft : item));
-    setIngredientsDirty(true);
-    setIngredientDetailsOpen(false);
-    setIngredientSearchOpen(false);
-    setSelectedFood(null);
-    setIngredientDraft(null);
-    setEditingIngredientIndex(null);
-  };
-
-  const openFoodCreate = () => {
-    Keyboard.dismiss();
-    setIngredientSearchOpen(false);
-    router.push(`/(app)/(tabs)/recipes/catalog-food?originScope=${encodeURIComponent(`${scope}:${createRequestId.current}`)}` as never);
-  };
-
-  const openEmojiEntry = () => {
-    setCoverChoicesOpen(false);
-    setEmojiDraft(draft.coverEmoji);
-    setEmojiError(null);
-    setEmojiEntryOpen(true);
-  };
-
-  const chooseEmoji = () => {
-    const validation = categoryEmojiValidationError(emojiDraft);
-    if (!emojiDraft.trim() || validation) { setEmojiError(validation ?? 'Enter one emoji.'); return; }
-    setDraft((current) => ({ ...current, coverKind: 'emoji', coverEmoji: emojiDraft.trim() }));
-    setEmojiEntryOpen(false);
-  };
-
-  const filteredFoods = foodItems.filter((item) => item.name.toLocaleLowerCase().includes(foodSearch.trim().toLocaleLowerCase()));
-  const unitChoices = (catalogUnits?.recipe_measurement_units ?? []).map((unit) => ({ id: unit.code, label: unit.label, group: `${unit.dimension[0].toUpperCase()}${unit.dimension.slice(1)}` }));
   const saveLabel = saveUnknown ? (editing ? 'Check saved version' : 'Retry save') : saving ? 'Saving…' : 'Save';
   const saveDisabled = !editorLoaded || saving;
   const saveAction = () => <Pressable accessibilityLabel={saveLabel} accessibilityRole="button" accessibilityState={{ disabled: saveDisabled }} disabled={saveDisabled} hitSlop={10} onPress={() => void save()} style={styles.headerAction}>
@@ -453,7 +403,7 @@ export function RecipeEditorScreen() {
           {editorLoaded ? <>
             <View style={styles.coverHeader}>
               <RecipeCover recipe={{ name: draft.name || 'Recipe', cover_kind: draft.coverKind, cover_emoji: draft.coverEmoji || null }} size="hero" />
-              <Pressable accessibilityRole="button" disabled={!editable} onPress={() => setCoverChoicesOpen(true)} style={styles.coverAction}>
+              <Pressable accessibilityRole="button" disabled={!editable} onPress={openRecipeCover} style={styles.coverAction}>
                 <ThemedText themeColor="link">Change cover</ThemedText>
               </Pressable>
             </View>
@@ -489,9 +439,6 @@ export function RecipeEditorScreen() {
                 <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus', android: 'add', web: 'add' }} size={21} tintColor={theme.link} />
                 <ThemedText themeColor="link">Add ingredient</ThemedText>
               </Pressable>
-              {__DEV__ ? <Pressable accessibilityRole="button" onPress={() => router.push('/recipes/sheet-prototype/food' as never)} style={styles.inlineAction}>
-                <ThemedText themeColor="link">Try native sheet prototype</ThemedText>
-              </Pressable> : null}
             </View>
 
             <View style={styles.section}>
@@ -534,91 +481,6 @@ export function RecipeEditorScreen() {
         </View>
       </Screen>
 
-      <Modal animationType="slide" onRequestClose={() => setCoverChoicesOpen(false)} transparent visible={coverChoicesOpen}>
-        <SheetBackdrop onClose={() => setCoverChoicesOpen(false)}>
-          <View style={[styles.sheet, { backgroundColor: theme.elevatedSurface, borderColor: theme.border }]}>
-            <Grabber themeColor={theme.border} />
-            <View style={styles.sheetHeader}><ThemedText accessibilityRole="header" style={styles.sheetTitle}>Recipe cover</ThemedText><Pressable accessibilityLabel="Done choosing recipe cover" accessibilityRole="button" onPress={() => setCoverChoicesOpen(false)}><ThemedText themeColor="link">Done</ThemedText></Pressable></View>
-            <View style={styles.coverPreviewRow}><RecipeCover recipe={{ name: draft.name || 'Recipe', cover_kind: draft.coverKind, cover_emoji: draft.coverEmoji || null }} size="row" /><View style={styles.ingredientSummary}><ThemedText style={styles.ingredientName}>{draft.name || 'Recipe name'}</ThemedText><ThemedText themeColor="textSecondary">Cover preview</ThemedText></View></View>
-            <View style={[styles.choiceGroup, { backgroundColor: theme.screen }]}>
-              <Pressable accessibilityRole="button" accessibilityState={{ selected: draft.coverKind === 'initials' }} onPress={() => { setDraft((current) => ({ ...current, coverKind: 'initials', coverEmoji: '' })); setCoverChoicesOpen(false); }} style={[styles.choiceRow, { borderBottomColor: theme.border }]}>
-                <ThemedText themeColor="link" style={styles.choiceIcon}>T</ThemedText><View style={styles.ingredientSummary}><ThemedText style={styles.ingredientName}>Use initials</ThemedText><ThemedText themeColor="textSecondary">Default · follows the recipe name</ThemedText></View>{draft.coverKind === 'initials' ? <ThemedText themeColor="link">✓</ThemedText> : null}
-              </Pressable>
-              <Pressable accessibilityRole="button" accessibilityState={{ selected: draft.coverKind === 'emoji' }} onPress={openEmojiEntry} style={styles.choiceRow}>
-                <ThemedText themeColor="link" style={styles.choiceIcon}>☺</ThemedText><View style={styles.ingredientSummary}><ThemedText style={styles.ingredientName}>Use emoji</ThemedText><ThemedText themeColor="textSecondary">Type or paste one emoji</ThemedText></View>{draft.coverKind === 'emoji' ? <ThemedText themeColor="link">✓</ThemedText> : null}
-              </Pressable>
-            </View>
-          </View>
-        </SheetBackdrop>
-      </Modal>
-
-      <Modal animationType="slide" onRequestClose={() => { setEmojiEntryOpen(false); setCoverChoicesOpen(true); }} transparent visible={emojiEntryOpen}>
-        <SheetBackdrop onClose={() => { setEmojiEntryOpen(false); setCoverChoicesOpen(true); }}>
-          <RecipeKeyboardSafeSheet testID="recipe-emoji-keyboard-area">
-            <View style={[styles.sheet, { backgroundColor: theme.elevatedSurface, borderColor: theme.border }]}>
-              <Grabber themeColor={theme.border} />
-              <View style={styles.sheetHeader}><Pressable accessibilityLabel="Back to recipe cover choices" onPress={() => { setEmojiEntryOpen(false); setCoverChoicesOpen(true); }}><ThemedText themeColor="link">‹</ThemedText></Pressable><ThemedText accessibilityRole="header" style={styles.sheetTitle}>Recipe emoji</ThemedText><Pressable accessibilityRole="button" onPress={() => { setEmojiEntryOpen(false); setCoverChoicesOpen(true); }}><ThemedText themeColor="link">Cancel</ThemedText></Pressable></View>
-              <View style={[styles.emojiPreview, { backgroundColor: theme.surfaceSelected }]}><ThemedText style={styles.emojiPreviewText}>{emojiDraft || '🙂'}</ThemedText></View>
-              <View style={styles.field}><ThemedText themeColor="textSecondary">Emoji</ThemedText><ThemedInput accessibilityLabel="Recipe emoji" autoCapitalize="none" autoCorrect={false} editable={!saving} onChangeText={(value) => { setEmojiDraft(value); setEmojiError(categoryEmojiValidationError(value)); }} placeholder="Enter or paste one emoji" value={emojiDraft} /></View>
-              <ThemedText themeColor="textSecondary">Enter or paste one emoji.</ThemedText>
-              {emojiError ? <ThemedText accessibilityRole="alert" themeColor="error">{emojiError}</ThemedText> : null}
-              <View style={styles.modalActions}><Pressable accessibilityRole="button" onPress={() => { setEmojiDraft(''); setEmojiError(null); setDraft((current) => ({ ...current, coverKind: 'initials', coverEmoji: '' })); setEmojiEntryOpen(false); setCoverChoicesOpen(false); }}><ThemedText themeColor="link">Clear</ThemedText></Pressable><Pressable accessibilityRole="button" onPress={() => { setEmojiEntryOpen(false); setCoverChoicesOpen(true); }}><ThemedText themeColor="link">Cancel</ThemedText></Pressable><PrimaryButton disabled={!emojiDraft.trim() || Boolean(categoryEmojiValidationError(emojiDraft))} onPress={chooseEmoji} title="Use emoji" /></View>
-            </View>
-          </RecipeKeyboardSafeSheet>
-        </SheetBackdrop>
-      </Modal>
-
-      <Modal animationType="slide" onRequestClose={ingredientDetailsOpen ? backToIngredientSearch : closeIngredientFlow} testID="recipe-ingredient-modal" transparent visible={ingredientSearchOpen || ingredientDetailsOpen}>
-        <GestureHandlerRootView style={styles.modalGestureRoot}>
-        <SheetBackdrop onClose={ingredientDetailsOpen ? backToIngredientSearch : closeIngredientFlow}>
-          {ingredientSearchOpen ? (
-          <RecipeKeyboardSafeSheet scrollable={false} testID="recipe-ingredient-keyboard-area">
-            <View testID="recipe-ingredient-search-sheet" style={[styles.sheet, styles.largeSheet, { backgroundColor: theme.elevatedSurface, borderColor: theme.border }]}>
-              <Grabber themeColor={theme.border} />
-              <View style={styles.sheetHeader}><ThemedText accessibilityRole="header" style={styles.sheetTitle}>Add ingredient</ThemedText><Pressable accessibilityRole="button" onPress={() => setIngredientSearchOpen(false)}><ThemedText themeColor="link">Done</ThemedText></Pressable></View>
-              <ThemedInput accessibilityLabel="Search Food Catalog" onChangeText={setFoodSearch} placeholder="Search Food Catalog" returnKeyType="search" value={foodSearch} />
-              {catalogOptionsLoading ? <ActivityIndicator accessibilityLabel="Loading Food Catalog" color={theme.activity} /> : null}
-              {catalogOptionsError ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{catalogOptionsError}</ThemedText><PrimaryButton onPress={() => void openIngredientSearch()} title="Retry" /></View> : null}
-              {!catalogOptionsError ? <ScrollView testID="recipe-food-results" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={styles.foodResults}>
-                <View style={[styles.foodList, { backgroundColor: theme.screen }]}>
-                  {filteredFoods.map((food, index) => <Pressable key={food.id} accessibilityRole="button" onPress={() => startIngredient({ id: food.id, name: food.name, categoryEmoji: null })} style={[styles.foodRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
-                    <ThemedText style={styles.ingredientName}>{food.name}</ThemedText><ThemedText themeColor="textSecondary">{food.category_name ?? 'Uncategorized'}</ThemedText>
-                  </Pressable>)}
-                  {!catalogOptionsLoading && filteredFoods.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.emptyFood}>{foodSearch.trim() ? 'No Food items match your search.' : 'No Food items in this household yet.'}</ThemedText> : null}
-                </View>
-              </ScrollView> : null}
-              <Pressable accessibilityRole="button" onPress={openFoodCreate} style={[styles.createFoodAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link">Create Food item in Catalog</ThemedText><ThemedText themeColor="link">›</ThemedText></Pressable>
-            </View>
-          </RecipeKeyboardSafeSheet>
-          ) : ingredientDetailsOpen ? (
-          <RecipeKeyboardSafeSheet scrollable={false} testID="recipe-ingredient-details-keyboard-area">
-            <View onLayout={(event) => setIngredientAreaHeight(event.nativeEvent.layout.height)} style={styles.ingredientSheetArea}>
-            <Animated.View pointerEvents="none" style={[styles.ingredientBottomFill, { backgroundColor: theme.elevatedSurface, height: maxIngredientLift, top: ingredientAreaHeight, transform: [{ translateY: ingredientDragPosition }] }]} />
-            <Animated.View onLayout={(event) => setIngredientSheetHeight(event.nativeEvent.layout.height)} style={[styles.sheet, styles.ingredientDetailsSheet, { backgroundColor: theme.elevatedSurface, borderColor: theme.border, transform: [{ translateY: ingredientDragPosition }] }]} testID="recipe-ingredient-details-sheet">
-            <PanGestureHandler activeOffsetY={[-6, 6]} failOffsetX={[-24, 24]} onGestureEvent={ingredientDetailsDrag} onHandlerStateChange={finishIngredientDrag} testID="recipe-ingredient-details-pan">
-            <View testID="recipe-ingredient-details-drag-area">
-              <View style={styles.ingredientGrabberTarget} testID="recipe-ingredient-grabber-target"><Grabber prominent testID="recipe-ingredient-grabber" themeColor={theme.textSecondary} /></View>
-              <View style={styles.sheetHeader}><Pressable accessibilityLabel="Back to Food Catalog" accessibilityRole="button" onPress={backToIngredientSearch} style={styles.sheetBackAction}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }} size={24} tintColor={theme.link} /></Pressable><ThemedText accessibilityRole="header" style={styles.sheetTitle}>Ingredient details</ThemedText><Pressable accessibilityRole="button" onPress={closeIngredientFlow}><ThemedText themeColor="link">Cancel</ThemedText></Pressable></View>
-            </View>
-            </PanGestureHandler>
-            <ScrollView testID="recipe-ingredient-details-keyboard-area-scroll" alwaysBounceVertical={false} bounces={false} contentContainerStyle={styles.ingredientDetailsBodyContent} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" overScrollMode="never" style={styles.ingredientDetailsBody}>
-            {selectedFood ? <View style={[styles.selectedFoodCard, { backgroundColor: theme.screen }]}><View style={[styles.foodInitial, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{selectedFood.name.slice(0, 1).toUpperCase()}</ThemedText></View><View style={styles.ingredientSummary}><ThemedText style={styles.ingredientName}>{selectedFood.name}</ThemedText><ThemedText themeColor="textSecondary">Food Catalog item</ThemedText></View></View> : null}
-            <View style={styles.splitFields}>
-              <View style={[styles.field, styles.splitField]}><ThemedText themeColor="textSecondary">Amount</ThemedText><ThemedInput accessibilityLabel="Ingredient amount" keyboardType="decimal-pad" onChangeText={(amount) => { setIngredientDraft((current) => current ? { ...current, amount } : current); setIngredientAmountError(amountError(amount)); }} placeholder="e.g. 2 or 1/2" value={ingredientDraft?.amount ?? ''} /></View>
-              <View style={[styles.field, styles.splitField]}><ChoicePicker label="Unit" choices={unitChoices} searchable heightLimit={560} selectedId={ingredientDraft?.customUnitLabel ? '__custom__' : ingredientDraft?.unitCode ?? ''} value={ingredientDraft?.customUnitLabel || ingredientDraft?.unitLabel || 'No unit'} emptyChoiceLabel="No unit" onOpen={Keyboard.dismiss} onSelect={(unitCode) => { const choice = catalogUnits?.recipe_measurement_units.find((unit) => unit.code === unitCode); setIngredientDraft((current) => current ? { ...current, unitCode, unitLabel: choice?.label ?? '', customUnitLabel: '' } : current); }} onCustomSelect={(customUnitLabel) => setIngredientDraft((current) => current ? { ...current, customUnitLabel, unitCode: '', unitLabel: '' } : current)} /></View>
-            </View>
-            <View style={styles.field}><ThemedText themeColor="textSecondary">Note (optional)</ThemedText><ThemedInput accessibilityLabel="Ingredient note" onChangeText={(note) => setIngredientDraft((current) => current ? { ...current, note } : current)} placeholder="e.g. finely chopped, to taste" value={ingredientDraft?.note ?? ''} /></View>
-            {ingredientAmountError ? <ThemedText accessibilityRole="alert" themeColor="error">{ingredientAmountError}</ThemedText> : null}
-            <PrimaryButton onPress={finishIngredient} title={editingIngredientIndex === null ? 'Add ingredient' : 'Save ingredient'} />
-            </ScrollView>
-            </Animated.View>
-            </View>
-          </RecipeKeyboardSafeSheet>
-          ) : null}
-        </SheetBackdrop>
-        </GestureHandlerRootView>
-      </Modal>
-
     </>
   );
 }
@@ -631,17 +493,6 @@ function TimeFields({ label, hours, minutes, editable, onHours, onMinutes }: { l
       <View style={[styles.field, styles.splitField]}><ThemedText themeColor="textSecondary">Minutes</ThemedText><ThemedInput accessibilityLabel={`${label} minutes`} editable={editable} keyboardType="number-pad" onFocus={() => { if (minutes === '0') onMinutes(''); }} onChangeText={onMinutes} value={minutes} /></View>
     </View>
   </View>;
-}
-
-function SheetBackdrop({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return <View accessibilityViewIsModal style={styles.sheetBackdrop}>
-    <Pressable accessibilityLabel="Close recipe editor sheet" accessibilityRole="button" onPress={() => { Keyboard.dismiss(); onClose(); }} style={StyleSheet.absoluteFill} />
-    {children}
-  </View>;
-}
-
-function Grabber({ themeColor, prominent = false, testID }: { themeColor: string; prominent?: boolean; testID?: string }) {
-  return <View style={[styles.grabber, prominent && styles.prominentGrabber, { backgroundColor: themeColor }]} testID={testID} />;
 }
 
 const styles = StyleSheet.create({
@@ -677,33 +528,4 @@ const styles = StyleSheet.create({
   splitField: { flex: 1 },
   notesInput: { minHeight: 90 },
   errorBlock: { gap: 8 },
-  sheetBackdrop: { backgroundColor: 'rgba(0,0,0,0.48)', flex: 1, justifyContent: 'flex-end' },
-  modalGestureRoot: { flex: 1 },
-  sheet: { borderColor: 'transparent', borderTopLeftRadius: 24, borderTopRightRadius: 24, borderWidth: StyleSheet.hairlineWidth, gap: 16, paddingBottom: 28, paddingHorizontal: 22, paddingTop: 10 },
-  ingredientSheetArea: { flex: 1, justifyContent: 'flex-end' },
-  ingredientDetailsSheet: { flexShrink: 1, maxHeight: '90%' },
-  ingredientBottomFill: { left: 0, position: 'absolute', right: 0 },
-  ingredientDetailsBody: { flexGrow: 0, flexShrink: 1 },
-  ingredientDetailsBodyContent: { gap: 16 },
-  largeSheet: { flexShrink: 1, maxHeight: '86%' },
-  grabber: { alignSelf: 'center', borderRadius: 3, height: 5, width: 38 },
-  prominentGrabber: { borderRadius: 4, height: 8, width: 52 },
-  ingredientGrabberTarget: { alignItems: 'center', justifyContent: 'center', minHeight: 34 },
-  sheetHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 44 },
-  sheetBackAction: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44 },
-  sheetTitle: { fontSize: 21, fontWeight: '700' },
-  coverPreviewRow: { alignItems: 'center', flexDirection: 'row', gap: 14, paddingVertical: 8 },
-  choiceGroup: { borderRadius: 16, overflow: 'hidden' },
-  choiceRow: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 14, minHeight: 78, paddingHorizontal: 14 },
-  choiceIcon: { fontSize: 24, textAlign: 'center', width: 38 },
-  emojiPreview: { alignItems: 'center', alignSelf: 'center', borderRadius: 24, height: 112, justifyContent: 'center', width: 112 },
-  emojiPreviewText: { fontSize: 52 },
-  modalActions: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
-  foodResults: { flexGrow: 0, flexShrink: 1, maxHeight: 350 },
-  foodList: { borderRadius: 14, overflow: 'hidden' },
-  foodRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 62, paddingHorizontal: 16 },
-  emptyFood: { padding: 16 },
-  createFoodAction: { alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, minHeight: 56, paddingTop: 8 },
-  selectedFoodCard: { alignItems: 'center', borderRadius: 15, flexDirection: 'row', gap: 14, padding: 14 },
-  foodInitial: { alignItems: 'center', borderRadius: 12, height: 52, justifyContent: 'center', width: 52 },
 });

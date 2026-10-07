@@ -13,8 +13,6 @@ export default function RecipesStackLayout() {
     }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="create" options={{ title: 'New recipe' }} />
-      <Stack.Screen name="sheet-prototype/food" options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: [0.55, 0.9], sheetInitialDetentIndex: 0, sheetGrabberVisible: true, sheetCornerRadius: 24, contentStyle: { backgroundColor: theme.elevatedSurface } }} />
-      <Stack.Screen name="sheet-prototype/details" options={{ presentation: 'formSheet', headerShown: false, sheetAllowedDetents: [0.52, 0.88], sheetInitialDetentIndex: 0, sheetGrabberVisible: true, sheetCornerRadius: 24, contentStyle: { backgroundColor: theme.elevatedSurface } }} />
       <Stack.Screen name="catalog-food" options={{ title: 'Create Food item' }} />
       <Stack.Screen name="catalog-choices/[kind]/index" options={{ title: 'Catalog choices' }} />
       <Stack.Screen name="catalog-choices/[kind]/create" options={{ title: 'Create choice' }} />

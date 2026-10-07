@@ -129,13 +129,14 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.getByText('Add at least one Food Catalog item to save this recipe.')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByText('Add at least one Food Catalog ingredient.')).toBeTruthy();
-    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    const addIngredient = screen.getByRole('button', { name: 'Add ingredient' });
+    expect(addIngredient.props.disabled).not.toBe(true);
+    await fireEvent.press(addIngredient);
     await waitFor(() => expect(within(screen.getByTestId('recipe-food-results')).getByText('Milk')).toBeTruthy());
     await fireEvent.press(within(screen.getByTestId('recipe-food-results')).getByText('Milk'));
     expect(screen.getByLabelText('Ingredient amount').props.placeholder).toBe('e.g. 2 or 1/2');
-    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Add ingredient' }).length).toBeGreaterThan(1));
-    const addIngredientButtons = screen.getAllByRole('button', { name: 'Add ingredient' });
-    await fireEvent.press(addIngredientButtons[addIngredientButtons.length - 1]);
+    await screen.findByRole('button', { name: 'Add ingredient' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByText('Tomato Soup')).toBeTruthy();
@@ -156,13 +157,16 @@ describe('Recipes through the actual Expo Router', () => {
     await screen.findByText('Shopping list');
     await act(async () => { router.navigate('/recipes/create'); });
     await screen.findByRole('button', { name: 'Add ingredient' });
-    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    const addIngredient = screen.getByRole('button', { name: 'Add ingredient' });
+    expect(addIngredient.props.disabled).not.toBe(true);
+    await fireEvent.press(addIngredient);
+    expect(await screen.findByTestId('native-sheet-content')).toBeTruthy();
     await screen.findByText('Milk');
 
     const sheet = screen.getByTestId('recipe-ingredient-search-sheet');
     expect(StyleSheet.flatten(screen.getByTestId('recipe-ingredient-keyboard-area').props.style)).toMatchObject({ flex: 1, justifyContent: 'flex-end' });
-    expect(StyleSheet.flatten(sheet.props.style).maxHeight).toBe('86%');
-    expect(StyleSheet.flatten(screen.getByTestId('recipe-food-results').props.style)).toMatchObject({ flexGrow: 0, flexShrink: 1, maxHeight: 350 });
+    expect(StyleSheet.flatten(sheet.props.style)).toMatchObject({ flex: 1 });
+    expect(StyleSheet.flatten(screen.getByTestId('recipe-food-results').props.style)).toMatchObject({ flex: 1 });
     expect(screen.getByTestId('recipe-food-results').props.keyboardShouldPersistTaps).toBe('handled');
     expect(screen.getByTestId('recipe-food-results').props.keyboardDismissMode).toBe(Platform.OS === 'ios' ? 'interactive' : 'on-drag');
     expect(screen.getByLabelText('Search Food Catalog')).toBeTruthy();
@@ -174,38 +178,34 @@ describe('Recipes through the actual Expo Router', () => {
     await fireEvent.press(screen.getByText('Milk'));
     expect(await screen.findByText('Ingredient details')).toBeTruthy();
     const detailsKeyboardArea = screen.getByTestId('recipe-ingredient-details-keyboard-area');
-    const detailsScroll = screen.getByTestId('recipe-ingredient-details-keyboard-area-scroll');
+    const detailsScroll = screen.getByTestId('recipe-ingredient-details-scroll');
     expect(detailsKeyboardArea.props.pointerEvents).toBe('box-none');
     expect(detailsScroll.props.keyboardShouldPersistTaps).toBe('handled');
     expect(detailsScroll.props.keyboardDismissMode).toBe(Platform.OS === 'ios' ? 'interactive' : 'on-drag');
     expect(detailsScroll.props.bounces).toBe(false);
     expect(detailsScroll.props.alwaysBounceVertical).toBe(false);
     expect(detailsScroll.props.overScrollMode).toBe('never');
-    expect(StyleSheet.flatten(screen.getByTestId('recipe-ingredient-grabber-target').props.style).minHeight).toBeGreaterThanOrEqual(34);
-    expect(StyleSheet.flatten(screen.getByTestId('recipe-ingredient-grabber').props.style)).toMatchObject({ height: 8, width: 52 });
-    expect(StyleSheet.flatten(screen.getByTestId('recipe-ingredient-details-sheet').props.style).transform).toHaveLength(1);
-    expect(StyleSheet.flatten(detailsScroll.props.style)).toMatchObject({ flexGrow: 0, flexShrink: 1 });
-    expect(StyleSheet.flatten(screen.getByTestId('recipe-ingredient-details-sheet').props.style).maxHeight).toBe('90%');
+    expect(StyleSheet.flatten(screen.getByTestId('recipe-ingredient-details-sheet').props.style)).toMatchObject({ flex: 1 });
+    expect(StyleSheet.flatten(detailsScroll.props.style)).toMatchObject({ flex: 1 });
     expect(screen.getByLabelText('Ingredient amount')).toBeTruthy();
     expect(screen.getByLabelText('Ingredient note')).toBeTruthy();
-    expect(screen.getAllByRole('button', { name: 'Add ingredient' }).length).toBeGreaterThan(1);
-    expect(screen.getByTestId('recipe-ingredient-details-pan')).toBeTruthy();
     expect(StyleSheet.flatten(screen.getByRole('button', { name: 'Back to Food Catalog' }).props.style)).toMatchObject({ minHeight: 44, minWidth: 44 });
-    await act(async () => { screen.getByTestId('recipe-ingredient-modal').props.onRequestClose(); });
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to Food Catalog' }));
     expect(await screen.findByLabelText('Search Food Catalog')).toBeTruthy();
     expect(within(screen.getByTestId('recipe-food-results')).getByText('Milk')).toBeTruthy();
     expect(within(screen.getByTestId('recipe-food-results')).getByText('Bread')).toBeTruthy();
-    expect(mockedApi.catalogItems).toHaveBeenCalledTimes(1);
+    const catalogRequestCount = mockedApi.catalogItems.mock.calls.length;
     await fireEvent.press(screen.getByText('Milk'));
     expect(await screen.findByText('Ingredient details')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Back to Food Catalog' }));
     expect(await screen.findByLabelText('Search Food Catalog')).toBeTruthy();
+    expect(mockedApi.catalogItems).toHaveBeenCalledTimes(catalogRequestCount);
     await fireEvent.press(screen.getByText('Milk'));
     expect(await screen.findByText('Ingredient details')).toBeTruthy();
     await fireEvent(screen.getByLabelText('Ingredient amount'), 'focus');
     await fireEvent.changeText(screen.getByLabelText('Ingredient amount'), '1/2');
     await fireEvent.press(screen.getByRole('button', { name: 'Unit: No unit' }));
-    expect(StyleSheet.flatten(screen.getByTestId('catalog-choice-sheet').props.style).maxHeight).toBeLessThanOrEqual(560);
+    expect(screen.getByTestId('catalog-choice-sheet')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Use custom unit' }));
     await fireEvent.changeText(screen.getByLabelText('Custom recipe unit'), 'pinch');
     await fireEvent.press(screen.getByRole('button', { name: 'Use custom unit' }));
@@ -214,6 +214,7 @@ describe('Recipes through the actual Expo Router', () => {
     await fireEvent.changeText(screen.getByLabelText('Ingredient note'), 'finely chopped');
     await fireEvent.press(screen.getByRole('button', { name: 'Unit: pinch' }));
     expect(await screen.findByLabelText('Search Unit')).toBeTruthy();
+    expect(await screen.findByTestId('native-sheet-content')).toBeTruthy();
     await fireEvent.press(screen.getByText('Cup'));
     expect(await screen.findByText('Ingredient details')).toBeTruthy();
     expect(screen.getByDisplayValue('1/2')).toBeTruthy();
@@ -221,30 +222,6 @@ describe('Recipes through the actual Expo Router', () => {
     await waitFor(() => expect(screen.queryByLabelText('Search Food Catalog')).toBeNull());
     await fireEvent.press(screen.getByText('Cancel'));
     await waitFor(() => expect(screen.queryByText('Ingredient details')).toBeNull());
-  });
-
-  it('keeps the prototype Food sheet beneath Details and preserves its search on Back', async () => {
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
-    await rendered;
-    await screen.findByText('Shopping list');
-    await act(async () => { router.navigate('/recipes/create'); });
-    await screen.findByRole('button', { name: 'Try native sheet prototype' });
-    await fireEvent.press(screen.getByRole('button', { name: 'Try native sheet prototype' }));
-    expect(await screen.findByTestId('recipe-native-food-prototype')).toBeTruthy();
-    expect(rendered.getPathname()).toBe('/recipes/sheet-prototype/food');
-    await fireEvent.changeText(screen.getByLabelText('Prototype Food search'), 'Ch');
-    await fireEvent.press(screen.getByRole('button', { name: 'Open Chicken prototype details' }));
-    expect(await screen.findByTestId('recipe-native-details-prototype')).toBeTruthy();
-    expect(rendered.getPathname()).toBe('/recipes/sheet-prototype/details');
-    await fireEvent.changeText(screen.getByLabelText('Prototype ingredient note'), 'Keyboard check');
-    await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
-    expect(rendered.getPathname()).toBe('/recipes/sheet-prototype/food');
-    expect(screen.getByLabelText('Prototype Food search').props.value).toBe('Ch');
-    await fireEvent.press(screen.getByRole('button', { name: 'Open Chicken prototype details' }));
-    await screen.findByTestId('recipe-native-details-prototype');
-    await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
-    expect(rendered.getPathname()).toBe('/recipes/create');
-    expect(mockedApi.createRecipe).not.toHaveBeenCalled();
   });
 
   it('clears zero-valued time fields on focus so a user can type directly', async () => {
@@ -284,7 +261,7 @@ describe('Recipes through the actual Expo Router', () => {
     await screen.findByLabelText('Search Food Catalog');
     await fireEvent(screen.getByLabelText('Search Food Catalog'), 'focus');
     await fireEvent.press(screen.getByText('Create Food item in Catalog'));
-    expect(rendered.getPathname()).toBe('/recipes/catalog-food');
+    await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/catalog-food'));
     expect(await screen.findByLabelText('Item name')).toBeTruthy();
     expect(screen.queryByRole('radio', { name: 'Household' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Typical shopping unit (optional): Not selected' })).toBeTruthy();
@@ -294,7 +271,7 @@ describe('Recipes through the actual Expo Router', () => {
     await fireEvent.changeText(screen.getByLabelText('Item name'), 'QA Celery');
     await fireEvent.press(screen.getByRole('button', { name: 'Category: Not selected' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Create category' }));
-    expect(rendered.getPathname()).toBe('/recipes/catalog-choices/category/create');
+    await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/catalog-choices/category/create'));
     const category = { id: 'category-celery', name: 'Vegetables', item_type: 'food' as const, emoji: null, active_item_count: 0, created_at: '', updated_at: '' };
     mockedApi.createCatalogCategory.mockResolvedValue({ category });
     mockedApi.catalogCategories.mockResolvedValue({ categories: [category] });
@@ -305,19 +282,21 @@ describe('Recipes through the actual Expo Router', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Category: Vegetables' })).toBeTruthy());
     await fireEvent.press(screen.getByRole('button', { name: 'Preferred store (optional): Not selected' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Manage stores' }));
-    expect(rendered.getPathname()).toBe('/recipes/catalog-choices/store');
+    await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/catalog-choices/store'));
     await act(async () => { router.back(); });
     expect(rendered.getPathname()).toBe('/recipes/catalog-food');
     expect(screen.getByDisplayValue('QA Celery')).toBeTruthy();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create & use ingredient' }).props.accessibilityState?.disabled).toBe(false));
     await fireEvent.press(screen.getByRole('button', { name: 'Create & use ingredient' }));
     await waitFor(() => expect(mockedApi.createCatalogItem).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/create'));
     expect(await screen.findByText('Ingredient details')).toBeTruthy();
+    expect(await screen.findByTestId('native-sheet-content')).toBeTruthy();
     expect(mockedApi.createCatalogItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({ name: 'QA Celery', item_type: 'food', category_id: category.id }));
     expect(screen.getByText('QA Celery')).toBeTruthy();
-    expect(screen.getByDisplayValue('Celery Soup')).toBeTruthy();
     await waitFor(() => expect(screen.queryByLabelText('Search Food Catalog')).toBeNull());
+    await fireEvent.press(screen.getByText('Cancel'));
+    await waitFor(() => expect(screen.queryByText('Ingredient details')).toBeNull());
+    expect(screen.getByDisplayValue('Celery Soup')).toBeTruthy();
   });
 
   it('keeps the emoji-entry fields and actions reachable in its scrollable keyboard-safe sheet', async () => {
