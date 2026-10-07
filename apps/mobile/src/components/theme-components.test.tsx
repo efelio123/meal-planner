@@ -1,7 +1,8 @@
 import { render } from '@testing-library/react-native';
 import { Platform, StyleSheet, Text } from 'react-native';
 import { Screen } from './screen';
-import { TimeZonePicker, timeZoneModalStyle } from './time-zone-picker';
+import { TimeZonePicker, timeZoneSheetStyle } from './time-zone-picker';
+import { NativeSheetProvider } from '@/features/native-sheets/native-sheet-context';
 
 let mockMode: 'light' | 'dark' = 'light';
 
@@ -10,9 +11,9 @@ jest.mock('@/hooks/use-color-scheme', () => ({
 }));
 
 describe.each([
-  ['light', '#ffffff', '#ffffff'],
-  ['dark', '#101114', '#1d1e22'],
-] as const)('the %s theme', (mode, screenColor, inputColor) => {
+  ['light', '#ffffff', '#ffffff', '#ffffff'],
+  ['dark', '#101114', '#1d1e22', '#1d1e22'],
+] as const)('the %s theme', (mode, screenColor, inputColor, sheetColor) => {
   beforeEach(() => { mockMode = mode; });
 
   it('renders the shared screen with its semantic background', async () => {
@@ -39,9 +40,9 @@ describe.each([
     }
   });
 
-  it('renders the time-zone picker and derives its modal background from the same theme', async () => {
-    const component = await render(<TimeZonePicker onChange={jest.fn()} value="America/Phoenix" />);
+  it('renders the time-zone picker and derives its sheet background from the same theme', async () => {
+    const component = await render(<NativeSheetProvider scope="theme-test"><TimeZonePicker onChange={jest.fn()} value="America/Phoenix" /></NativeSheetProvider>);
     expect(component.getByLabelText('Time zone').props.style[1]).toMatchObject({ backgroundColor: inputColor });
-    expect(timeZoneModalStyle(screenColor)).toContainEqual({ backgroundColor: screenColor });
+    expect(timeZoneSheetStyle(sheetColor)).toContainEqual({ backgroundColor: sheetColor });
   });
 });

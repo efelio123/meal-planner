@@ -1070,7 +1070,7 @@ describe('signed-in startup routing', () => {
     await fireEvent.changeText(screen.getByLabelText('Item name'), 'Draft apple');
     await fireEvent.press(screen.getByLabelText('Category: Not selected'));
     await fireEvent.press(screen.getByRole('button', { name: 'Create category' }));
-    expect(renderResult.getPathname()).toBe('/catalog/choices/category/create');
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/catalog/choices/category/create'));
     await screen.findByLabelText('category name');
     await fireEvent.changeText(screen.getByLabelText('category name'), 'Produce');
     await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
@@ -1094,6 +1094,7 @@ describe('signed-in startup routing', () => {
     await screen.findByText('Your shopping list is empty.');
     await navigateTo(renderResult, '/catalog/add');
     await screen.findByLabelText('Item name');
+    await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
     expect(screen.getByLabelText('Typical shopping unit (optional): Not selected')).toBeTruthy();
     await fireEvent.press(screen.getByLabelText('Typical shopping unit (optional): Not selected'));
     await fireEvent.changeText(screen.getByLabelText('Search Typical shopping unit (optional)'), 'crate');
@@ -1117,6 +1118,7 @@ describe('signed-in startup routing', () => {
     await renderResult;
     await screen.findByText('Your shopping list is empty.');
     await navigateTo(renderResult, '/catalog/add');
+    await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
 
     const dismissKeyboard = jest.spyOn(Keyboard, 'dismiss').mockImplementation(() => {});
     await fireEvent.press(await screen.findByLabelText('Category: Not selected'));
@@ -1202,6 +1204,7 @@ describe('signed-in startup routing', () => {
     await screen.findByText('Your shopping list is empty.');
     await navigateTo(renderResult, '/catalog/add');
     await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Draft strawberries');
+    await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
     await fireEvent.press(screen.getByLabelText('Category: Not selected'));
     await fireEvent.press(await screen.findByText('Produce'));
     await fireEvent.press(screen.getByLabelText('Typical shopping unit (optional): Not selected'));
@@ -1365,10 +1368,8 @@ describe('signed-in startup routing', () => {
     await act(async () => { mockSetSelectedHouseholdId?.('household-b'); });
 
     await waitFor(() => expect(screen.queryByTestId('catalog-emoji-input-sheet')).toBeNull());
-    await waitFor(() => expect(screen.getByLabelText('category name').props.value).toBe('Cabin Produce'));
-    expect(screen.getByRole('button', { name: 'Emoji: 🍎' })).toBeTruthy();
-    await fireEvent.press(await screen.findByLabelText('Save category'));
-    await waitFor(() => expect(api.updateCatalogCategory).toHaveBeenCalledWith(expect.any(Function), 'household-b', 'shared-id', 'Cabin Produce', '🍎'));
+    expect(screen.queryByLabelText('category name')).toBeNull();
+    expect(screen.queryByText('🫙')).toBeNull();
   });
 
   it('keeps invalid emoji text in the sheet, shows inline feedback, and rejects multiple emoji', async () => {
@@ -1389,8 +1390,8 @@ describe('signed-in startup routing', () => {
     expect(emojiInput.props.inputMode).toBe('text');
     await fireEvent.changeText(emojiInput, 'hello');
     expect(await screen.findByRole('alert')).toHaveTextContent('Enter one emoji, or leave the field empty.');
-    expect(screen.getByRole('button', { name: 'Create' }).props.accessibilityState.disabled).toBe(true);
-    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    expect(screen.getByRole('button', { name: 'Done' }).props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
     expect(api.createCatalogCategory).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
     expect(screen.getByLabelText('Category emoji value').props.value).toBe('hello');
@@ -1736,11 +1737,15 @@ describe('signed-in startup routing', () => {
     await screen.findByText('Your shopping list is empty.');
     await navigateTo(renderResult, '/catalog/add');
     await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Strawberries');
+    await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
     await fireEvent.press(screen.getByLabelText('Category: Not selected'));
     await fireEvent.press(await screen.findByText('Produce'));
     await fireEvent.press(screen.getByLabelText('Category: Produce'));
     await fireEvent.press(screen.getByRole('button', { name: 'Manage categories' }));
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/catalog/choices/category'));
+    await screen.findByText('Manage categories for this household.');
     await fireEvent.press(await screen.findByText('Produce'));
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/catalog/choices/category/food-category'));
     await screen.findByText('Items in this category');
     await fireEvent.press(screen.getAllByRole('button', { name: 'Delete category' })[0]);
     expect(await screen.findByText(/Delete “Produce”\?/u)).toBeTruthy();

@@ -13,13 +13,14 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { HouseholdStateProvider, useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme, useThemeMode } from '@/hooks/use-theme';
 import { getStartupDiagnostics } from '@/lib/startup-diagnostics';
+import { NativeSheetProvider } from '@/features/native-sheets/native-sheet-context';
 
 SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const theme = useTheme();
-  const { isLoaded, isSignedIn } = useAuth();
-  const { destination } = useHouseholdState();
+  const { isLoaded, isSignedIn, sessionId, userId } = useAuth();
+  const { destination, selectedHousehold } = useHouseholdState();
   const diagnostics = getStartupDiagnostics();
   const startupStartedAt = useRef<number | null>(null);
   const clerkInitializationLogged = useRef(false);
@@ -43,6 +44,7 @@ function RootNavigator() {
 
   if (!isLoaded || destination === 'loading') return <View style={{ alignItems: 'center', backgroundColor: theme.screen, flex: 1, justifyContent: 'center' }}><ActivityIndicator color={theme.activity} /></View>;
   return (
+    <NativeSheetProvider scope={`${isSignedIn ? 'signed-in' : 'signed-out'}:${userId ?? ''}:${sessionId ?? ''}:${selectedHousehold?.id ?? ''}`}>
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Protected guard={!isSignedIn}>
@@ -57,7 +59,11 @@ function RootNavigator() {
       <Stack.Protected guard={!!isSignedIn && destination === 'api-error'}>
         <Stack.Screen name="(api-error)" options={{ headerShown: false }} />
       </Stack.Protected>
+      <Stack.Protected guard={!!isSignedIn && ['app', 'create-or-join', 'select-household', 'complete-profile'].includes(destination)}>
+        <Stack.Screen name="native-sheet/[sheetId]" options={{ headerShown: false }} />
+      </Stack.Protected>
     </Stack>
+    </NativeSheetProvider>
   );
 }
 
