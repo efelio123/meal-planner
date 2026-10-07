@@ -3,9 +3,9 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Query, Request, Response, status
-from pydantic import BaseModel, EmailStr, Field, StrictBool
+from pydantic import BaseModel, EmailStr, Field, StrictBool, StrictInt
 
-from meal_planner_api import catalog
+from meal_planner_api import catalog, recipes
 from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.household_management import (
     delete_household,
@@ -143,6 +143,46 @@ class CatalogCategoryCreateRequest(BaseModel):
 class CatalogCategoryUpdateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     emoji: str | None = Field(default=None, max_length=16)
+
+
+class RecipeIngredientRequest(BaseModel):
+    catalog_item_id: UUID
+    amount: str | None = Field(default=None, max_length=40)
+    unit_code: str | None = Field(default=None, max_length=40)
+    custom_unit_label: str | None = Field(default=None, max_length=40)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class RecipeCreateRequest(BaseModel):
+    create_request_id: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=160)
+    cover_kind: Literal["initials", "emoji"] = "initials"
+    cover_emoji: str | None = Field(default=None, max_length=16)
+    servings: StrictInt | None = Field(default=None, gt=0)
+    prep_hours: StrictInt | None = Field(default=None, ge=0, le=999999)
+    prep_minutes: StrictInt | None = Field(default=None, ge=0, le=59)
+    cook_hours: StrictInt | None = Field(default=None, ge=0, le=999999)
+    cook_minutes: StrictInt | None = Field(default=None, ge=0, le=59)
+    notes: str | None = Field(default=None, max_length=10000)
+    source_url: str | None = Field(default=None, max_length=2048)
+    ingredients: list[RecipeIngredientRequest] = Field(min_length=1, max_length=200)
+    steps: list[str] | None = Field(default=None, max_length=200)
+
+
+class RecipeUpdateRequest(BaseModel):
+    expected_revision: StrictInt = Field(gt=0)
+    name: str | None = Field(default=None, min_length=1, max_length=160)
+    cover_kind: Literal["initials", "emoji"] | None = None
+    cover_emoji: str | None = Field(default=None, max_length=16)
+    servings: StrictInt | None = Field(default=None, gt=0)
+    prep_hours: StrictInt | None = Field(default=None, ge=0, le=999999)
+    prep_minutes: StrictInt | None = Field(default=None, ge=0, le=59)
+    cook_hours: StrictInt | None = Field(default=None, ge=0, le=999999)
+    cook_minutes: StrictInt | None = Field(default=None, ge=0, le=59)
+    notes: str | None = Field(default=None, max_length=10000)
+    source_url: str | None = Field(default=None, max_length=2048)
+    ingredients: list[RecipeIngredientRequest] | None = Field(default=None, min_length=1, max_length=200)
+    steps: list[str] | None = Field(default=None, max_length=200)
 
 
 @app.get("/v1/me", tags=["onboarding"])
@@ -310,6 +350,49 @@ def patch_catalog_item(household_id: UUID, item_id: UUID, payload: CatalogItemUp
 @app.delete("/v1/households/{household_id}/catalog/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["catalog"])
 def delete_catalog_item(household_id: UUID, item_id: UUID, user: User) -> Response:
     catalog.archive_item(user, str(household_id), str(item_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/v1/households/{household_id}/recipes", tags=["recipes"])
+def get_recipes(
+    household_id: UUID,
+    user: User,
+    archived: bool = False,
+    search: str | None = None,
+) -> dict:
+    return {"recipes": recipes.list_recipes(user, str(household_id), archived=archived, search=search)}
+
+
+@app.post("/v1/households/{household_id}/recipes", status_code=status.HTTP_201_CREATED, tags=["recipes"])
+def post_recipe(household_id: UUID, payload: RecipeCreateRequest, user: User) -> dict:
+    return {"recipe": recipes.create_recipe(user, str(household_id), payload.model_dump(mode="python"))}
+
+
+@app.get("/v1/households/{household_id}/recipes/{recipe_id}", tags=["recipes"])
+def get_recipe(household_id: UUID, recipe_id: UUID, user: User) -> dict:
+    return {"recipe": recipes.get_recipe(user, str(household_id), str(recipe_id))}
+
+
+@app.patch("/v1/households/{household_id}/recipes/{recipe_id}", tags=["recipes"])
+def patch_recipe(household_id: UUID, recipe_id: UUID, payload: RecipeUpdateRequest, user: User) -> dict:
+    return {"recipe": recipes.update_recipe(
+        user,
+        str(household_id),
+        str(recipe_id),
+        payload.model_dump(mode="python", exclude_unset=True),
+        payload.model_fields_set,
+    )}
+
+
+@app.post("/v1/households/{household_id}/recipes/{recipe_id}/archive", status_code=status.HTTP_204_NO_CONTENT, tags=["recipes"])
+def post_archive_recipe(household_id: UUID, recipe_id: UUID, user: User) -> Response:
+    recipes.archive_recipe(user, str(household_id), str(recipe_id))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.post("/v1/households/{household_id}/recipes/{recipe_id}/restore", status_code=status.HTTP_204_NO_CONTENT, tags=["recipes"])
+def post_restore_recipe(household_id: UUID, recipe_id: UUID, user: User) -> Response:
+    recipes.restore_recipe(user, str(household_id), str(recipe_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

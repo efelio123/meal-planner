@@ -120,6 +120,48 @@ describe('mobile API client', () => {
     }
   });
 
+  it('uses household-scoped recipe URLs and obtains a fresh Bearer token for each request', async () => {
+    const recipe = { id: 'recipe-1', name: 'Soup' };
+    const getToken = jest.fn()
+      .mockResolvedValueOnce('recipe-token-1')
+      .mockResolvedValueOnce('recipe-token-2')
+      .mockResolvedValueOnce('recipe-token-3')
+      .mockResolvedValueOnce('recipe-token-4')
+      .mockResolvedValueOnce('recipe-token-5')
+      .mockResolvedValueOnce('recipe-token-6');
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ recipes: [recipe] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ recipe }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ recipe }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ recipe }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await api.recipes(getToken, 'household-1', false, 'tomato soup');
+    await api.recipe(getToken, 'household-1', 'recipe-1');
+    await api.createRecipe(getToken, 'household-1', {
+      create_request_id: 'request-1', name: 'Soup', cover_kind: 'initials', ingredients: [],
+    });
+    await api.updateRecipe(getToken, 'household-1', 'recipe-1', { expected_revision: 2, name: 'Tomato soup' });
+    await api.archiveRecipe(getToken, 'household-1', 'recipe-1');
+    await api.restoreRecipe(getToken, 'household-1', 'recipe-1');
+
+    expect(getToken).toHaveBeenCalledTimes(6);
+    expect(fetchMock.mock.calls.map(([url, init]) => ({
+      url: new URL(url as string),
+      method: init?.method,
+      body: init?.body ? JSON.parse(init.body as string) : undefined,
+      authorization: (init?.headers as Headers).get('Authorization'),
+    }))).toEqual([
+      expect.objectContaining({ url: expect.objectContaining({ pathname: '/v1/households/household-1/recipes', search: '?search=tomato+soup' }), method: 'GET', authorization: 'Bearer recipe-token-1' }),
+      expect.objectContaining({ url: expect.objectContaining({ pathname: '/v1/households/household-1/recipes/recipe-1' }), method: 'GET', authorization: 'Bearer recipe-token-2' }),
+      expect.objectContaining({ url: expect.objectContaining({ pathname: '/v1/households/household-1/recipes' }), method: 'POST', body: { create_request_id: 'request-1', name: 'Soup', cover_kind: 'initials', ingredients: [] }, authorization: 'Bearer recipe-token-3' }),
+      expect.objectContaining({ url: expect.objectContaining({ pathname: '/v1/households/household-1/recipes/recipe-1' }), method: 'PATCH', body: { expected_revision: 2, name: 'Tomato soup' }, authorization: 'Bearer recipe-token-4' }),
+      expect.objectContaining({ url: expect.objectContaining({ pathname: '/v1/households/household-1/recipes/recipe-1/archive' }), method: 'POST', authorization: 'Bearer recipe-token-5' }),
+      expect.objectContaining({ url: expect.objectContaining({ pathname: '/v1/households/household-1/recipes/recipe-1/restore' }), method: 'POST', authorization: 'Bearer recipe-token-6' }),
+    ]);
+  });
+
   it('preserves the typed active-member invitation conflict safely', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ detail: { code: 'HOUSEHOLD_MEMBER_ALREADY_EXISTS', message: 'private server message' } }), { status: 409 }));
     await expect(api.createInvitation(jest.fn().mockResolvedValue('session-token'), 'home-1', 'member@example.test')).rejects.toEqual(
@@ -245,5 +287,50 @@ describe('mobile API client', () => {
     expect(new URL(fetchMock.mock.calls[4][0]).searchParams.get('expected_active_item_count')).toBe('2');
     expect(fetchMock.mock.calls[4][1].method).toBe('DELETE');
     for (const call of fetchMock.mock.calls) expect(new Headers(call[1].headers).get('Authorization')).toBe('Bearer catalog-choice-token');
+  });
+
+  it('uses typed household-scoped recipe routes with a fresh Bearer token and 204 actions', async () => {
+    const getToken = jest.fn()
+      .mockResolvedValueOnce('recipe-list-token')
+      .mockResolvedValueOnce('recipe-create-token')
+      .mockResolvedValueOnce('recipe-update-token')
+      .mockResolvedValueOnce('recipe-archive-token')
+      .mockResolvedValueOnce('recipe-restore-token');
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ recipes: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ recipe: { id: 'recipe-1' } }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ recipe: { id: 'recipe-1', edit_revision: 2 } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await api.recipes(getToken, 'home-1', false, '  soup  ');
+    await api.createRecipe(getToken, 'home-1', {
+      create_request_id: 'draft-1',
+      name: 'Soup',
+      cover_kind: 'initials',
+      ingredients: [{ catalog_item_id: 'food-1', amount: '1/2', unit_code: 'cup' }],
+      steps: ['Simmer'],
+    });
+    await api.updateRecipe(getToken, 'home-1', 'recipe-1', { expected_revision: 1, name: 'Tomato soup' });
+    await api.archiveRecipe(getToken, 'home-1', 'recipe-1');
+    await api.restoreRecipe(getToken, 'home-1', 'recipe-1');
+
+    expect(getToken).toHaveBeenCalledTimes(5);
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/recipes');
+    expect(new URL(fetchMock.mock.calls[0][0]).searchParams.get('search')).toBe('soup');
+    expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body as string)).toMatchObject({ create_request_id: 'draft-1', ingredients: [{ catalog_item_id: 'food-1', amount: '1/2' }] });
+    expect(fetchMock.mock.calls[1][1].method).toBe('POST');
+    expect(JSON.parse(fetchMock.mock.calls[2][1].body as string)).toEqual({ expected_revision: 1, name: 'Tomato soup' });
+    expect(fetchMock.mock.calls[2][1].method).toBe('PATCH');
+    expect(new URL(fetchMock.mock.calls[3][0]).pathname).toBe('/v1/households/home-1/recipes/recipe-1/archive');
+    expect(new URL(fetchMock.mock.calls[4][0]).pathname).toBe('/v1/households/home-1/recipes/recipe-1/restore');
+    expect(fetchMock.mock.calls[3][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[4][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[3][1].body).toBeUndefined();
+    expect(fetchMock.mock.calls[4][1].body).toBeUndefined();
+    for (const [index, token] of ['recipe-list-token', 'recipe-create-token', 'recipe-update-token', 'recipe-archive-token', 'recipe-restore-token'].entries()) {
+      expect(new Headers(fetchMock.mock.calls[index][1].headers).get('Authorization')).toBe(`Bearer ${token}`);
+    }
   });
 });

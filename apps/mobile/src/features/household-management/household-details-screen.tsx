@@ -300,6 +300,7 @@ export default function HouseholdDetailsScreen() {
         {selectedHousehold?.id !== target.id ? <PrimaryButton disabled={isSwitchingHousehold} onPress={() => { void switchTarget(); }} title={isSwitchingHousehold ? 'Switching…' : 'Switch to this household'} /> : <ThemedText themeColor="textSecondary">This is your active household.</ThemedText>}
         {canManageHousehold ? <PrimaryButton disabled={refreshing || detailsStale} onPress={() => router.push(`/(app)/(tabs)/profile/my-households/${target.id}/edit` as Href)} title="Edit household" /> : null}
         {canManageHousehold ? <ProfileNavigationRow onPress={() => router.push(`/(app)/(tabs)/profile/my-households/${target.id}/invitations` as Href)} title="Invitations" /> : null}
+        <ProfileNavigationRow onPress={() => router.push(`/(app)/(tabs)/profile/my-households/${target.id}/archived-recipes` as Href)} title="Archived recipes" />
         <ThemedText accessibilityRole="header" type="smallBold">People</ThemedText>
         {loading ? <ThemedText themeColor="textSecondary">Loading members…</ThemedText> : null}
         {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}

@@ -2,12 +2,16 @@ import { Tabs } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 
 import { tabIcons } from '@/features/navigation/tab-icons';
+import { CatalogProvider } from '@/features/catalog/catalog-context';
+import { RecipeProvider } from '@/features/recipes/recipe-context';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function WebTabLayout() {
   const theme = useTheme();
 
   return (
+    <CatalogProvider>
+    <RecipeProvider>
     <Tabs
       backBehavior="history"
       screenOptions={({ route }) => ({
@@ -24,5 +28,7 @@ export default function WebTabLayout() {
       <Tabs.Screen name="catalog" options={{ title: 'Catalog' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>
+    </RecipeProvider>
+    </CatalogProvider>
   );
 }

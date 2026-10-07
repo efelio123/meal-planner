@@ -62,6 +62,9 @@ a material product or technical decision changes.
 - For app UI reviews, compare related screens as well as each reference image.
   Similar actions should have consistent styling and interaction states unless
   a difference is intentional and documented.
+- For routine feature and bug-fix UI checks, test the current appearance only;
+  do not switch between light and dark mode each time. Run a dedicated light-
+  and dark-mode visual pass before major deployments.
 - Run the full disposable-PostgreSQL suite for major features or substantial
   schema/data changes, not for every small follow-up. For a focused change,
   run relevant targeted tests; include a database test when database behavior

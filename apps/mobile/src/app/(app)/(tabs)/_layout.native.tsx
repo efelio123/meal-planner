@@ -1,11 +1,15 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
+import { CatalogProvider } from '@/features/catalog/catalog-context';
+import { RecipeProvider } from '@/features/recipes/recipe-context';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function NativeTabLayout() {
   const theme = useTheme();
 
   return (
+    <CatalogProvider>
+    <RecipeProvider>
     <NativeTabs
       backBehavior="history"
       backgroundColor={theme.surface}
@@ -36,5 +40,7 @@ export default function NativeTabLayout() {
         <NativeTabs.Trigger.Icon sf="person.crop.circle" md="account_circle" />
       </NativeTabs.Trigger>
     </NativeTabs>
+    </RecipeProvider>
+    </CatalogProvider>
   );
 }

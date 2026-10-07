@@ -10,7 +10,7 @@ export type ShoppingList = { id: string; household_id: string; items: ShoppingLi
 export type CreatedInvitation = { id: string; expires_at: string; code: string };
 export type HouseholdMember = { membership_id: string; display_name: string; avatar_url: string | null; role: 'owner' | 'member'; joined_at: string; is_self: boolean; email?: string };
 export type PendingInvitation = { id: string; normalized_email: string; expires_at: string };
-export type ApiErrorCode = 'DISPLAY_NAME_REQUIRED' | 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' | 'INVITATION_ALREADY_PENDING' | 'LAST_OWNER' | 'CATALOG_ITEM_ALREADY_EXISTS' | 'CATALOG_CHOICE_ALREADY_EXISTS' | 'CATALOG_CHOICE_IN_USE' | 'CATALOG_REFERENCE_ARCHIVED' | 'CATALOG_CATEGORY_COUNT_CHANGED';
+export type ApiErrorCode = 'DISPLAY_NAME_REQUIRED' | 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' | 'INVITATION_ALREADY_PENDING' | 'LAST_OWNER' | 'CATALOG_ITEM_ALREADY_EXISTS' | 'CATALOG_CHOICE_ALREADY_EXISTS' | 'CATALOG_CHOICE_IN_USE' | 'CATALOG_REFERENCE_ARCHIVED' | 'CATALOG_CATEGORY_COUNT_CHANGED' | 'RECIPE_REVISION_CONFLICT' | 'RECIPE_CATALOG_ITEM_ARCHIVED' | 'RECIPE_CREATE_REQUEST_ALREADY_USED';
 
 export type CatalogItemType = 'food' | 'household';
 export type CatalogChoice = { id: string; name: string; created_at: string; updated_at: string };
@@ -51,6 +51,60 @@ export type CatalogItemInput = {
   recipe_measurement_unit_code?: string | null;
 };
 
+export type RecipeIngredientInput = {
+  catalog_item_id: string;
+  amount?: string | null;
+  unit_code?: string | null;
+  custom_unit_label?: string | null;
+  note?: string | null;
+};
+export type RecipeStep = { id: string; position: number; instruction: string };
+export type RecipeIngredient = RecipeIngredientInput & {
+  id: string;
+  catalog_item_name: string;
+  category_emoji: string | null;
+  position: number;
+  unit_label: string | null;
+};
+export type Recipe = {
+  id: string;
+  household_id: string;
+  name: string;
+  cover_kind: 'initials' | 'emoji';
+  cover_emoji: string | null;
+  servings: number | null;
+  prep_minutes: number | null;
+  cook_minutes: number | null;
+  notes: string | null;
+  source_url: string | null;
+  edit_revision: number;
+  created_at: string;
+  updated_at: string;
+  archived_at: string | null;
+  ingredient_count: number;
+  ingredients?: RecipeIngredient[];
+  steps?: RecipeStep[];
+};
+export type RecipeInput = {
+  create_request_id: string;
+  name: string;
+  cover_kind: 'initials' | 'emoji';
+  cover_emoji?: string | null;
+  servings?: number | null;
+  prep_hours?: number | null;
+  prep_minutes?: number | null;
+  cook_hours?: number | null;
+  cook_minutes?: number | null;
+  notes?: string | null;
+  source_url?: string | null;
+  ingredients: RecipeIngredientInput[];
+  steps?: string[];
+};
+export type RecipeUpdateInput = Partial<Omit<RecipeInput, 'create_request_id' | 'ingredients'>> & {
+  expected_revision: number;
+  ingredients?: RecipeIngredientInput[];
+};
+
 export class ApiError extends Error {
   constructor(readonly status: number, message: string, readonly code?: ApiErrorCode) {
     super(message);
@@ -86,7 +140,7 @@ async function request<T>(getToken: GetToken, path: string, init?: RequestInit, 
     try {
       const body = await response.json() as { detail?: { code?: unknown } };
       const candidate = body.detail?.code;
-      if (candidate === 'DISPLAY_NAME_REQUIRED' || candidate === 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' || candidate === 'INVITATION_ALREADY_PENDING' || candidate === 'LAST_OWNER' || candidate === 'CATALOG_ITEM_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_IN_USE' || candidate === 'CATALOG_REFERENCE_ARCHIVED' || candidate === 'CATALOG_CATEGORY_COUNT_CHANGED') code = candidate;
+      if (candidate === 'DISPLAY_NAME_REQUIRED' || candidate === 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' || candidate === 'INVITATION_ALREADY_PENDING' || candidate === 'LAST_OWNER' || candidate === 'CATALOG_ITEM_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_IN_USE' || candidate === 'CATALOG_REFERENCE_ARCHIVED' || candidate === 'CATALOG_CATEGORY_COUNT_CHANGED' || candidate === 'RECIPE_REVISION_CONFLICT' || candidate === 'RECIPE_CATALOG_ITEM_ARCHIVED' || candidate === 'RECIPE_CREATE_REQUEST_ALREADY_USED') code = candidate;
     } catch { /* Keep error responses safe and generic when their body is not JSON. */ }
     const message = code === 'DISPLAY_NAME_REQUIRED'
       ? 'Add a display name to continue.'
@@ -108,6 +162,12 @@ async function request<T>(getToken: GetToken, path: string, init?: RequestInit, 
                       ? 'That choice is no longer available. Refresh choices and select another.'
                       : code === 'CATALOG_CATEGORY_COUNT_CHANGED'
                         ? 'The number of active items changed. Review the updated count before deleting this category.'
+                        : code === 'RECIPE_REVISION_CONFLICT'
+                          ? 'This recipe changed on another device. Reload it before saving.'
+                          : code === 'RECIPE_CATALOG_ITEM_ARCHIVED'
+                            ? 'That Food Catalog item is archived. Refresh and choose an active item.'
+                            : code === 'RECIPE_CREATE_REQUEST_ALREADY_USED'
+                              ? 'This recipe draft was already used. Start a new recipe to continue.'
             : 'Something went wrong. Please try again.';
     throw new ApiError(response.status, message, code);
   }
@@ -186,4 +246,21 @@ export const api = {
     request<{ item: CatalogItem }>(getToken, `/v1/households/${householdId}/catalog/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(item) }),
   deleteCatalogItem: (getToken: GetToken, householdId: string, itemId: string) =>
     request<void>(getToken, `/v1/households/${householdId}/catalog/items/${itemId}`, { method: 'DELETE' }),
+  recipes: (getToken: GetToken, householdId: string, archived = false, search?: string) => {
+    const params = new URLSearchParams();
+    if (archived) params.set('archived', 'true');
+    if (search?.trim()) params.set('search', search.trim());
+    const query = params.toString();
+    return request<{ recipes: Recipe[] }>(getToken, `/v1/households/${householdId}/recipes${query ? `?${query}` : ''}`, { method: 'GET' });
+  },
+  recipe: (getToken: GetToken, householdId: string, recipeId: string) =>
+    request<{ recipe: Recipe }>(getToken, `/v1/households/${householdId}/recipes/${recipeId}`, { method: 'GET' }),
+  createRecipe: (getToken: GetToken, householdId: string, recipe: RecipeInput) =>
+    request<{ recipe: Recipe }>(getToken, `/v1/households/${householdId}/recipes`, { method: 'POST', body: JSON.stringify(recipe) }),
+  updateRecipe: (getToken: GetToken, householdId: string, recipeId: string, values: RecipeUpdateInput) =>
+    request<{ recipe: Recipe }>(getToken, `/v1/households/${householdId}/recipes/${recipeId}`, { method: 'PATCH', body: JSON.stringify(values) }),
+  archiveRecipe: (getToken: GetToken, householdId: string, recipeId: string) =>
+    request<void>(getToken, `/v1/households/${householdId}/recipes/${recipeId}/archive`, { method: 'POST' }),
+  restoreRecipe: (getToken: GetToken, householdId: string, recipeId: string) =>
+    request<void>(getToken, `/v1/households/${householdId}/recipes/${recipeId}/restore`, { method: 'POST' }),
 };

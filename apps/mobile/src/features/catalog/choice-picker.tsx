@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Modal, PanResponder, Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions, View, type TextInput } from 'react-native';
 import { SymbolView } from 'expo-symbols';
-import { ThemedInput } from '@/components/themed-controls';
+import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { ThemedText } from '@/components/themed-text';
 import { useTheme } from '@/hooks/use-theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,7 +12,7 @@ export function shouldDismissChoiceSheet(gestureDistanceY: number, gestureVeloci
   return gestureDistanceY > 64 || (gestureDistanceY > 12 && gestureVelocityY > 0.75);
 }
 
-export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCreate, onManage, onOpen, emptyChoiceLabel, searchable: searchableOverride, createLabel, manageLabel, disabled = false, compact = false }: {
+export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCreate, onManage, onOpen, onCustomSelect, emptyChoiceLabel, searchable: searchableOverride, createLabel, manageLabel, disabled = false, compact = false, heightLimit }: {
   label: string;
   value: string;
   selectedId?: string;
@@ -21,25 +21,30 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
   onCreate?: () => void;
   onManage?: () => void;
   onOpen?: () => void;
+  /** Optional per-field value; does not create a household Catalog choice. */
+  onCustomSelect?: (value: string) => void;
   emptyChoiceLabel?: string;
   searchable?: boolean;
   createLabel?: string;
   manageLabel?: string;
   disabled?: boolean;
   compact?: boolean;
+  heightLimit?: number;
 }) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [customMode, setCustomMode] = useState(false);
+  const [customText, setCustomText] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const searchInput = useRef<TextInput>(null);
   const filtered = choices.filter((choice) => choice.label.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
-  const select = (id: string) => { searchInput.current?.blur(); Keyboard.dismiss(); onSelect(id); setOpen(false); setSearch(''); };
+  const select = (id: string) => { searchInput.current?.blur(); Keyboard.dismiss(); onSelect(id); setOpen(false); setSearch(''); setCustomMode(false); };
   const searchable = searchableOverride ?? choices.length > 6;
-  const close = useCallback(() => { searchInput.current?.blur(); setOpen(false); setSearch(''); }, []);
-  const dismissWithGesture = useCallback(() => { Keyboard.dismiss(); setOpen(false); setSearch(''); }, []);
+  const close = useCallback(() => { searchInput.current?.blur(); Keyboard.dismiss(); setOpen(false); setSearch(''); setCustomMode(false); }, []);
+  const dismissWithGesture = useCallback(() => { Keyboard.dismiss(); setOpen(false); setSearch(''); setCustomMode(false); }, []);
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -53,8 +58,8 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
     onPanResponderRelease: (_event, gesture) => { if (shouldDismissChoiceSheet(gesture.dy, gesture.vy)) dismissWithGesture(); },
   }), [dismissWithGesture]);
   const runRouteAction = (action?: () => void) => { close(); action?.(); };
-  const maxSheetHeight = Math.min(760, windowHeight * 0.86, Math.max(220, windowHeight - insets.top - keyboardHeight - 12));
-  const reservedHeight = 116 + (searchable ? 56 : 0) + (onCreate || onManage ? 132 : 0);
+  const maxSheetHeight = Math.min(heightLimit ?? 760, windowHeight * 0.86, Math.max(220, windowHeight - insets.top - keyboardHeight - 12));
+  const reservedHeight = 116 + (searchable ? 56 : 0) + (onCreate || onManage ? 132 : 0) + (onCustomSelect ? 64 : 0);
   const maxChoiceHeight = Math.max(88, maxSheetHeight - reservedHeight);
   const createActionLabel = createLabel ?? `Create ${label.toLocaleLowerCase().replace(/ \(optional\)/, '')}`;
   const manageActionLabel = manageLabel ?? `Manage ${label.toLocaleLowerCase().replace(/ \(optional\)/, '')}s`;
@@ -63,13 +68,13 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
     <>
       <View style={[styles.field, compact && styles.compactField]}>
         {compact ? (
-          <Pressable testID="choice-picker-field" accessibilityLabel={`${label}: ${value || 'Not selected'}`} accessibilityRole="button" disabled={disabled} onPress={() => { onOpen?.(); setOpen(true); }} style={[styles.select, styles.compactSelect, { backgroundColor: theme.inputBackground, borderColor: theme.border, opacity: disabled ? 0.6 : 1 }]}>
+          <Pressable testID="choice-picker-field" accessibilityLabel={`${label}: ${value || 'Not selected'}`} accessibilityRole="button" disabled={disabled} onPress={() => { onOpen?.(); setCustomText(selectedId === '__custom__' ? value : ''); setOpen(true); }} style={[styles.select, styles.compactSelect, { backgroundColor: theme.inputBackground, borderColor: theme.border, opacity: disabled ? 0.6 : 1 }]}>
             <View style={styles.selectCopy}><ThemedText themeColor="textSecondary">{label}</ThemedText><ThemedText style={styles.selectedValue}>{value || 'Select…'}</ThemedText></View>
             <ThemedText themeColor="textSecondary">›</ThemedText>
           </Pressable>
         ) : <>
           <ThemedText style={styles.label}>{label}</ThemedText>
-          <Pressable testID="choice-picker-field" accessibilityLabel={`${label}: ${value || 'Not selected'}`} accessibilityRole="button" disabled={disabled} onPress={() => { onOpen?.(); setOpen(true); }} style={[styles.select, { backgroundColor: theme.inputBackground, borderColor: theme.border, opacity: disabled ? 0.6 : 1 }]}>
+          <Pressable testID="choice-picker-field" accessibilityLabel={`${label}: ${value || 'Not selected'}`} accessibilityRole="button" disabled={disabled} onPress={() => { onOpen?.(); setCustomText(selectedId === '__custom__' ? value : ''); setOpen(true); }} style={[styles.select, { backgroundColor: theme.inputBackground, borderColor: theme.border, opacity: disabled ? 0.6 : 1 }]}>
             <ThemedText>{value || 'Select…'}</ThemedText><ThemedText themeColor="textSecondary">⌄</ThemedText>
           </Pressable>
         </>}
@@ -84,10 +89,15 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
                   <View style={[styles.grabber, { backgroundColor: theme.border }]} />
                 </Pressable>
                 <View style={styles.sheetHeading}>
-                  <ThemedText accessibilityRole="header" style={styles.modalTitle}>{label}</ThemedText>
-                  <Pressable accessibilityLabel={`Close ${label} choices`} accessibilityRole="button" onPress={close} style={styles.closeButton}><ThemedText themeColor="link">Done</ThemedText></Pressable>
+                  <ThemedText accessibilityRole="header" style={styles.modalTitle}>{customMode ? 'Custom unit' : label}</ThemedText>
+                  <Pressable accessibilityLabel={customMode ? 'Back to unit choices' : `Close ${label} choices`} accessibilityRole="button" onPress={customMode ? () => { Keyboard.dismiss(); setCustomMode(false); } : close} style={styles.closeButton}><ThemedText themeColor="link">{customMode ? 'Back' : 'Done'}</ThemedText></Pressable>
                 </View>
               </View>
+              {customMode ? <View style={styles.customEntry}>
+                <ThemedText themeColor="textSecondary">For this ingredient only</ThemedText>
+                <ThemedInput accessibilityLabel="Custom recipe unit" autoFocus maxLength={40} onChangeText={setCustomText} placeholder="e.g. pinch" value={customText} />
+                <PrimaryButton disabled={!customText.trim()} onPress={() => { onCustomSelect?.(customText.trim()); close(); }} title="Use custom unit" />
+              </View> : <>
               {searchable ? <ThemedInput ref={searchInput} accessibilityLabel={`Search ${label}`} onChangeText={setSearch} placeholder={`Search ${label.toLocaleLowerCase()}`} value={search} returnKeyType="search" /> : null}
               <ScrollView testID="catalog-choice-scroll" contentContainerStyle={styles.list} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" onScrollBeginDrag={() => { searchInput.current?.blur(); Keyboard.dismiss(); }} style={[styles.choices, { maxHeight: maxChoiceHeight }]}>
                 <View style={[styles.choiceCard, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
@@ -105,10 +115,12 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
                   {filtered.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.noChoices}>No matching choices.</ThemedText> : null}
                 </View>
               </ScrollView>
+              {onCustomSelect ? <Pressable accessibilityRole="button" onPress={() => { searchInput.current?.blur(); Keyboard.dismiss(); setCustomMode(true); }} style={[styles.customAction, { backgroundColor: theme.surfaceSelected }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={22} tintColor={theme.link} /><ThemedText themeColor="link">Use custom unit</ThemedText></Pressable> : null}
               {onCreate || onManage ? <View style={[styles.actions, { borderColor: theme.surfaceSelected, backgroundColor: theme.surfaceSelected }]}>
                 {onCreate ? <Pressable accessibilityLabel={createActionLabel} accessibilityRole="button" onPress={() => runRouteAction(onCreate)} style={styles.action}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={26} tintColor={theme.link} /><ThemedText themeColor="link">{createActionLabel}</ThemedText></Pressable> : null}
                 {onManage ? <Pressable accessibilityLabel={manageActionLabel} accessibilityRole="button" onPress={() => runRouteAction(onManage)} style={[styles.action, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'gearshape', android: 'settings', web: 'settings' }} size={26} tintColor={theme.link} /><ThemedText themeColor="link">{manageActionLabel}</ThemedText></Pressable> : null}
               </View> : null}
+              </>}
             </View>
           </KeyboardAvoidingView>
         </View>
@@ -136,11 +148,13 @@ const styles = StyleSheet.create({
   choices: { flexGrow: 0, flexShrink: 1 },
   list: { gap: 2, paddingBottom: 8 },
   choiceCard: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  choice: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, justifyContent: 'space-between', minHeight: 58, paddingHorizontal: 4 },
+  choice: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, justifyContent: 'space-between', minHeight: 58, paddingHorizontal: 16 },
   choiceEmoji: { fontSize: 24, width: 32 },
   choiceLabel: { flex: 1 },
-  groupHeading: { fontSize: 13, fontWeight: '600', paddingTop: 12 },
+  groupHeading: { fontSize: 13, fontWeight: '600', paddingBottom: 4, paddingHorizontal: 16, paddingTop: 14 },
   noChoices: { padding: 16 },
+  customAction: { alignItems: 'center', borderRadius: 14, flexDirection: 'row', gap: 16, minHeight: 58, paddingHorizontal: 18 },
+  customEntry: { gap: 14, paddingBottom: 8 },
   actions: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, marginTop: 4, overflow: 'hidden' },
   action: { alignItems: 'center', flexDirection: 'row', gap: 18, minHeight: 64, paddingHorizontal: 20 },
 });

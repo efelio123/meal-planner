@@ -1,5 +1,5 @@
-import { ComingSoonScreen } from '@/features/navigation/coming-soon-screen';
+import { RecipeLibraryScreen } from '@/features/recipes/recipe-library-screen';
 
 export default function RecipesScreen() {
-  return <ComingSoonScreen title="Recipes" />;
+  return <RecipeLibraryScreen />;
 }
