@@ -351,7 +351,7 @@ describe('mobile API client', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ week_start: week.week_start, week_end: week.week_end, review_token: 'a'.repeat(64), needs: [] }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], replayed: false }), { status: 201 }));
     const entry = { planned_for: '2026-10-05', meal_slot: 'dinner' as const, recipe_id: 'recipe-1' };
-    const needs = { week_start: '2026-10-05', review_token: 'a'.repeat(64), request_id: '00000000-0000-4000-8000-000000000001', selected_need_keys: ['need-1'] };
+    const needs = { week_start: '2026-10-05', review_token: 'a'.repeat(64), request_id: '00000000-0000-4000-8000-000000000001', selected_need_keys: ['need-1'], amount_overrides: { 'need-1': '1/2' } };
 
     await api.mealPlan(getToken, 'home-1', 0);
     await api.createMealPlanEntry(getToken, 'home-1', entry);

@@ -12,6 +12,8 @@ export default function HouseholdHome() {
   const mealPlanContext = useMealPlanContextOptional();
   const { add, error, householdId, items, loading, pendingItemIds, refresh, remove, toggle } = useShoppingList();
   const shoppingRevision = householdId ? mealPlanContext?.shoppingRevisionForHousehold(householdId) ?? 0 : 0;
+  const shoppingAddNotice = householdId ? mealPlanContext?.shoppingAddNoticeForHousehold(householdId) ?? null : null;
+  const clearShoppingAddNotice = mealPlanContext?.clearShoppingAddNotice;
   const previousShoppingRevision = useRef({ householdId, revision: shoppingRevision });
   const [formState, setFormState] = useState({
     householdId: null as string | null,
@@ -101,9 +103,15 @@ export default function HouseholdHome() {
   };
 
   return (
-    <Screen contentAlignment="top" nativeTabScreen safeAreaEdges={['top', 'left', 'right']}>
+    <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']}>
       <View style={styles.content}>
         <ThemedText accessibilityRole="header" style={styles.title}>Shopping list</ThemedText>
+        {shoppingAddNotice ? <View style={[styles.successNotice, { backgroundColor: theme.surfaceSelected }]}>
+          <ThemedText accessibilityRole="alert" style={styles.successText}>{shoppingAddNotice.count} {shoppingAddNotice.count === 1 ? 'item' : 'items'} added to Shopping.</ThemedText>
+          <Pressable accessibilityRole="button" accessibilityLabel="Dismiss shopping confirmation" onPress={() => clearShoppingAddNotice?.(shoppingAddNotice.requestId)}>
+            <ThemedText themeColor="link">Dismiss</ThemedText>
+          </Pressable>
+        </View> : null}
         <ThemedInput
           accessibilityLabel="Shopping-list item"
           onChangeText={(value) => updateForm({ name: value })}
@@ -169,6 +177,8 @@ export default function HouseholdHome() {
 const styles = StyleSheet.create({
   content: { gap: 16 },
   title: { fontSize: 30, fontWeight: '700', lineHeight: 34 },
+  successNotice: { alignItems: 'center', borderRadius: 12, flexDirection: 'row', gap: 12, justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12 },
+  successText: { flex: 1 },
   message: { gap: 8 },
   items: { gap: 8 },
   item: {

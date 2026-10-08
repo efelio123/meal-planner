@@ -17,7 +17,7 @@ type MealDraft = { plannedFor: string; mealSlot: MealSlot; recipeId: string | nu
 
 function Header({ title, onCancel }: { title: string; onCancel: () => void }) {
   const theme = useTheme();
-  return <View style={[styles.header, { borderBottomColor: theme.border }]}>
+  return <View collapsable={false} style={[styles.header, { borderBottomColor: theme.border }]}>
     {Platform.OS === 'web' ? <View style={styles.grabber} /> : null}
     <View style={styles.headerRow}>
       <ThemedText accessibilityRole="header" style={styles.headerTitle}>{title}</ThemedText>
@@ -31,7 +31,7 @@ function Header({ title, onCancel }: { title: string; onCancel: () => void }) {
 function DayPickerSheet({ dates, selected, onSelect }: { dates: string[]; selected: string; onSelect: (date: string) => void }) {
   const theme = useTheme();
   const router = useRouter();
-  return <View style={[styles.picker, { backgroundColor: theme.elevatedSurface }]}>
+  return <View collapsable={false} style={[styles.picker, { backgroundColor: theme.elevatedSurface }]}>
     <Header title="Choose a day" onCancel={() => router.back()} />
     <ScrollView contentContainerStyle={styles.pickerList}>
       {dates.map((date) => <Pressable key={date} accessibilityRole="radio" accessibilityState={{ selected: date === selected }} onPress={() => { onSelect(date); router.back(); }} style={[styles.dayOption, { borderBottomColor: theme.border }]}>
@@ -128,9 +128,12 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
     finally { if (isCurrent()) setSaving(false); }
   };
 
-  return <View style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
+  // Keep the header and footer as native siblings of the scrolling content.
+  // iOS form sheets can otherwise resize the flattened ScrollView to the full
+  // sheet, drawing its first row over the header and its last row under Save.
+  return <View collapsable={false} style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
     <Header title="Add meal" onCancel={() => { context.clearRecipeCreate(); router.back(); }} />
-    <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}>
+    <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
       <ThemedText themeColor="textSecondary">Plan a saved recipe for your household.</ThemedText>
       <ThemedText style={styles.label}>Day</ThemedText>
       <Pressable accessibilityRole="button" accessibilityLabel={dateLabel(draft.plannedFor)} onPress={openDay} style={[styles.selector, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -160,7 +163,7 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
         <SymbolView name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={22} tintColor={theme.link} /><ThemedText themeColor="link" style={styles.flexText}>Create a new recipe</ThemedText><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={theme.link} />
       </Pressable>
     </ScrollView>
-    <View style={[styles.footer, { borderTopColor: theme.border }]}>
+    <View collapsable={false} style={[styles.footer, { borderTopColor: theme.border }]}>
       {actionError ? <ThemedText accessibilityRole="alert" themeColor="error">{actionError}</ThemedText> : null}
       <PrimaryButton disabled={!draft.recipeId || saving || loading} onPress={() => void submit()} title={saving ? 'Adding…' : 'Add meal'} />
     </View>
@@ -248,9 +251,9 @@ export function MealPlanEditSheet({ householdId, dates, entry, onSave, onRemove,
       if (isCurrent()) setActionError('We couldn’t refresh the plan. Please try again.');
     } finally { if (isCurrent()) setSaving(false); }
   };
-  return <View style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
+  return <View collapsable={false} style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
     <Header title="Edit meal" onCancel={() => router.back()} />
-    <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}>
+    <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
       <ThemedText style={styles.label}>Day</ThemedText>
       <Pressable accessibilityRole="button" accessibilityLabel={dateLabel(draft.plannedFor)} disabled={needsPlanReload} onPress={chooseDay} style={[styles.selector, { backgroundColor: theme.surface, borderColor: theme.border }, needsPlanReload && styles.disabled]}><SymbolView name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }} size={20} tintColor={theme.textSecondary} /><ThemedText style={styles.selectorText}>{dateLabel(draft.plannedFor)}</ThemedText><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={19} tintColor={theme.textSecondary} /></Pressable>
       <ThemedText style={styles.label}>Meal</ThemedText>
@@ -269,11 +272,13 @@ export function MealPlanEditSheet({ householdId, dates, entry, onSave, onRemove,
       </>}
       {entry.archived_at ? <ThemedText themeColor="textSecondary">This recipe is archived. Choose an active recipe to change the plan.</ThemedText> : null}
     </ScrollView>
-    <View style={[styles.footer, { borderTopColor: theme.border }]}>
+    <View collapsable={false} style={[styles.footer, { borderTopColor: theme.border }]}>
       {actionError ? <ThemedText accessibilityRole="alert" themeColor="error">{actionError}</ThemedText> : null}
-      <PrimaryButton disabled={!draft.recipeId || saving || loading || needsPlanReload} onPress={() => void save()} title={saving ? 'Saving…' : 'Save changes'} />
-      {needsPlanReload ? <PrimaryButton disabled={saving} onPress={() => void reloadPlan()} title="Refresh plan" /> : null}
-      {confirmRemove ? <View style={[styles.removeConfirm, { backgroundColor: theme.surface, borderColor: theme.border }]}><ThemedText>Remove only this occurrence from the plan?</ThemedText><View style={styles.removeActions}><Pressable accessibilityRole="button" disabled={saving || needsPlanReload} onPress={() => setConfirmRemove(false)}><ThemedText themeColor="link">Keep meal</ThemedText></Pressable><Pressable accessibilityRole="button" disabled={saving || needsPlanReload} onPress={() => void remove()}><ThemedText themeColor="error">Remove from plan</ThemedText></Pressable></View></View> : <Pressable accessibilityRole="button" disabled={saving || needsPlanReload} onPress={() => setConfirmRemove(true)} style={styles.removeButton}><ThemedText themeColor="error">Remove from plan</ThemedText></Pressable>}
+      {confirmRemove ? <View style={[styles.removeConfirm, { backgroundColor: theme.surface, borderColor: theme.border }]}><ThemedText>Remove this meal from the plan?</ThemedText><View style={styles.removeActions}><Pressable accessibilityRole="button" disabled={saving} onPress={() => setConfirmRemove(false)}><ThemedText themeColor="link">Keep meal</ThemedText></Pressable><Pressable accessibilityRole="button" disabled={saving || needsPlanReload} onPress={() => void remove()}><ThemedText themeColor="error">Remove from plan</ThemedText></Pressable></View></View> : <>
+        <PrimaryButton disabled={!draft.recipeId || saving || loading || needsPlanReload} onPress={() => void save()} title={saving ? 'Saving…' : 'Save changes'} />
+        {needsPlanReload ? <PrimaryButton disabled={saving} onPress={() => void reloadPlan()} title="Refresh plan" /> : null}
+        <Pressable accessibilityRole="button" disabled={saving || needsPlanReload} onPress={() => setConfirmRemove(true)} style={styles.removeButton}><ThemedText themeColor="error">Remove from plan</ThemedText></Pressable>
+      </>}
     </View>
   </View>;
 }
@@ -281,14 +286,14 @@ export function MealPlanEditSheet({ householdId, dates, entry, onSave, onRemove,
 export type { MealDraft };
 
 const styles = StyleSheet.create({
-  sheet: { flex: 1 },
+  sheet: { flex: 1, overflow: 'hidden' },
   picker: { flex: 1 },
   header: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 20, paddingTop: 8 },
   grabber: { alignSelf: 'center', backgroundColor: '#8e8e93', borderRadius: 3, height: 5, marginBottom: 10, opacity: 0.55, width: 36 },
   headerRow: { alignItems: 'center', flexDirection: 'row', minHeight: 48, justifyContent: 'space-between' },
   headerButton: { alignItems: 'flex-start', justifyContent: 'center', minWidth: 64 },
   headerTitle: { fontSize: 17, fontWeight: '700' },
-  sheetScroll: { flex: 1 },
+  sheetScroll: { flex: 1, minHeight: 0 },
   sheetContent: { gap: 14, padding: 20, paddingBottom: 24 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, gap: 10, paddingHorizontal: 20, paddingTop: 12, paddingBottom: Platform.OS === 'web' ? 16 : 8 },
   pickerList: { paddingHorizontal: 20, paddingBottom: 28 },

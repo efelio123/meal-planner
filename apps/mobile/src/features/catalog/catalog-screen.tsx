@@ -40,7 +40,7 @@ export function CatalogScreen() {
     }).filter((section) => section.items.length > 0), [filter, visible]);
 
   return (
-    <Screen contentAlignment="top" nativeTabScreen safeAreaEdges={['top', 'left', 'right']} onRefresh={refresh} refreshing={refreshing}>
+    <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']} onRefresh={refresh} refreshing={refreshing}>
       <View style={styles.content}>
         <View style={styles.titleRow}>
           <ThemedText accessibilityRole="header" style={styles.title}>Catalog</ThemedText>

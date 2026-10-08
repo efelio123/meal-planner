@@ -5,6 +5,7 @@ import { useHouseholdState } from '@/hooks/use-household-state';
 import { api, type ShoppingList, type ShoppingListItem } from '@/lib/api';
 
 jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: jest.fn() }));
+jest.mock('@clerk/expo', () => ({ useAuth: jest.fn() }));
 jest.mock('@/lib/api', () => ({
   api: {
     shoppingList: jest.fn(),
@@ -95,6 +96,7 @@ describe('shopping-list screen', () => {
     const screen = await render(<HouseholdHome />);
 
     expect(screen.getByLabelText('Loading shopping list')).toBeTruthy();
+    expect(screen.getByTestId('screen').props.contentInsetAdjustmentBehavior).toBe('never');
     hookSpy.mockRestore();
   });
 

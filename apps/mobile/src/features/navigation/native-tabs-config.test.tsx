@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
+import { Platform } from 'react-native';
 import NativeTabLayout from '@/app/(app)/(tabs)/_layout.native';
 
 jest.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: 'user-a', sessionId: 'session-a' }) }));
@@ -11,8 +12,8 @@ jest.mock('expo-router/unstable-native-tabs', () => {
   function NativeTabs({ children, ...props }: PropsWithChildren<Record<string, unknown>>) {
     return React.createElement(View, { ...props, testID: 'native-tabs' }, children);
   }
-  function Trigger({ children, name }: PropsWithChildren<{ name: string }>) {
-    return React.createElement(View, { testID: `tab-${name}` }, children);
+  function Trigger({ children, name, ...props }: PropsWithChildren<{ name: string; disableAutomaticContentInsets?: boolean }>) {
+    return React.createElement(View, { ...props, testID: `tab-${name}` }, children);
   }
   function TriggerLabel({ children }: React.PropsWithChildren) {
     return React.createElement(Text, null, children);
@@ -37,4 +38,7 @@ it('configures the five ordered native tabs and history-based Back', async () =>
     'tab-catalog',
     'tab-profile',
   ]);
+  for (const tab of result.getAllByTestId(/^tab-/)) {
+    expect(tab.props.disableAutomaticContentInsets).toBe(Platform.OS === 'ios');
+  }
 });

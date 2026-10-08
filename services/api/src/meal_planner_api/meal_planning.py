@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.database import get_engine
 from meal_planner_api.household_management import lock_household
+from meal_planner_api.recipes import _parse_amount
 
 SLOTS = {"breakfast", "lunch", "dinner"}
 
@@ -65,6 +66,21 @@ def _normalized_label(value: str | None) -> str | None:
     if value is None:
         return None
     return re.sub(r"\s+", " ", value.strip()).lower()
+
+
+def _normalize_amount_overrides(selected_need_keys: list[str], amount_overrides: dict[str, str] | None) -> dict[str, Decimal]:
+    if not amount_overrides:
+        return {}
+    selected = set(selected_need_keys)
+    if any(need_key not in selected for need_key in amount_overrides):
+        raise _invalid("Amount adjustments must match selected ingredients.")
+    normalized: dict[str, Decimal] = {}
+    for need_key, value in amount_overrides.items():
+        amount = _parse_amount(value)
+        if amount is None or amount <= 0:
+            raise _invalid("Enter a positive amount to buy, or deselect the ingredient.")
+        normalized[need_key] = amount
+    return normalized
 
 
 def get_week(user: CurrentUser, household_id: str, week_offset: int = 0, engine: Engine | None = None) -> dict:
@@ -196,6 +212,7 @@ def _review_snapshot(connection, household_id: str, week_start: date) -> dict:
     week_end = week_start + timedelta(days=6)
     rows = connection.execute(text("""
         SELECT entry.id::text AS entry_id, entry.planned_for, entry.meal_slot,
+            entry.edit_revision AS entry_revision,
             recipe.id::text AS recipe_id, recipe.name AS recipe_name, recipe.edit_revision,
             ingredient.id::text AS ingredient_id, ingredient.catalog_item_id::text AS catalog_item_id,
             item.name AS catalog_item_name,
@@ -248,7 +265,12 @@ def _review_snapshot(connection, household_id: str, week_start: date) -> dict:
             "note": row["note"],
         }
         need["sources"].append(source)
-        sources.append({"entry_id": row["entry_id"], "recipe_id": row["recipe_id"], "recipe_revision": row["edit_revision"], "ingredient_id": row["ingredient_id"], "catalog_item_name": row["catalog_item_name"], "amount": _amount_text(Decimal(row["amount"])) if row["amount"] is not None else None, "unit": identity})
+        sources.append({"entry_id": row["entry_id"], "planned_for": row["planned_for"].isoformat(),
+                        "meal_slot": row["meal_slot"], "entry_revision": row["entry_revision"],
+                        "recipe_id": row["recipe_id"], "recipe_revision": row["edit_revision"],
+                        "ingredient_id": row["ingredient_id"], "catalog_item_name": row["catalog_item_name"],
+                        "amount": _amount_text(Decimal(row["amount"])) if row["amount"] is not None else None,
+                        "unit": identity})
 
     needs = []
     for need in grouped.values():
@@ -276,12 +298,20 @@ def get_shopping_review(user: CurrentUser, household_id: str, week_start: str, e
         return _review_snapshot(connection, household_id, monday)
 
 
-def add_reviewed_needs(user: CurrentUser, household_id: str, week_start: str, review_token: str, request_id: str, selected_need_keys: list[str], engine: Engine | None = None) -> dict:
+def add_reviewed_needs(user: CurrentUser, household_id: str, week_start: str, review_token: str, request_id: str, selected_need_keys: list[str], engine: Engine | None = None, amount_overrides: dict[str, str] | None = None) -> dict:
     monday = _week_start(week_start)
     keys = sorted(set(selected_need_keys))
     if not keys:
         raise _invalid("Select at least one item to add.")
-    request_hash = hashlib.sha256(json.dumps({"week_start": monday.isoformat(), "review_token": review_token, "keys": keys}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    normalized_overrides = _normalize_amount_overrides(keys, amount_overrides)
+    request_identity = {
+        "week_start": monday.isoformat(),
+        "review_token": review_token,
+        "keys": keys,
+    }
+    if normalized_overrides:
+        request_identity["amount_overrides"] = {key: _amount_text(value) for key, value in sorted(normalized_overrides.items())}
+    request_hash = hashlib.sha256(json.dumps(request_identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
         existing = connection.execute(text("""
@@ -295,7 +325,7 @@ def add_reviewed_needs(user: CurrentUser, household_id: str, week_start: str, re
             inserted = connection.execute(text("""
                 SELECT id::text AS id, name FROM shopping_list_items
                 WHERE household_id=:household_id AND meal_plan_request_id=:request_id
-                ORDER BY created_at, id
+                ORDER BY meal_plan_need_key COLLATE "C", id
             """), {"household_id": household_id, "request_id": request_id}).mappings().all()
             return {"items": [dict(row) for row in inserted], "replayed": True}
 
@@ -303,6 +333,10 @@ def add_reviewed_needs(user: CurrentUser, household_id: str, week_start: str, re
         if snapshot["review_token"] != review_token:
             raise _conflict("MEAL_PLAN_REVIEW_STALE", "The plan or Shopping list changed. Refresh this review before adding items.")
         available = {item["need_key"]: item for item in snapshot["needs"]}
+        if any(key not in available for key in normalized_overrides):
+            raise _invalid("An amount adjustment must match a current ingredient need.")
+        if any(available[key]["amount"] is None for key in normalized_overrides):
+            raise _invalid("An amount cannot be set when the recipe quantity is unknown.")
         if any(key not in available for key in keys):
             raise _conflict("MEAL_PLAN_REVIEW_STALE", "The selected needs changed. Refresh this review before adding items.")
         connection.execute(text("""
@@ -326,7 +360,7 @@ def add_reviewed_needs(user: CurrentUser, household_id: str, week_start: str, re
                 FROM shopping_lists list WHERE list.household_id=:household_id
                 RETURNING id::text AS id, name
             """), {"household_id": household_id, "name": need["name"], "user_id": user.id,
-                    "catalog_item_id": need["catalog_item_id"], "amount": need["amount"],
+                    "catalog_item_id": need["catalog_item_id"], "amount": normalized_overrides.get(key, need["amount"]),
                     "unit_code": unit_code, "unit_dimension": unit_dimension,
                     "custom_unit": custom_unit, "request_id": request_id, "need_key": key}).mappings().one_or_none()
             if list_item is None:

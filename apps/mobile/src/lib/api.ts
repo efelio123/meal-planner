@@ -27,6 +27,13 @@ export type MealPlanNeed = {
   existing_matches: { kind: 'exact' | 'possible'; item_id: string; name: string }[]; default_selected: boolean;
 };
 export type MealPlanShoppingReview = { week_start: string; week_end: string; review_token: string; needs: MealPlanNeed[] };
+export type AddReviewedMealPlanNeedsInput = {
+  week_start: string;
+  review_token: string;
+  request_id: string;
+  selected_need_keys: string[];
+  amount_overrides?: Record<string, string>;
+};
 
 export type CatalogItemType = 'food' | 'household';
 export type CatalogChoice = { id: string; name: string; created_at: string; updated_at: string };
@@ -236,7 +243,7 @@ export const api = {
     request<void>(getToken, `/v1/households/${householdId}/meal-plan/entries/${entryId}?expected_revision=${revision}`, { method: 'DELETE' }),
   mealPlanShoppingReview: (getToken: GetToken, householdId: string, weekStart: string) =>
     request<MealPlanShoppingReview>(getToken, `/v1/households/${householdId}/meal-plan/shopping-review?week_start=${weekStart}`, { method: 'GET' }),
-  addMealPlanNeedsToShopping: (getToken: GetToken, householdId: string, values: { week_start: string; review_token: string; request_id: string; selected_need_keys: string[] }) =>
+  addMealPlanNeedsToShopping: (getToken: GetToken, householdId: string, values: AddReviewedMealPlanNeedsInput) =>
     request<{ items: { id: string; name: string }[]; replayed: boolean }>(getToken, `/v1/households/${householdId}/meal-plan/shopping`, { method: 'POST', body: JSON.stringify(values) }),
   catalogUnits: (getToken: GetToken, householdId: string) =>
     request<CatalogUnits>(getToken, `/v1/households/${householdId}/catalog/units`, { method: 'GET' }),

@@ -11,7 +11,7 @@ import { RecipeCover } from '@/features/recipes/recipe-cover';
 import { useTheme } from '@/hooks/use-theme';
 import type { MealPlanEntry, MealSlot } from '@/lib/api';
 import { MealPlanAddSheet, MealPlanEditSheet } from './meal-plan-sheets';
-import { addCalendarDays, dateLabel, dayNumber, MEAL_SLOTS, shortDayLabel } from './meal-plan-utils';
+import { addCalendarDays, dateLabel, dayNumber, MEAL_SLOTS, shoppingReviewWeekStart, shortDayLabel } from './meal-plan-utils';
 import { useMealPlan } from './use-meal-plan';
 
 export function MealPlanScreen() {
@@ -43,7 +43,7 @@ export function MealPlanScreen() {
         await create({ planned_for: draft.plannedFor, meal_slot: draft.mealSlot, recipe_id: draft.recipeId! });
         if (mealPlanContext.scope === scope) setDaySelection({ scope, day: draft.plannedFor });
       }} />,
-      { detents: [0.62, 0.96], onDismiss: mealPlanContext.clearRecipeCreate },
+      { detents: [0.62, 0.96], initialDetent: 1, onDismiss: mealPlanContext.clearRecipeCreate },
     );
     router.push({ pathname: '/(app)/(tabs)/plan/sheet/add', params: { sheetId: id } } as never);
   };
@@ -54,7 +54,7 @@ export function MealPlanScreen() {
         onSave={(draft) => update(entry.id, { planned_for: draft.plannedFor, meal_slot: draft.mealSlot, recipe_id: draft.recipeId!, expected_revision: draft.expected_revision })}
         onRemove={() => remove(entry.id, entry.edit_revision)}
         onReload={() => refresh()} />,
-      { detents: [0.62, 0.96] },
+      { detents: [0.62, 0.96], initialDetent: 1 },
     );
     router.push({ pathname: '/(app)/(tabs)/plan/sheet/edit', params: { sheetId: id } } as never);
   };
@@ -68,8 +68,14 @@ export function MealPlanScreen() {
   })() : '';
   const daysWithEntries = new Set(entries.map((entry) => entry.planned_for));
   const activeDayEntries = entries.filter((entry) => entry.planned_for === activeDay);
+  const reviewStart = shoppingReviewWeekStart(week, loading, error);
+  const reviewUnavailable = reviewStart === null;
+  const openShoppingReview = () => {
+    if (!reviewStart) return;
+    router.push({ pathname: '/(app)/(tabs)/plan/shopping-review', params: { weekStart: reviewStart } } as never);
+  };
 
-  return <Screen contentAlignment="top" nativeTabScreen safeAreaEdges={['top', 'left', 'right']} onRefresh={async () => { await refresh(); }} refreshing={refreshing}>
+  return <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']} onRefresh={async () => { await refresh(); }} refreshing={refreshing}>
     <View style={styles.page}>
       <View style={styles.titleRow}><ThemedText accessibilityRole="header" style={styles.title}>Plan</ThemedText><Pressable accessibilityRole="button" onPress={() => { setDaySelection({ scope, day: null }); void setTodayWeek(); }} style={styles.todayAction}><ThemedText themeColor="link">Today</ThemedText></Pressable></View>
       <View style={styles.weekHeader}>
@@ -89,7 +95,7 @@ export function MealPlanScreen() {
           </Pressable>;
         })}
       </ScrollView> : null}
-      <Pressable accessibilityLabel="Review shopping needs" accessibilityRole="button" disabled={!week || loading || Boolean(error)} onPress={() => router.push({ pathname: '/(app)/(tabs)/plan/shopping-review', params: { weekStart: week!.week_start } } as never)} style={[styles.reviewBanner, { backgroundColor: theme.surfaceSelected, borderColor: theme.border }, (!week || loading || Boolean(error)) && styles.disabledBanner]}>
+      <Pressable accessibilityLabel="Review shopping needs" accessibilityRole="button" disabled={reviewUnavailable} onPress={openShoppingReview} style={[styles.reviewBanner, { backgroundColor: theme.surfaceSelected, borderColor: theme.border }, reviewUnavailable && styles.disabledBanner]}>
         <View style={[styles.reviewIcon, { backgroundColor: theme.primary }]}><SymbolView name={{ ios: 'cart', android: 'shopping_cart', web: 'shopping_cart' }} size={22} tintColor={theme.primaryText} /></View>
         <View style={styles.reviewCopy}><ThemedText style={styles.reviewTitle}>Review shopping needs</ThemedText><ThemedText themeColor="textSecondary">Choose ingredients to add to Shopping</ThemedText></View>
         <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={20} tintColor={theme.link} />

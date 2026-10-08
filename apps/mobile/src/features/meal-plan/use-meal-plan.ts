@@ -83,9 +83,12 @@ export function useMealPlan() {
 
   const changeWeek = useCallback((offset: number) => setWeekOffset((current) => current + offset), []);
   const setTodayWeek = useCallback(async () => {
+    if (weekOffset === 0) {
+      await refresh();
+      return;
+    }
     setWeekOffset(0);
-    requestVersion.current += 1;
-  }, []);
+  }, [refresh, weekOffset]);
   return {
     householdId,
     scope,

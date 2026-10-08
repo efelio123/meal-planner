@@ -267,9 +267,11 @@ async def test_shopping_review_aggregates_exact_units_keeps_unknown_separate_and
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
             week = await _as(client, owner, "GET", f"/v1/households/{household}/meal-plan")
             monday = week.json()["week_start"]
+            created_entries = {}
             for slot, recipe in (("breakfast", first_recipe), ("dinner", second_recipe)):
                 response = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/entries", json={"planned_for": monday, "meal_slot": slot, "recipe_id": recipe})
                 assert response.status_code == 201, response.text
+                created_entries[slot] = response.json()["entry"]
             review_path = f"/v1/households/{household}/meal-plan/shopping-review?week_start={monday}"
             review_response = await _as(client, owner, "GET", review_path)
             assert review_response.status_code == 200, review_response.text
@@ -278,6 +280,7 @@ async def test_shopping_review_aggregates_exact_units_keeps_unknown_separate_and
             outsider_write = await _as(client, outsider, "POST", f"/v1/households/{household}/meal-plan/shopping", json={
                 "week_start": monday, "review_token": review["review_token"], "request_id": str(uuid4()),
                 "selected_need_keys": [review["needs"][0]["need_key"]],
+                "amount_overrides": {review["needs"][0]["need_key"]: "1"},
             })
             assert outsider_read.status_code == outsider_write.status_code == 404
             beans_cup = next(need for need in review["needs"] if need["name"] == "Beans" and need["unit_label"] == "Cup")
@@ -289,11 +292,32 @@ async def test_shopping_review_aggregates_exact_units_keeps_unknown_separate_and
             assert rice_need["amount"] is None and rice_need["default_selected"] is False
             assert {match["kind"] for match in rice_need["existing_matches"]} == {"exact", "possible"}
 
+            # A same-week slot change keeps the quantities and source order,
+            # but the old review must not confirm an out-of-date meal source.
+            breakfast = created_entries["breakfast"]
+            moved = await _as(client, owner, "PATCH", f"/v1/households/{household}/meal-plan/entries/{breakfast['id']}", json={
+                "planned_for": monday, "meal_slot": "lunch", "recipe_id": first_recipe,
+                "expected_revision": breakfast["edit_revision"],
+            })
+            assert moved.status_code == 200, moved.text
+            stale_plan = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json={
+                "week_start": monday, "review_token": review["review_token"], "request_id": str(uuid4()),
+                "selected_need_keys": [beans_cup["need_key"]],
+                "amount_overrides": {beans_cup["need_key"]: "1"},
+            })
+            assert stale_plan.status_code == 409
+            assert stale_plan.json()["detail"]["code"] == "MEAL_PLAN_REVIEW_STALE"
+            review_response = await _as(client, owner, "GET", review_path)
+            assert review_response.status_code == 200, review_response.text
+            review = review_response.json()
+            beans_cup = next(need for need in review["needs"] if need["name"] == "Beans" and need["unit_label"] == "Cup")
+            assert {source["meal_slot"] for source in beans_cup["sources"]} == {"lunch", "dinner"}
+
             # Editing a recipe after preview makes the review token stale.
             with meal_plan_engine.begin() as connection:
                 connection.execute(text("UPDATE household_recipes SET edit_revision=edit_revision+1 WHERE id=:id"), {"id": first_recipe})
             stale_payload = {"week_start": monday, "review_token": review["review_token"], "request_id": str(uuid4()),
-                             "selected_need_keys": [beans_cup["need_key"]]}
+                             "selected_need_keys": [beans_cup["need_key"]], "amount_overrides": {beans_cup["need_key"]: "1"}}
             stale = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json=stale_payload)
             assert stale.status_code == 409 and stale.json()["detail"]["code"] == "MEAL_PLAN_REVIEW_STALE"
             review_response = await _as(client, owner, "GET", review_path)
@@ -365,6 +389,115 @@ async def test_shopping_review_aggregates_exact_units_keeps_unknown_separate_and
     finally:
         app.dependency_overrides.clear()
         _cleanup(meal_plan_engine, [household], [owner, member, outsider])
+
+
+@pytest.mark.anyio
+async def test_reviewed_shopping_amount_overrides_are_validated_and_idempotent(meal_plan_engine: Engine) -> None:
+    with meal_plan_engine.begin() as connection:
+        owner = _user(connection, "amount-override-owner")
+        household = _household(connection, owner, "Amount override household")
+        chicken = _food(connection, household, "Chicken")
+        rice = _food(connection, household, "Rice")
+        salt = _food(connection, household, "Salt")
+        apples = _food(connection, household, "Apples")
+        recipe = _recipe(connection, household, owner, [
+            (chicken, "3", "pound", None),
+            (rice, "2", "cup", None),
+            (salt, None, None, None),
+            (apples, "4", "unit", None),
+        ])
+
+    app.dependency_overrides.clear()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            week = await _as(client, owner, "GET", f"/v1/households/{household}/meal-plan")
+            monday = week.json()["week_start"]
+            created_entry = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/entries", json={
+                "planned_for": monday, "meal_slot": "dinner", "recipe_id": recipe,
+            })
+            assert created_entry.status_code == 201, created_entry.text
+            review_path = f"/v1/households/{household}/meal-plan/shopping-review?week_start={monday}"
+            initial_review = (await _as(client, owner, "GET", review_path)).json()
+            needs = {need["name"]: need for need in initial_review["needs"]}
+            payload = {
+                "week_start": monday,
+                "review_token": initial_review["review_token"],
+                "request_id": str(uuid4()),
+                "selected_need_keys": [need["need_key"] for need in needs.values()],
+                "amount_overrides": {
+                    needs["Chicken"]["need_key"]: "1 1/2",
+                    needs["Rice"]["need_key"]: "5",
+                },
+            }
+
+            added = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json=payload)
+            assert added.status_code == 201, added.text
+            list_response = await _as(client, owner, "GET", f"/v1/households/{household}/shopping-list")
+            assert list_response.status_code == 200, list_response.text
+            generated = {item["name"]: item for item in list_response.json()["shopping_list"]["items"]}
+            assert (generated["Chicken"]["amount"], generated["Chicken"]["recipe_unit_label"]) == ("1.500000", "Pound")
+            assert (generated["Rice"]["amount"], generated["Rice"]["recipe_unit_label"]) == ("5.000000", "Cup")
+            assert (generated["Apples"]["amount"], generated["Apples"]["recipe_unit_label"]) == ("4.000000", "Unit")
+            assert generated["Salt"]["amount"] is None
+
+            replay = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json=payload)
+            assert replay.status_code == 201 and replay.json()["replayed"] is True
+            assert [item["id"] for item in replay.json()["items"]] == [item["id"] for item in added.json()["items"]]
+
+            normalized_fraction_replay = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json={
+                **payload,
+                "amount_overrides": {**payload["amount_overrides"], needs["Chicken"]["need_key"]: "1.5"},
+            })
+            assert normalized_fraction_replay.status_code == 201 and normalized_fraction_replay.json()["replayed"] is True
+
+            changed_amount_replay = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json={
+                **payload,
+                "amount_overrides": {**payload["amount_overrides"], needs["Chicken"]["need_key"]: "2"},
+            })
+            assert changed_amount_replay.status_code == 409
+            assert changed_amount_replay.json()["detail"]["code"] == "MEAL_PLAN_REQUEST_REUSED"
+
+            invalid_unselected = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json={
+                **payload,
+                "request_id": str(uuid4()),
+                "selected_need_keys": [needs["Chicken"]["need_key"]],
+                "amount_overrides": {needs["Rice"]["need_key"]: "1"},
+            })
+            assert invalid_unselected.status_code == 422
+
+            unknown_need = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json={
+                **payload,
+                "request_id": str(uuid4()),
+                "selected_need_keys": [needs["Chicken"]["need_key"]],
+                "amount_overrides": {"not-a-need": "1"},
+            })
+            assert unknown_need.status_code == 422
+
+            current_review = (await _as(client, owner, "GET", review_path)).json()
+            current_salt = next(need for need in current_review["needs"] if need["name"] == "Salt")
+            current_chicken = next(need for need in current_review["needs"] if need["name"] == "Chicken")
+            invalid_value = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json={
+                "week_start": monday,
+                "review_token": current_review["review_token"],
+                "request_id": str(uuid4()),
+                "selected_need_keys": [current_chicken["need_key"]],
+                "amount_overrides": {current_chicken["need_key"]: "0"},
+            })
+            assert invalid_value.status_code == 422
+            unknown_total = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json={
+                "week_start": monday,
+                "review_token": current_review["review_token"],
+                "request_id": str(uuid4()),
+                "selected_need_keys": [current_salt["need_key"]],
+                "amount_overrides": {current_salt["need_key"]: "1"},
+            })
+            assert unknown_total.status_code == 422
+
+            with meal_plan_engine.connect() as connection:
+                assert connection.execute(text("SELECT count(*) FROM shopping_list_items WHERE household_id=:id"), {"id": household}).scalar_one() == 4
+    finally:
+        app.dependency_overrides.clear()
+        _cleanup(meal_plan_engine, [household], [owner])
 
 
 @pytest.mark.anyio

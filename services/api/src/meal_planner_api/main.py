@@ -3,7 +3,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, Query, Request, Response, status
-from pydantic import BaseModel, EmailStr, Field, StrictBool, StrictInt
+from pydantic import BaseModel, EmailStr, Field, StrictBool, StrictInt, StrictStr
 
 from meal_planner_api import catalog, meal_planning, recipes
 from meal_planner_api.current_user import CurrentUser
@@ -114,6 +114,7 @@ class AddReviewedMealPlanNeedsRequest(BaseModel):
     review_token: str = Field(min_length=64, max_length=64)
     request_id: UUID
     selected_need_keys: list[str] = Field(min_length=1, max_length=500)
+    amount_overrides: dict[str, StrictStr] | None = Field(default=None, max_length=500)
 
 
 CatalogItemType = Literal["food", "household"]
@@ -489,4 +490,12 @@ def get_meal_plan_shopping_review(household_id: UUID, user: User, week_start: st
 
 @app.post("/v1/households/{household_id}/meal-plan/shopping", status_code=status.HTTP_201_CREATED, tags=["meal-plan"])
 def post_meal_plan_shopping(household_id: UUID, payload: AddReviewedMealPlanNeedsRequest, user: User) -> dict:
-    return meal_planning.add_reviewed_needs(user, str(household_id), payload.week_start, payload.review_token, str(payload.request_id), payload.selected_need_keys)
+    return meal_planning.add_reviewed_needs(
+        user,
+        str(household_id),
+        payload.week_start,
+        payload.review_token,
+        str(payload.request_id),
+        payload.selected_need_keys,
+        amount_overrides=payload.amount_overrides,
+    )

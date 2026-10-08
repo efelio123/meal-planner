@@ -1,4 +1,5 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Platform } from 'react-native';
 
 import { CatalogProvider } from '@/features/catalog/catalog-context';
 import { RecipeProvider } from '@/features/recipes/recipe-context';
@@ -21,23 +22,23 @@ export default function NativeTabLayout() {
       rippleColor={theme.surfaceSelected}
       tintColor={theme.primary}
     >
-      <NativeTabs.Trigger name="plan">
+      <NativeTabs.Trigger name="plan" disableAutomaticContentInsets={Platform.OS === 'ios'}>
         <NativeTabs.Trigger.Label>Plan</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="calendar" md="calendar_month" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="recipes">
+      <NativeTabs.Trigger name="recipes" disableAutomaticContentInsets={Platform.OS === 'ios'}>
         <NativeTabs.Trigger.Label>Recipes</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="book.closed" md="menu_book" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="shopping">
+      <NativeTabs.Trigger name="shopping" disableAutomaticContentInsets={Platform.OS === 'ios'}>
         <NativeTabs.Trigger.Label>Shopping</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="cart" md="shopping_cart" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="catalog">
+      <NativeTabs.Trigger name="catalog" disableAutomaticContentInsets={Platform.OS === 'ios'}>
         <NativeTabs.Trigger.Label>Catalog</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="cabinet.fill" md="kitchen" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="profile">
+      <NativeTabs.Trigger name="profile" disableAutomaticContentInsets={Platform.OS === 'ios'}>
         <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="person.crop.circle" md="account_circle" />
       </NativeTabs.Trigger>

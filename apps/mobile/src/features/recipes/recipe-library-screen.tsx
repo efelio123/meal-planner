@@ -39,7 +39,7 @@ export function RecipeLibraryScreen() {
   const cardWidth = Math.max(132, (width - 60) / 2);
 
   return (
-    <Screen contentAlignment="top" nativeTabScreen safeAreaEdges={['top', 'left', 'right']}>
+    <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']}>
       <View style={styles.content}>
         <View style={styles.titleRow}>
           <ThemedText accessibilityRole="header" style={styles.title}>Recipes</ThemedText>

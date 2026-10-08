@@ -43,6 +43,21 @@ describe('useMealPlan request scope', () => {
     mockedApi.mealPlan.mockResolvedValue(week(0, '2026-10-05'));
   });
 
+  it('refreshes Today without stranding a pending current-week load', async () => {
+    const old = deferred<MealPlanWeek>();
+    mockedApi.mealPlan.mockReturnValueOnce(old.promise).mockResolvedValueOnce(week(0, '2026-10-06'));
+    const hook = await renderHook(() => useMealPlan());
+    await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenCalledTimes(1));
+
+    await act(async () => { await hook.result.current.setTodayWeek(); });
+    await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenCalledTimes(2));
+    expect(hook.result.current.week?.local_today).toBe('2026-10-06');
+    expect(hook.result.current.loading).toBe(false);
+
+    await act(async () => { old.resolve(week(0, '2026-10-05')); await old.promise; });
+    expect(hook.result.current.week?.local_today).toBe('2026-10-06');
+  });
+
   it('ignores a delayed previous-household response', async () => {
     const old = deferred<MealPlanWeek>();
     mockedApi.mealPlan.mockReturnValueOnce(old.promise).mockResolvedValueOnce(week(0, '2026-10-06'));

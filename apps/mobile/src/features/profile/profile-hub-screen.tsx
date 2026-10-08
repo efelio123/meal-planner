@@ -25,7 +25,7 @@ export function ProfileHubScreen() {
   const showEmail = Boolean(email && name.trim().toLowerCase() !== email.trim().toLowerCase());
 
   return (
-    <Screen contentAlignment="top" nativeTabScreen safeAreaEdges={['top', 'left', 'right']}>
+    <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']}>
       <View style={styles.content}>
         <ThemedText accessibilityRole="header" style={styles.heading}>Profile</ThemedText>
         <View style={[styles.identity, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="profile-user-card">
