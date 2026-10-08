@@ -11,6 +11,7 @@ import { ApiError, api, type CatalogCategory, type CatalogItem, type CatalogItem
 import { ChoicePicker, type ChoiceOption } from './choice-picker';
 import { useCatalogContext, type CatalogChoiceKind } from './catalog-context';
 import { useRecipeContext } from '@/features/recipes/recipe-context';
+import { useShoppingContextOptional } from '@/features/shopping-list/shopping-context';
 
 type FormState = {
   name: string;
@@ -26,15 +27,16 @@ const emptyForm: FormState = { name: '', itemType: 'food', categoryId: '', shopp
 function byName(choices: { id: string; name: string }[]) { return choices.map((choice) => ({ id: choice.id, label: choice.name })); }
 function unitId(choice: CatalogShoppingUnit) { return choice.id ? `custom:${choice.id}` : `built-in:${choice.code}`; }
 
-export function CatalogItemForm({ recipeIngredientMode = false }: { recipeIngredientMode?: boolean } = {}) {
+export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMode = false }: { recipeIngredientMode?: boolean; shoppingOriginMode?: boolean } = {}) {
   const { getToken, selectedHousehold } = useHouseholdState();
   const theme = useTheme();
   const { sessionId, userId } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams<{ itemId?: string; originScope?: string }>();
+  const params = useLocalSearchParams<{ itemId?: string; originScope?: string; shoppingOriginScope?: string }>();
   const itemId = typeof params.itemId === 'string' ? params.itemId : null;
   const { changeKind, choiceResult, markChanged, revision, setChoiceResult } = useCatalogContext();
   const { setCreatedFood } = useRecipeContext();
+  const shoppingContext = useShoppingContextOptional();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
@@ -198,6 +200,10 @@ export function CatalogItemForm({ recipeIngredientMode = false }: { recipeIngred
       if (recipeIngredientMode && !itemId && typeof params.originScope === 'string') {
         setCreatedFood({ originScope: params.originScope, item: saved.item });
       }
+      if (shoppingOriginMode && !itemId && typeof params.shoppingOriginScope === 'string'
+        && params.shoppingOriginScope === shoppingContext?.scope) {
+        shoppingContext.setCreatedItem({ scope: params.shoppingOriginScope, item: saved.item });
+      }
       router.back();
     } catch (reason) {
       if (mounted.current && scopeRef.current === startedScope) {
@@ -265,7 +271,7 @@ export function CatalogItemForm({ recipeIngredientMode = false }: { recipeIngred
           ) : null}
         </>
         {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
-        <PrimaryButton disabled={saving || initialLoading || Boolean(itemId && loadedItemScope !== scope)} onPress={() => void save()} title={saving ? 'Saving…' : itemId ? 'Save changes' : recipeIngredientMode ? 'Create & use ingredient' : 'Add to catalog'} />
+        <PrimaryButton disabled={saving || initialLoading || Boolean(itemId && loadedItemScope !== scope)} onPress={() => void save()} title={saving ? 'Saving…' : itemId ? 'Save changes' : recipeIngredientMode ? 'Create & use ingredient' : shoppingOriginMode ? 'Create & add to Shopping' : 'Add to catalog'} />
       </View>
     </Screen>
     </View>

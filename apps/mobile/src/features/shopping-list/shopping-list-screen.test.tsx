@@ -1,249 +1,156 @@
-import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import HouseholdHome from '@/features/shopping-list/shopping-list-screen';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import ShoppingListScreen from '@/features/shopping-list/shopping-list-screen';
 import * as shoppingListHook from '@/features/shopping-list/use-shopping-list';
 import { useHouseholdState } from '@/hooks/use-household-state';
-import { api, type ShoppingList, type ShoppingListItem } from '@/lib/api';
+import { Alert } from 'react-native';
+import type { ShoppingListItem } from '@/lib/api';
 
+const mockPush = jest.fn();
+const mockPresent = jest.fn(() => 'shopping-sheet-1');
+const mockMarkChanged = jest.fn();
+const mockRefresh = jest.fn();
+let mockScopeValue = '["user-1","session-1","household-1"]';
+jest.mock('expo-router', () => ({
+  Stack: { Screen: () => null },
+  useFocusEffect: (callback: () => void) => { callback(); },
+  useLocalSearchParams: () => ({}),
+  useRouter: () => ({ push: mockPush, navigate: jest.fn(), dismissAll: jest.fn(), setParams: jest.fn() }),
+}));
+jest.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: 'user-1', sessionId: 'session-1' }) }));
 jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: jest.fn() }));
-jest.mock('@clerk/expo', () => ({ useAuth: jest.fn() }));
-jest.mock('@/lib/api', () => ({
-  api: {
-    shoppingList: jest.fn(),
-    addShoppingListItem: jest.fn(),
-    setShoppingListItemChecked: jest.fn(),
-    deleteShoppingListItem: jest.fn(),
-  },
-}));
-jest.mock('@/components/sign-out-action', () => ({ SignOutAction: () => null }));
-jest.mock('@/hooks/use-theme', () => ({
-  useTheme: () => ({
-    activity: '#000000',
-    border: '#cccccc',
-    disabled: '#999999',
-    error: '#b00020',
-    inputBackground: '#ffffff',
-    inputPlaceholder: '#555555',
-    inputText: '#111111',
-    link: '#0055aa',
-    primary: '#0055aa',
-    primaryText: '#ffffff',
-    screen: '#ffffff',
-    text: '#111111',
-  }),
-  useThemeMode: () => 'light',
-}));
+jest.mock('@/features/native-sheets/native-sheet-context', () => ({ useNativeSheetFlow: () => ({ present: mockPresent, remove: jest.fn() }) }));
+jest.mock('@/features/shopping-list/shopping-context', () => ({ useShoppingContext: () => ({ scope: mockScopeValue, createdItem: null, setCreatedItem: jest.fn(), markChanged: mockMarkChanged, revisionForHousehold: () => 0 }) }));
+jest.mock('@/features/meal-plan/meal-plan-context', () => ({ useMealPlanContextOptional: () => null }));
+jest.mock('@/features/catalog/choice-picker', () => {
+  const React = jest.requireActual<typeof import('react')>('react');
+  const { Pressable, Text } = jest.requireActual<typeof import('react-native')>('react-native');
+  return {
+    ChoicePicker: ({ label, value, choices, onSelect }: { label: string; value: string; choices: { id: string }[]; onSelect: (id: string) => void }) => React.createElement(
+      Pressable,
+      { accessibilityRole: 'button', accessibilityLabel: `${label}: ${value}`, onPress: () => choices[1] && onSelect(choices[1].id) },
+      React.createElement(Text, null, `${label}: ${value}`),
+    ),
+  };
+});
+jest.mock('@/lib/api', () => ({ api: { catalogItem: jest.fn() } }));
+jest.mock('@/features/shopping-list/use-shopping-list', () => ({ useShoppingList: jest.fn() }));
+jest.mock('@/hooks/use-theme', () => ({ useTheme: () => ({ activity: '#000', border: '#ccc', disabled: '#999', error: '#b00', elevatedSurface: '#fff', link: '#05a', primary: '#05a', primaryText: '#fff', screen: '#fff', surface: '#fff', surfaceSelected: '#eee', textSecondary: '#555' }) }));
 
 const mockedHouseholdState = jest.mocked(useHouseholdState);
-const mockedApi = jest.mocked(api);
-const getToken = jest.fn().mockResolvedValue('session-token');
-let selectedHouseholdId: string;
+const mockedShoppingList = jest.mocked(shoppingListHook.useShoppingList);
 
-function item(id: string, name = id, checked = false): ShoppingListItem {
-  return {
-    id,
-    name,
-    is_checked: checked,
-    checked_at: checked ? '2026-09-01T12:00:00Z' : null,
-    checked_by_user_id: checked ? 'user-a' : null,
-    created_by_user_id: 'user-a',
-    created_at: '2026-09-01T11:00:00Z',
-  };
+function item(id: string, name: string, checked = false): ShoppingListItem {
+  return { id, name, is_checked: checked, checked_at: checked ? '2026-10-01T12:00:00Z' : null, checked_by_user_id: checked ? 'user-1' : null, created_by_user_id: 'user-1', created_at: '2026-10-01T11:00:00Z', catalog_item_id: `catalog-${id}`, catalog_item_type: 'food', store_id: null, store_name: null, amount: null, unit_label: null, category_name: null, catalog_item_archived: false };
 }
 
-function listResponse(householdId: string, items: ShoppingListItem[]) {
-  return { shopping_list: { id: `list-${householdId}`, household_id: householdId, items } satisfies ShoppingList };
-}
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: Error) => void;
-  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise;
-    reject = rejectPromise;
-  });
-  return { promise, reject, resolve };
-}
-
-describe('shopping-list screen', () => {
+describe('Shopping list screen', () => {
   beforeEach(() => {
-    jest.resetAllMocks();
-    getToken.mockResolvedValue('session-token');
-    selectedHouseholdId = 'household-a';
-    mockedHouseholdState.mockImplementation(() => ({
-      getToken,
-      selectedHousehold: { id: selectedHouseholdId, name: selectedHouseholdId, time_zone: 'UTC', role: 'member' },
-    }) as unknown as ReturnType<typeof useHouseholdState>);
-    mockedApi.shoppingList.mockImplementation(async (_token, householdId) => listResponse(householdId, []));
-    mockedApi.addShoppingListItem.mockResolvedValue({ item: item('added', 'Added item') });
-    mockedApi.setShoppingListItemChecked.mockImplementation(async (_token, _householdId, itemId, isChecked) => ({
-      item: item(itemId, itemId, isChecked),
-    }));
-    mockedApi.deleteShoppingListItem.mockResolvedValue(undefined);
+    jest.clearAllMocks();
+    mockScopeValue = '["user-1","session-1","household-1"]';
+    mockedHouseholdState.mockReturnValue({ selectedHousehold: { id: 'household-1', name: 'Home', time_zone: 'UTC', role: 'member' } } as unknown as ReturnType<typeof useHouseholdState>);
+    mockedShoppingList.mockReturnValue({
+      add: jest.fn(), clear: jest.fn().mockResolvedValue(undefined), error: null, householdId: 'household-1', items: [item('milk', 'Milk'), item('bread', 'Bread', true)],
+      loading: false, pendingItemIds: new Set(), refresh: mockRefresh, remove: jest.fn(), toggle: jest.fn().mockResolvedValue(undefined), update: jest.fn(),
+    } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
   });
 
-  it('shows the loading state while shopping-list data is being fetched', async () => {
-    const hookSpy = jest.spyOn(shoppingListHook, 'useShoppingList').mockReturnValue({
-      add: jest.fn(),
-      error: null,
-      householdId: 'household-a',
-      items: [],
-      loading: true,
-      pendingItemIds: new Set(),
-      refresh: jest.fn(),
-      remove: jest.fn(),
-      toggle: jest.fn(),
-    });
-    const screen = await render(<HouseholdHome />);
-
-    expect(screen.getByLabelText('Loading shopping list')).toBeTruthy();
-    expect(screen.getByTestId('screen').props.contentInsetAdjustmentBehavior).toBe('never');
-    hookSpy.mockRestore();
-  });
-
-  it('shows an empty state, retryable errors, and refreshes on request', async () => {
-    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', []))
-      .mockRejectedValueOnce(new Error('private details'))
-      .mockResolvedValueOnce(listResponse('household-a', [item('milk', 'Milk')]));
-    const screen = await render(<HouseholdHome />);
-
-    expect(await screen.findByText('Your shopping list is empty.')).toBeTruthy();
-
-    await fireEvent.press(screen.getByText('Refresh'));
-    expect(await screen.findByText(/couldn.t load the shopping list/)).toBeTruthy();
-    await fireEvent.press(screen.getByText('Try again'));
-    expect(await screen.findByText('Milk')).toBeTruthy();
-    expect(mockedApi.shoppingList).toHaveBeenCalledTimes(3);
-  });
-
-  it('adds, clears the form after success, toggles optimistically with rollback, and removes', async () => {
-    mockedApi.shoppingList
-      .mockResolvedValueOnce(listResponse('household-a', []))
-      .mockResolvedValueOnce(listResponse('household-a', [item('milk', 'Milk')]))
-      .mockResolvedValueOnce(listResponse('household-a', []));
-    const screen = await render(<HouseholdHome />);
-    await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1));
-    const input = screen.getByLabelText('Shopping-list item');
-    await fireEvent.changeText(input, 'Milk');
-    await fireEvent.press(screen.getByText('Add item'));
-    expect(await screen.findByText('Milk')).toBeTruthy();
-    expect(input.props.value).toBe('');
-    expect(screen.getByText('○')).toBeTruthy();
-
-    mockedApi.setShoppingListItemChecked.mockRejectedValueOnce(new Error('private details'));
-    const checkbox = screen.getByRole('checkbox');
-    await fireEvent.press(checkbox);
-    await waitFor(() => expect(screen.getByRole('checkbox').props.accessibilityState.checked).toBe(false));
-    expect(screen.getByText('We couldn’t update that item.')).toBeTruthy();
-
-    mockedApi.setShoppingListItemChecked.mockResolvedValueOnce({ item: item('milk', 'Milk', true) });
-    await fireEvent.press(screen.getByRole('checkbox'));
-    await waitFor(() => expect(screen.getByRole('checkbox').props.accessibilityState.checked).toBe(true));
-    expect(screen.queryByText('We couldn’t update that item.')).toBeNull();
-    expect(screen.getByText('✓')).toBeTruthy();
-
-    await fireEvent.press(screen.getByLabelText('Remove Milk'));
-    expect(await screen.findByText('Your shopping list is empty.')).toBeTruthy();
-  });
-
-  it('preserves text entered after an add is submitted when the request succeeds', async () => {
-    const addMutation = deferred<{ item: ShoppingListItem }>();
-    mockedApi.addShoppingListItem.mockReturnValue(addMutation.promise);
-    const screen = await render(<HouseholdHome />);
-    await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1));
-    const input = screen.getByLabelText('Shopping-list item');
-
-    await fireEvent.changeText(input, 'Flour');
-    await fireEvent.press(screen.getByText('Add item'));
-    await waitFor(() => expect(mockedApi.addShoppingListItem).toHaveBeenCalledTimes(1));
-    await fireEvent.changeText(input, 'Coffee');
-
-    await act(async () => addMutation.resolve({ item: item('flour', 'Flour') }));
-    await waitFor(() => expect(input.props.value).toBe('Coffee'));
-  });
-
-  it('reports remove failure without an unhandled rejection or removing the row', async () => {
-    mockedApi.shoppingList.mockResolvedValue(listResponse('household-a', [item('milk', 'Milk')]));
-    mockedApi.deleteShoppingListItem.mockRejectedValue(new Error('private details'));
-    const screen = await render(<HouseholdHome />);
-    await screen.findByText('Milk');
-
-    await fireEvent.press(screen.getByLabelText('Remove Milk'));
-    expect(await screen.findByText('We couldn’t remove that item. Please try again.')).toBeTruthy();
+  it('shows the shared-list hierarchy, To buy/Purchased groups, and Catalog-only Add action', async () => {
+    await render(<ShoppingListScreen />);
+    expect(screen.getByText('Shopping')).toBeTruthy();
+    expect(screen.getByText('Home · shared list')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Add from Catalog' })).toBeTruthy();
+    expect(screen.getByText('To buy')).toBeTruthy();
+    expect(screen.getByText('Purchased')).toBeTruthy();
     expect(screen.getByText('Milk')).toBeTruthy();
+    expect(screen.getByText('Bread')).toBeTruthy();
+    expect(screen.queryByPlaceholderText('Add an item')).toBeNull();
   });
 
-  it.each(['success', 'failure'] as const)(
-    'disables only the pending item controls and re-enables them after %s',
-    async (outcome) => {
-      mockedApi.shoppingList.mockResolvedValue(listResponse('household-a', [
-        item('milk', 'Milk'),
-        item('bread', 'Bread'),
-      ]));
-      const mutation = deferred<{ item: ShoppingListItem }>();
-      mockedApi.setShoppingListItemChecked.mockReturnValue(mutation.promise);
-      const screen = await render(<HouseholdHome />);
-      await screen.findByText('Milk');
-      const milkCheckbox = screen.getByLabelText('Mark Milk purchased');
-      const breadCheckbox = screen.getByLabelText('Mark Bread purchased');
+  it('keeps an explicit pull-to-refresh path on the native tab root', async () => {
+    await render(<ShoppingListScreen />);
+    expect(screen.getByTestId('screen').props.refreshControl.props.refreshing).toBe(false);
+    expect(screen.getByTestId('screen').props.refreshControl.props.onRefresh).toEqual(expect.any(Function));
+  });
 
-      await fireEvent.press(milkCheckbox);
-      await waitFor(() => {
-        expect(screen.getByLabelText('Mark Milk not purchased').props.accessibilityState.disabled).toBe(true);
-        expect(screen.getByLabelText('Remove Milk').props.accessibilityState.disabled).toBe(true);
-      });
-      expect(breadCheckbox.props.accessibilityState?.disabled).not.toBe(true);
+  it('opens the native Catalog picker and keeps refresh explicit on web', async () => {
+    await render(<ShoppingListScreen />);
+    fireEvent.press(screen.getByRole('button', { name: 'Add from Catalog' }));
+    expect(mockPresent).toHaveBeenCalledWith(expect.anything(), { detents: [0.65, 0.94] });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/native-sheet/[sheetId]', params: { sheetId: 'shopping-sheet-1' } });
+  });
 
-      await act(async () => {
-        if (outcome === 'success') mutation.resolve({ item: item('milk', 'Milk', true) });
-        else mutation.reject(new Error('private detail'));
-      });
+  it('toggles only the row checkbox and catches a failed optimistic update visibly', async () => {
+    const toggle = jest.fn().mockRejectedValue(new Error('We couldn’t update that item.'));
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), toggle } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
+    await render(<ShoppingListScreen />);
+    await act(async () => {
+      fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Milk purchased' }));
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByRole('alert').props.children).toBe('We couldn’t update that item.'));
+    expect(toggle).toHaveBeenCalledTimes(1);
+  });
 
-      await waitFor(() => {
-        expect(screen.getByLabelText('Remove Milk').props.accessibilityState.disabled).toBe(false);
-        expect(screen.getByRole('checkbox', { name: /Mark Milk/ }).props.accessibilityState.disabled).toBe(false);
-      });
-      expect(screen.getByLabelText('Mark Bread purchased').props.accessibilityState?.disabled).not.toBe(true);
-      expect(mockedApi.setShoppingListItemChecked).toHaveBeenCalledTimes(1);
-    },
-  );
+  it('shows a retry action for list loading errors', async () => {
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), error: 'We couldn’t load the shopping list.', items: [] } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
+    await render(<ShoppingListScreen />);
+    expect(screen.getByRole('alert').props.children).toBe('We couldn’t load the shopping list.');
+    fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+  });
 
-  it.each(['add success', 'add failure', 'toggle success', 'toggle failure', 'remove success', 'remove failure'])(
-    'keeps B state unchanged when A %s settles after selection changes', async (scenario) => {
-      mockedApi.shoppingList.mockImplementation(async (_token, householdId) =>
-        listResponse(householdId, [item(`${householdId}-item`, `${householdId} item`)]),
-      );
-      const mutation = deferred<unknown>();
-      if (scenario.startsWith('add')) mockedApi.addShoppingListItem.mockReturnValue(mutation.promise as Promise<{ item: ShoppingListItem }>);
-      if (scenario.startsWith('toggle')) mockedApi.setShoppingListItemChecked.mockReturnValue(mutation.promise as Promise<{ item: ShoppingListItem }>);
-      if (scenario.startsWith('remove')) mockedApi.deleteShoppingListItem.mockReturnValue(mutation.promise as Promise<void>);
-      const screen = await render(<HouseholdHome />);
-      await screen.findByText('household-a item');
+  it('shows Clear list only while rows exist and asks before destructive clearing', async () => {
+    const clear = jest.fn().mockResolvedValue(undefined);
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), clear } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    await render(<ShoppingListScreen />);
+    fireEvent.press(screen.getByRole('button', { name: 'Clear list' }));
+    expect(alert).toHaveBeenCalledWith('Clear the whole list?', expect.stringContaining('all stores'), expect.any(Array));
+    alert.mockRestore();
+  });
 
-      if (scenario.startsWith('add')) {
-        await fireEvent.changeText(screen.getByLabelText('Shopping-list item'), 'A pending item');
-        await fireEvent.press(screen.getByText('Add item'));
-      } else if (scenario.startsWith('toggle')) {
-        await fireEvent.press(screen.getByLabelText('Mark household-a item purchased'));
-      } else {
-        await fireEvent.press(screen.getByLabelText('Remove household-a item'));
-      }
+  it('applies store filtering and sorting locally without another list request', async () => {
+    mockedShoppingList.mockReturnValue({
+      ...mockedShoppingList(),
+      items: [
+        { ...item('beta', 'Beta'), store_id: 'store-1', store_name: 'Market' },
+        { ...item('alpha', 'Alpha'), store_id: 'store-1', store_name: 'Market' },
+        { ...item('other', 'Other'), store_id: 'store-2', store_name: 'Corner shop' },
+      ],
+    } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
+    await render(<ShoppingListScreen />);
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Store: All stores' })));
+    expect(screen.queryByRole('button', { name: 'Edit Other' })).toBeNull();
+    expect(screen.getByText('To buy')).toBeTruthy();
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Sort: Recently added' })));
+    expect(screen.getAllByRole('button', { name: /^Edit / }).map((button) => button.props.accessibilityLabel)).toEqual([
+      'Edit Alpha', 'Edit Beta',
+    ]);
+  });
 
-      selectedHouseholdId = 'household-b';
-      await screen.rerender(<HouseholdHome />);
-      await screen.findByText('household-b item');
-      await fireEvent.press(screen.getByText('Add item'));
-      await screen.findByText('Enter an item to add.');
-      await fireEvent.changeText(screen.getByLabelText('Shopping-list item'), 'B draft');
+  it('resets household-specific filters when the signed-in scope changes', async () => {
+    mockedShoppingList.mockReturnValue({
+      ...mockedShoppingList(),
+      items: [{ ...item('milk', 'Milk'), store_id: 'store-1', store_name: 'Market' }],
+    } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
+    const view = await render(<ShoppingListScreen />);
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Store: All stores' })));
+    expect(screen.getByRole('button', { name: 'Store: Market' })).toBeTruthy();
+    mockScopeValue = '["user-2","session-2","household-2"]';
+    await act(async () => view.rerender(<ShoppingListScreen />));
+    expect(screen.getByRole('button', { name: 'Store: All stores' })).toBeTruthy();
+  });
 
-      if (scenario.endsWith('success')) await act(async () => mutation.resolve({ item: item('a-item', 'A item') }));
-      else await act(async () => mutation.reject(new Error('old action failed')));
-
-      expect(screen.getByLabelText('Shopping-list item').props.value).toBe('B draft');
-      expect(screen.getByText('Enter an item to add.')).toBeTruthy();
-      expect(screen.getByText('household-b item')).toBeTruthy();
-      expect(screen.queryByText('We couldn’t add that item. Please try again.')).toBeNull();
-      expect(screen.queryByText('We couldn’t update that item.')).toBeNull();
-      expect(screen.queryByText('We couldn’t remove that item. Please try again.')).toBeNull();
-    },
-  );
+  it('clears all rows only after the explicit destructive confirmation', async () => {
+    const clear = jest.fn().mockResolvedValue(undefined);
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), clear } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
+      buttons?.find((button) => button.text === 'Clear list')?.onPress?.();
+    });
+    await render(<ShoppingListScreen />);
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Clear list' })));
+    await waitFor(() => expect(clear).toHaveBeenCalledTimes(1));
+    expect(alert).toHaveBeenCalledTimes(1);
+    alert.mockRestore();
+  });
 });

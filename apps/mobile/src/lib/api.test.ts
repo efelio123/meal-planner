@@ -192,12 +192,12 @@ describe('mobile API client', () => {
     const getToken = jest.fn().mockResolvedValue('add-item-token');
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ item: { id: 'item-1' } }), { status: 201 }));
 
-    await api.addShoppingListItem(getToken, 'home-1', 'Milk');
+    await api.addShoppingListItem(getToken, 'home-1', 'catalog-milk', { amount: '2', shopping_unit_code: 'gallon', store_id: 'store-1' });
 
     expect(getToken).toHaveBeenCalledTimes(1);
     expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/shopping-list/items');
     expect(fetchMock.mock.calls[0][1].method).toBe('POST');
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({ name: 'Milk' });
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({ catalog_item_id: 'catalog-milk', amount: '2', shopping_unit_code: 'gallon', store_id: 'store-1' });
     expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer add-item-token');
   });
 
@@ -205,7 +205,7 @@ describe('mobile API client', () => {
     const getToken = jest.fn().mockResolvedValue('toggle-item-token');
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ item: { id: 'item-1', is_checked: true } }), { status: 200 }));
 
-    await api.setShoppingListItemChecked(getToken, 'home-1', 'item-1', true);
+    await api.updateShoppingListItem(getToken, 'home-1', 'item-1', { is_checked: true });
 
     expect(getToken).toHaveBeenCalledTimes(1);
     expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/shopping-list/items/item-1');
@@ -225,6 +225,24 @@ describe('mobile API client', () => {
     expect(fetchMock.mock.calls[0][1].method).toBe('DELETE');
     expect(fetchMock.mock.calls[0][1].body).toBeUndefined();
     expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer delete-item-token');
+  });
+
+  it('loads household-authorized item detail with a fresh Bearer token', async () => {
+    const getToken = jest.fn().mockResolvedValue('item-detail-token');
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ item: { id: 'item-1', used_in_meals: [] } }), { status: 200 }));
+    await api.shoppingListItem(getToken, 'home-1', 'item-1');
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/shopping-list/items/item-1');
+    expect(fetchMock.mock.calls[0][1].method).toBe('GET');
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer item-detail-token');
+  });
+
+  it('clears every shopping row through the household list resource', async () => {
+    const getToken = jest.fn().mockResolvedValue('clear-list-token');
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ removed_count: 3 }), { status: 200 }));
+    await expect(api.clearShoppingList(getToken, 'home-1')).resolves.toEqual({ removed_count: 3 });
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/shopping-list');
+    expect(fetchMock.mock.calls[0][1].method).toBe('DELETE');
+    expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer clear-list-token');
   });
 
   it('uses one household-scoped unit-options request with a fresh token', async () => {

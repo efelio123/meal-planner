@@ -5,12 +5,28 @@ export type GetToken = () => Promise<string | null>;
 
 export type Household = { id: string; name: string; time_zone: string; role: 'owner' | 'member' };
 export type Me = { user: { id: string; email: string; display_name: string }; households: Household[] };
-export type ShoppingListItem = { id: string; name: string; is_checked: boolean; checked_at: string | null; checked_by_user_id: string | null; created_by_user_id: string; created_at: string; catalog_item_id?: string | null; amount?: string | null; recipe_unit_code?: string | null; recipe_unit_dimension?: 'volume' | 'mass' | 'count' | null; recipe_unit_label?: string | null; custom_unit_label?: string | null; meal_plan_source?: boolean };
+export type ShoppingListItem = {
+  id: string; name: string; is_checked: boolean; checked_at: string | null; checked_by_user_id: string | null;
+  created_by_user_id: string; created_at: string; catalog_item_id?: string | null; catalog_item_type?: CatalogItemType;
+  category_id?: string | null; category_name?: string | null; category_emoji?: string | null; updated_at?: string;
+  catalog_item_archived?: boolean; catalog_preferred_shopping_unit_code?: string | null;
+  catalog_preferred_custom_shopping_unit_id?: string | null; catalog_preferred_store_id?: string | null;
+  amount?: string | null; unit_kind?: 'built_in' | 'household' | 'recipe' | null; unit_label?: string | null;
+  shopping_unit_code?: string | null; custom_shopping_unit_id?: string | null;
+  store_id?: string | null; store_name?: string | null;
+  recipe_unit_code?: string | null; recipe_unit_dimension?: 'volume' | 'mass' | 'count' | null;
+  custom_unit_label?: string | null; meal_plan_source?: boolean;
+  used_in_meals?: { recipe_name: string; planned_for: string }[];
+};
 export type ShoppingList = { id: string; household_id: string; items: ShoppingListItem[] };
+export type ShoppingListItemInput = {
+  amount?: string | null; shopping_unit_code?: string | null;
+  custom_shopping_unit_id?: string | null; store_id?: string | null;
+};
 export type CreatedInvitation = { id: string; expires_at: string; code: string };
 export type HouseholdMember = { membership_id: string; display_name: string; avatar_url: string | null; role: 'owner' | 'member'; joined_at: string; is_self: boolean; email?: string };
 export type PendingInvitation = { id: string; normalized_email: string; expires_at: string };
-export type ApiErrorCode = 'DISPLAY_NAME_REQUIRED' | 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' | 'INVITATION_ALREADY_PENDING' | 'LAST_OWNER' | 'CATALOG_ITEM_ALREADY_EXISTS' | 'CATALOG_CHOICE_ALREADY_EXISTS' | 'CATALOG_CHOICE_IN_USE' | 'CATALOG_REFERENCE_ARCHIVED' | 'CATALOG_CATEGORY_COUNT_CHANGED' | 'RECIPE_REVISION_CONFLICT' | 'RECIPE_CATALOG_ITEM_ARCHIVED' | 'RECIPE_CREATE_REQUEST_ALREADY_USED' | 'MEAL_PLAN_SLOT_OCCUPIED' | 'MEAL_PLAN_REVISION_CONFLICT' | 'MEAL_PLAN_RECIPE_ARCHIVED' | 'MEAL_PLAN_REVIEW_STALE' | 'MEAL_PLAN_REQUEST_REUSED';
+export type ApiErrorCode = 'DISPLAY_NAME_REQUIRED' | 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' | 'INVITATION_ALREADY_PENDING' | 'LAST_OWNER' | 'CATALOG_ITEM_ALREADY_EXISTS' | 'CATALOG_CHOICE_ALREADY_EXISTS' | 'CATALOG_CHOICE_IN_USE' | 'CATALOG_REFERENCE_ARCHIVED' | 'CATALOG_CATEGORY_COUNT_CHANGED' | 'RECIPE_REVISION_CONFLICT' | 'RECIPE_CATALOG_ITEM_ARCHIVED' | 'RECIPE_CREATE_REQUEST_ALREADY_USED' | 'MEAL_PLAN_SLOT_OCCUPIED' | 'MEAL_PLAN_REVISION_CONFLICT' | 'MEAL_PLAN_RECIPE_ARCHIVED' | 'MEAL_PLAN_REVIEW_STALE' | 'MEAL_PLAN_REQUEST_REUSED' | 'SHOPPING_ITEM_ALREADY_EXISTS';
 
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner';
 export type MealPlanEntry = {
@@ -152,6 +168,7 @@ const apiErrorMessages: Partial<Record<ApiErrorCode, string>> = {
   MEAL_PLAN_RECIPE_ARCHIVED: 'That recipe is archived. Choose an active recipe.',
   MEAL_PLAN_REVIEW_STALE: 'The plan or Shopping list changed. Refresh this review before adding items.',
   MEAL_PLAN_REQUEST_REUSED: 'This review request was already used. Refresh and try again.',
+  SHOPPING_ITEM_ALREADY_EXISTS: 'This item is already on the list. Open it to edit its details.',
 };
 
 async function request<T>(getToken: GetToken, path: string, init?: RequestInit, diagnostics?: StartupDiagnostics): Promise<T> {
@@ -183,7 +200,7 @@ async function request<T>(getToken: GetToken, path: string, init?: RequestInit, 
     try {
       const body = await response.json() as { detail?: { code?: unknown } };
       const candidate = body.detail?.code;
-      if (candidate === 'DISPLAY_NAME_REQUIRED' || candidate === 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' || candidate === 'INVITATION_ALREADY_PENDING' || candidate === 'LAST_OWNER' || candidate === 'CATALOG_ITEM_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_IN_USE' || candidate === 'CATALOG_REFERENCE_ARCHIVED' || candidate === 'CATALOG_CATEGORY_COUNT_CHANGED' || candidate === 'RECIPE_REVISION_CONFLICT' || candidate === 'RECIPE_CATALOG_ITEM_ARCHIVED' || candidate === 'RECIPE_CREATE_REQUEST_ALREADY_USED' || candidate === 'MEAL_PLAN_SLOT_OCCUPIED' || candidate === 'MEAL_PLAN_REVISION_CONFLICT' || candidate === 'MEAL_PLAN_RECIPE_ARCHIVED' || candidate === 'MEAL_PLAN_REVIEW_STALE' || candidate === 'MEAL_PLAN_REQUEST_REUSED') code = candidate;
+      if (candidate === 'DISPLAY_NAME_REQUIRED' || candidate === 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' || candidate === 'INVITATION_ALREADY_PENDING' || candidate === 'LAST_OWNER' || candidate === 'CATALOG_ITEM_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_IN_USE' || candidate === 'CATALOG_REFERENCE_ARCHIVED' || candidate === 'CATALOG_CATEGORY_COUNT_CHANGED' || candidate === 'RECIPE_REVISION_CONFLICT' || candidate === 'RECIPE_CATALOG_ITEM_ARCHIVED' || candidate === 'RECIPE_CREATE_REQUEST_ALREADY_USED' || candidate === 'MEAL_PLAN_SLOT_OCCUPIED' || candidate === 'MEAL_PLAN_REVISION_CONFLICT' || candidate === 'MEAL_PLAN_RECIPE_ARCHIVED' || candidate === 'MEAL_PLAN_REVIEW_STALE' || candidate === 'MEAL_PLAN_REQUEST_REUSED' || candidate === 'SHOPPING_ITEM_ALREADY_EXISTS') code = candidate;
     } catch { /* Keep error responses safe and generic when their body is not JSON. */ }
     const message = code === 'DISPLAY_NAME_REQUIRED'
       ? (apiErrorMessages[code] ?? 'Add a display name to continue.')
@@ -227,12 +244,16 @@ export const api = {
     request<{ invitation: CreatedInvitation }>(getToken, `/v1/households/${householdId}/invitations/${invitationId}/reissue`, { method: 'POST' }),
   shoppingList: (getToken: GetToken, householdId: string) =>
     request<{ shopping_list: ShoppingList }>(getToken, `/v1/households/${householdId}/shopping-list`, { method: 'GET' }),
-  addShoppingListItem: (getToken: GetToken, householdId: string, name: string) =>
-    request<{ item: ShoppingListItem }>(getToken, `/v1/households/${householdId}/shopping-list/items`, { method: 'POST', body: JSON.stringify({ name }) }),
-  setShoppingListItemChecked: (getToken: GetToken, householdId: string, itemId: string, isChecked: boolean) =>
-    request<{ item: ShoppingListItem }>(getToken, `/v1/households/${householdId}/shopping-list/items/${itemId}`, { method: 'PATCH', body: JSON.stringify({ is_checked: isChecked }) }),
+  addShoppingListItem: (getToken: GetToken, householdId: string, catalogItemId: string, values: ShoppingListItemInput) =>
+    request<{ item: ShoppingListItem }>(getToken, `/v1/households/${householdId}/shopping-list/items`, { method: 'POST', body: JSON.stringify({ catalog_item_id: catalogItemId, ...values }) }),
+  shoppingListItem: (getToken: GetToken, householdId: string, itemId: string) =>
+    request<{ item: ShoppingListItem }>(getToken, `/v1/households/${householdId}/shopping-list/items/${itemId}`, { method: 'GET' }),
+  updateShoppingListItem: (getToken: GetToken, householdId: string, itemId: string, values: ShoppingListItemInput & { is_checked?: boolean }) =>
+    request<{ item: ShoppingListItem }>(getToken, `/v1/households/${householdId}/shopping-list/items/${itemId}`, { method: 'PATCH', body: JSON.stringify(values) }),
   deleteShoppingListItem: (getToken: GetToken, householdId: string, itemId: string) =>
     request<void>(getToken, `/v1/households/${householdId}/shopping-list/items/${itemId}`, { method: 'DELETE' }),
+  clearShoppingList: (getToken: GetToken, householdId: string) =>
+    request<{ removed_count: number }>(getToken, `/v1/households/${householdId}/shopping-list`, { method: 'DELETE' }),
   mealPlan: (getToken: GetToken, householdId: string, weekOffset = 0) =>
     request<MealPlanWeek>(getToken, `/v1/households/${householdId}/meal-plan?week_offset=${weekOffset}`, { method: 'GET' }),
   createMealPlanEntry: (getToken: GetToken, householdId: string, values: Pick<MealPlanEntry, 'planned_for' | 'meal_slot' | 'recipe_id'>) =>

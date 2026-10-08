@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/expo';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
@@ -93,7 +93,7 @@ export function ShoppingReviewScreen() {
   }, [load]);
   const needs = useMemo(() => review?.needs ?? [], [review]);
   const selectedNeeds = useMemo(() => needs.filter((need) => selected.includes(need.need_key)), [needs, selected]);
-  const duplicateSelected = selectedNeeds.some((need) => need.existing_matches.length > 0);
+  const selectableNeeds = needs.filter((need) => need.existing_matches.length === 0);
 
   const setAmountOverride = (need: MealPlanNeed, amount: string) => {
     if (scopeRef.current !== scope || need.amount === null) return;
@@ -163,21 +163,7 @@ export function ShoppingReviewScreen() {
 
   const confirm = () => {
     if (!householdId || !review || !selectedNeeds.length || submitting || reviewNeedsRefresh) return;
-    if (!duplicateSelected) { void submitSelected(); return; }
-    const startedScope = scopeRef.current;
-    const startedVersion = confirmationVersion.current;
-    const addAnyway = () => {
-      if (scopeRef.current !== startedScope || confirmationVersion.current !== startedVersion || reviewRef.current !== review) return;
-      void submitSelected();
-    };
-    if (Platform.OS === 'web') {
-      if (globalThis.confirm('Some items are already in the shopping list. Add separate lines anyway?')) addAnyway();
-      return;
-    }
-    Alert.alert('Some items are already in the shopping list', 'Adding anyway creates separate lines without changing the items already there.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Add anyway', onPress: addAnyway },
-    ]);
+    void submitSelected();
   };
 
   const toggleSelected = (needKey: string) => {
@@ -200,15 +186,21 @@ export function ShoppingReviewScreen() {
       {error ? <View style={styles.message}><ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText><PrimaryButton disabled={loading} onPress={() => void load()} title="Retry" /></View> : null}
       {review && needs.length === 0 ? <ThemedText themeColor="textSecondary">No recipe ingredients are planned for this week.</ThemedText> : null}
       {review && needs.length > 0 ? <>
-        <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={styles.sectionTitle}>Ingredients</ThemedText><Pressable accessibilityRole="button" disabled={submitting || loading || Boolean(error)} accessibilityState={{ disabled: submitting || loading || Boolean(error) }} accessibilityLabel={selected.length === needs.length ? 'Deselect all ingredients' : 'Select all ingredients'} onPress={() => { confirmationVersion.current += 1; setRequestId(newMealRequestId()); setSelected(selected.length === needs.length ? [] : needs.map((need) => need.need_key)); setNotice(null); }}><ThemedText themeColor="link">{selected.length === needs.length ? 'Deselect all' : 'Select all'}</ThemedText></Pressable></View>
+        <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={styles.sectionTitle}>Ingredients</ThemedText><Pressable accessibilityRole="button" disabled={submitting || loading || Boolean(error) || selectableNeeds.length === 0} accessibilityState={{ disabled: submitting || loading || Boolean(error) || selectableNeeds.length === 0 }} accessibilityLabel={selected.length === selectableNeeds.length ? 'Deselect all ingredients' : 'Select all ingredients'} onPress={() => { confirmationVersion.current += 1; setRequestId(newMealRequestId()); setSelected(selected.length === selectableNeeds.length ? [] : selectableNeeds.map((need) => need.need_key)); setNotice(null); }}><ThemedText themeColor="link">{selected.length === selectableNeeds.length ? 'Deselect all' : 'Select all'}</ThemedText></Pressable></View>
         <View style={[styles.needList, { backgroundColor: theme.surface }]}>
-          {needs.map((need, index) => <NeedRow key={need.need_key} need={need} buyAmount={amountOverrides[need.need_key] ?? need.amount} first={index === 0} selected={selected.includes(need.need_key)} expanded={expanded.includes(need.need_key)} disabled={submitting || loading || Boolean(error)} editDisabled={submitting || loading || reviewNeedsRefresh} onToggle={() => toggleSelected(need.need_key)} onEditAmount={() => editAmount(need)} onExpand={() => setExpanded((current) => current.includes(need.need_key) ? current.filter((item) => item !== need.need_key) : [...current, need.need_key])} />)}
+          {needs.map((need, index) => <NeedRow key={need.need_key} need={need} buyAmount={amountOverrides[need.need_key] ?? need.amount} first={index === 0} selected={selected.includes(need.need_key)} expanded={expanded.includes(need.need_key)} disabled={submitting || loading || Boolean(error) || need.existing_matches.length > 0} editDisabled={submitting || loading || reviewNeedsRefresh} onToggle={() => toggleSelected(need.need_key)} onEditAmount={() => editAmount(need)} onExpand={() => setExpanded((current) => current.includes(need.need_key) ? current.filter((item) => item !== need.need_key) : [...current, need.need_key])} />)}
         </View>
         {needs.some((need) => need.existing_matches.length > 0) ? <>
           <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={styles.sectionTitle}>Already on Shopping</ThemedText></View>
           <View style={[styles.needList, { backgroundColor: theme.surface }]}>{needs.filter((need) => need.existing_matches.length > 0).map((need, index) => <View key={`existing-${need.need_key}`} style={[styles.existingRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
-            <View style={styles.needInfo}><ThemedText style={styles.needName}>{need.name}</ThemedText><ThemedText themeColor="textSecondary" numberOfLines={2}>{[need.sources[0] ? `${need.sources[0].recipe_name} · ${shortDayLabel(need.sources[0].planned_for)}` : null, ...need.existing_matches.map((match) => match.kind === 'exact' ? 'Already on list' : `Possible match · ${match.name}`)].filter(Boolean).join(' · ')}</ThemedText></View>
+            <View style={styles.needInfo}><ThemedText style={styles.needName}>{need.name}</ThemedText><ThemedText themeColor="textSecondary" numberOfLines={2}>{[need.sources[0] ? `${need.sources[0].recipe_name} · ${shortDayLabel(need.sources[0].planned_for)}` : null, 'Already on Shopping'].filter(Boolean).join(' · ')}</ThemedText></View>
             <ThemedText style={styles.amount}>{formatAmount(need.amount, need.unit_label)}</ThemedText>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${need.name} on Shopping`} onPress={() => {
+              const match = need.existing_matches[0];
+              if (!match) return;
+              router.dismissAll();
+              router.navigate({ pathname: '/(app)/(tabs)/shopping', params: { editItemId: match.item_id } } as never);
+            }}><ThemedText themeColor="link">Edit</ThemedText></Pressable>
           </View>)}</View>
         </> : null}
         {notice ? <ThemedText accessibilityRole="alert" themeColor="textSecondary">{notice}</ThemedText> : null}

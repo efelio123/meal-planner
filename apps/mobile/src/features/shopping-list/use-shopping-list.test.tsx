@@ -4,12 +4,14 @@ import { useShoppingList } from '@/features/shopping-list/use-shopping-list';
 import { api, type ShoppingList, type ShoppingListItem } from '@/lib/api';
 
 jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: jest.fn() }));
+jest.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: 'user-1', sessionId: 'session-1' }) }));
 jest.mock('@/lib/api', () => ({
   api: {
     shoppingList: jest.fn(),
     addShoppingListItem: jest.fn(),
-    setShoppingListItemChecked: jest.fn(),
+    updateShoppingListItem: jest.fn(),
     deleteShoppingListItem: jest.fn(),
+    clearShoppingList: jest.fn(),
   },
 }));
 
@@ -61,10 +63,11 @@ describe('useShoppingList', () => {
     }) as unknown as ReturnType<typeof useHouseholdState>);
     mockedApi.shoppingList.mockImplementation(async (_token, householdId) => listResponse(householdId, []));
     mockedApi.addShoppingListItem.mockResolvedValue({ item: item('added') });
-    mockedApi.setShoppingListItemChecked.mockImplementation(async (_token, _householdId, itemId, isChecked) => ({
-      item: item(itemId, itemId, isChecked),
+    mockedApi.updateShoppingListItem.mockImplementation(async (_token, _householdId, itemId, values) => ({
+      item: item(itemId, itemId, values.is_checked ?? false),
     }));
     mockedApi.deleteShoppingListItem.mockResolvedValue(undefined);
+    mockedApi.clearShoppingList.mockResolvedValue({ removed_count: 0 });
   });
 
   it('shows loading while a list request is pending, then shows the empty response', async () => {
@@ -105,8 +108,8 @@ describe('useShoppingList', () => {
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await act(async () => result.current.add(' Milk '));
-    expect(mockedApi.addShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', ' Milk ');
+    await act(async () => result.current.add('catalog-milk'));
+    expect(mockedApi.addShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'catalog-milk', {});
     expect(result.current.items.map(({ name }) => name)).toEqual(['Milk']);
     await act(async () => result.current.remove(result.current.items[0]));
     expect(result.current.items).toEqual([]);
@@ -126,7 +129,7 @@ describe('useShoppingList', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     let addPromise!: Promise<void>;
-    await act(async () => { addPromise = result.current.add('Bread'); });
+    await act(async () => { addPromise = result.current.add('catalog-bread'); });
     let refreshPromise!: Promise<void>;
     await act(async () => { refreshPromise = result.current.refresh(); });
     await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2));
@@ -174,7 +177,7 @@ describe('useShoppingList', () => {
     const bread = item('bread', 'Bread', true);
     mockedApi.shoppingList.mockResolvedValue(listResponse('household-a', [milk, bread]));
     const mutation = deferred<{ item: ShoppingListItem }>();
-    mockedApi.setShoppingListItemChecked.mockReturnValue(mutation.promise);
+    mockedApi.updateShoppingListItem.mockReturnValue(mutation.promise);
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(result.current.items).toHaveLength(2));
     expect(result.current.items.map(({ name }) => name)).toEqual(['Milk', 'Bread']);
@@ -188,12 +191,37 @@ describe('useShoppingList', () => {
     expect(result.current.items[0].is_checked).toBe(true);
   });
 
+  it('does not let an older same-household refresh undo a confirmed checkbox change', async () => {
+    const milk = item('milk', 'Milk');
+    const staleRefresh = deferred<{ shopping_list: ShoppingList }>();
+    const toggleRequest = deferred<{ item: ShoppingListItem }>();
+    mockedApi.shoppingList
+      .mockResolvedValueOnce(listResponse('household-a', [milk]))
+      .mockReturnValueOnce(staleRefresh.promise);
+    mockedApi.updateShoppingListItem.mockReturnValue(toggleRequest.promise);
+    const { result } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+
+    let refreshPromise!: Promise<void>;
+    await act(async () => { refreshPromise = result.current.refresh(); });
+    await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2));
+    let togglePromise!: Promise<void>;
+    await act(async () => { togglePromise = result.current.toggle(milk); });
+    await act(async () => toggleRequest.resolve({ item: item('milk', 'Milk', true) }));
+    await act(async () => togglePromise);
+    expect(result.current.items[0].is_checked).toBe(true);
+
+    await act(async () => staleRefresh.resolve(listResponse('household-a', [milk])));
+    await act(async () => refreshPromise);
+    expect(result.current.items[0].is_checked).toBe(true);
+  });
+
   it('rolls an optimistic toggle back and propagates a safe error on failure', async () => {
     const milk = item('milk', 'Milk');
     const bread = item('bread', 'Bread', true);
     mockedApi.shoppingList.mockResolvedValue(listResponse('household-a', [milk, bread]));
     const mutation = deferred<{ item: ShoppingListItem }>();
-    mockedApi.setShoppingListItemChecked.mockReturnValue(mutation.promise);
+    mockedApi.updateShoppingListItem.mockReturnValue(mutation.promise);
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(result.current.items).toHaveLength(2));
     expect(result.current.items.map(({ name }) => name)).toEqual(['Milk', 'Bread']);
@@ -215,7 +243,7 @@ describe('useShoppingList', () => {
     mockedApi.shoppingList.mockResolvedValue(listResponse('household-a', [milk, bread]));
     const milkMutation = deferred<{ item: ShoppingListItem }>();
     const breadMutation = deferred<{ item: ShoppingListItem }>();
-    mockedApi.setShoppingListItemChecked
+    mockedApi.updateShoppingListItem
       .mockReturnValueOnce(milkMutation.promise)
       .mockReturnValueOnce(breadMutation.promise);
     const { result } = await renderHook(() => useShoppingList());
@@ -232,7 +260,7 @@ describe('useShoppingList', () => {
       breadToggle = result.current.toggle(bread);
     });
 
-    expect(mockedApi.setShoppingListItemChecked).toHaveBeenCalledTimes(2);
+    expect(mockedApi.updateShoppingListItem).toHaveBeenCalledTimes(2);
     expect(mockedApi.deleteShoppingListItem).not.toHaveBeenCalled();
     expect(result.current.pendingItemIds).toEqual(new Set(['milk', 'bread']));
     await act(async () => {
@@ -250,7 +278,7 @@ describe('useShoppingList', () => {
       mockedApi.shoppingList.mockResolvedValue(listResponse('household-a', [milk]));
       const firstMutation = deferred<{ item: ShoppingListItem }>();
       const secondMutation = deferred<{ item: ShoppingListItem }>();
-      mockedApi.setShoppingListItemChecked
+      mockedApi.updateShoppingListItem
         .mockReturnValueOnce(firstMutation.promise)
         .mockReturnValueOnce(secondMutation.promise);
       const { result } = await renderHook(() => useShoppingList());
@@ -269,7 +297,7 @@ describe('useShoppingList', () => {
 
       let secondToggle!: Promise<void>;
       await act(async () => { secondToggle = result.current.toggle(result.current.items[0]); });
-      expect(mockedApi.setShoppingListItemChecked).toHaveBeenCalledTimes(2);
+      expect(mockedApi.updateShoppingListItem).toHaveBeenCalledTimes(2);
       expect(result.current.pendingItemIds.has('milk')).toBe(true);
       await act(async () => secondMutation.resolve({ item: item('milk', 'Milk', !result.current.items[0].is_checked) }));
       await act(async () => secondToggle);
@@ -286,7 +314,7 @@ describe('useShoppingList', () => {
         .mockResolvedValueOnce(listResponse('household-b', [sharedIdItem]));
       const aMutation = deferred<{ item: ShoppingListItem }>();
       const bMutation = deferred<{ item: ShoppingListItem }>();
-      mockedApi.setShoppingListItemChecked
+      mockedApi.updateShoppingListItem
         .mockReturnValueOnce(aMutation.promise)
         .mockReturnValueOnce(bMutation.promise);
       const { result, rerender } = await renderHook(() => useShoppingList());
@@ -348,14 +376,14 @@ describe('useShoppingList', () => {
         .mockResolvedValueOnce(listResponse('household-b', [bItem]));
       const mutation = deferred<unknown>();
       if (scenario.startsWith('add')) mockedApi.addShoppingListItem.mockReturnValue(mutation.promise as Promise<{ item: ShoppingListItem }>);
-      if (scenario.startsWith('toggle')) mockedApi.setShoppingListItemChecked.mockReturnValue(mutation.promise as Promise<{ item: ShoppingListItem }>);
+      if (scenario.startsWith('toggle')) mockedApi.updateShoppingListItem.mockReturnValue(mutation.promise as Promise<{ item: ShoppingListItem }>);
       if (scenario.startsWith('remove')) mockedApi.deleteShoppingListItem.mockReturnValue(mutation.promise as Promise<void>);
       const { result, rerender } = await renderHook(() => useShoppingList());
       await waitFor(() => expect(result.current.items).toHaveLength(1));
 
       let action!: Promise<unknown>;
       await act(async () => {
-        if (scenario.startsWith('add')) action = result.current.add('A pending item');
+        if (scenario.startsWith('add')) action = result.current.add('catalog-a-item');
         if (scenario.startsWith('toggle')) action = result.current.toggle(result.current.items[0]);
         if (scenario.startsWith('remove')) action = result.current.remove(result.current.items[0]);
       });

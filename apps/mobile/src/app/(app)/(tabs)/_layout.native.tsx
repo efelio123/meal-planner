@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { CatalogProvider } from '@/features/catalog/catalog-context';
 import { RecipeProvider } from '@/features/recipes/recipe-context';
 import { MealPlanProvider } from '@/features/meal-plan/meal-plan-context';
+import { ShoppingProvider } from '@/features/shopping-list/shopping-context';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function NativeTabLayout() {
@@ -13,6 +14,7 @@ export default function NativeTabLayout() {
     <CatalogProvider>
     <RecipeProvider>
     <MealPlanProvider>
+    <ShoppingProvider>
     <NativeTabs
       backBehavior="history"
       backgroundColor={theme.surface}
@@ -43,6 +45,7 @@ export default function NativeTabLayout() {
         <NativeTabs.Trigger.Icon sf="person.crop.circle" md="account_circle" />
       </NativeTabs.Trigger>
     </NativeTabs>
+    </ShoppingProvider>
     </MealPlanProvider>
     </RecipeProvider>
     </CatalogProvider>

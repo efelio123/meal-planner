@@ -162,7 +162,9 @@ jest.mock('@/lib/api', () => ({
     leaveHousehold: jest.fn(),
     deleteHousehold: jest.fn(),
     addShoppingListItem: jest.fn(),
-    setShoppingListItemChecked: jest.fn(),
+    shoppingListItem: jest.fn(),
+    updateShoppingListItem: jest.fn(),
+    clearShoppingList: jest.fn(),
     deleteShoppingListItem: jest.fn(),
     catalogUnits: jest.fn(),
     catalogCategories: jest.fn(),
@@ -339,7 +341,7 @@ describe('signed-in startup routing', () => {
     );
     await renderResult;
     expect(await screen.findByText('Sign in')).toBeTruthy();
-    expect(screen.queryByText('Shopping list')).toBeNull();
+    expect(screen.queryByText('Shopping')).toBeNull();
     const state = renderResult.getRouterState() as NavigationState;
     expect(state.routeNames).not.toContain('(app)');
   });
@@ -365,7 +367,7 @@ describe('signed-in startup routing', () => {
       { initialUrl: '/' },
     );
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-account');
     await screen.findByText('Account information');
 
@@ -381,7 +383,7 @@ describe('signed-in startup routing', () => {
         router.back();
         await jest.runOnlyPendingTimersAsync();
       });
-      expect(screen.queryByText('Shopping list')).toBeNull();
+      expect(screen.queryByText('Shopping')).toBeNull();
       expect(screen.queryByText('Account information')).toBeNull();
     }
 
@@ -390,57 +392,25 @@ describe('signed-in startup routing', () => {
     expect(renderResult.getPathname()).toBe('/plan');
   });
 
-  it('preserves Shopping draft and avoids a tab-switch reload', async () => {
+  it('preserves the loaded shared list and avoids a tab-switch reload', async () => {
+    const apples = {
+      id: 'item-apples', name: 'Apples', is_checked: false, checked_at: null,
+      checked_by_user_id: null, created_by_user_id: 'user-1', created_at: '2026-09-01T00:00:00Z',
+    };
+    jest.mocked(api.shoppingList).mockResolvedValue({
+      shopping_list: { id: 'list-a', household_id: 'household-a', items: [apples] },
+    });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Apples');
     expect(api.shoppingList).toHaveBeenCalledTimes(1);
 
-    await fireEvent.changeText(screen.getByLabelText('Shopping-list item'), 'Draft for later');
     for (const tab of ['plan', 'recipes', 'catalog', 'profile', 'shopping']) {
       await navigateTo(renderResult, `/${tab}`);
     }
 
-    expect(screen.getByLabelText('Shopping-list item').props.value).toBe('Draft for later');
+    expect(screen.getByText('Apples')).toBeTruthy();
     expect(api.shoppingList).toHaveBeenCalledTimes(1);
-  });
-
-  it('applies a valid same-household add that completes while Shopping is blurred', async () => {
-    const item = {
-      id: 'item-1',
-      name: 'Apples',
-      is_checked: false,
-      checked_at: null,
-      checked_by_user_id: null,
-      created_by_user_id: 'user-1',
-      created_at: '2026-09-01T00:00:00Z',
-    };
-    let resolveAdd!: (value: { item: typeof item }) => void;
-    const pendingAdd = new Promise<{ item: typeof item }>((resolve) => { resolveAdd = resolve; });
-    jest.mocked(api.addShoppingListItem).mockReturnValue(pendingAdd);
-    jest.mocked(api.shoppingList)
-      .mockResolvedValueOnce(shoppingListResponse())
-      .mockResolvedValueOnce({ shopping_list: { id: 'list-a', household_id: 'household-a', items: [item] } });
-
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
-    await renderResult;
-    await screen.findByText('Your shopping list is empty.');
-    await fireEvent.changeText(screen.getByLabelText('Shopping-list item'), 'Apples');
-    await fireEvent.press(screen.getByRole('button', { name: 'Add item' }));
-
-    await navigateTo(renderResult, '/plan');
-    await act(async () => {
-      resolveAdd({ item });
-      await Promise.resolve();
-      await jest.runOnlyPendingTimersAsync();
-    });
-    expect(renderResult.getPathname()).toBe('/plan');
-    expect(api.shoppingList).toHaveBeenCalledTimes(2);
-
-    await navigateTo(renderResult, '/shopping');
-    expect(await screen.findByText('Apples')).toBeTruthy();
-    expect(screen.getByLabelText('Shopping-list item').props.value).toBe('');
-    expect(api.shoppingList).toHaveBeenCalledTimes(2);
   });
 
   it('keeps a pending toggle across tabs and rolls it back when its same-household request fails', async () => {
@@ -458,7 +428,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.shoppingList).mockResolvedValue({
       shopping_list: { id: 'list-a', household_id: 'household-a', items: [item] },
     });
-    jest.mocked(api.setShoppingListItemChecked).mockReturnValue(pendingToggle);
+    jest.mocked(api.updateShoppingListItem).mockReturnValue(pendingToggle);
 
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
@@ -485,7 +455,7 @@ describe('signed-in startup routing', () => {
   it('follows Android tab history through several tabs using the real router', async () => {
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
 
     await navigateTo(renderResult, '/plan');
     await navigateTo(renderResult, '/profile');
@@ -510,7 +480,7 @@ describe('signed-in startup routing', () => {
       { initialUrl: '/' },
     );
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
 
     await act(async () => {
       router.push('/shopping/details' as Href);
@@ -524,7 +494,7 @@ describe('signed-in startup routing', () => {
       await jest.runOnlyPendingTimersAsync();
     });
     expect(renderResult.getPathname()).toBe('/shopping');
-    expect(screen.getByText('Shopping list')).toBeTruthy();
+    expect(screen.getByText('Shopping')).toBeTruthy();
   });
 
   it('resets nested Profile household history before returning to the startup tab', async () => {
@@ -539,7 +509,7 @@ describe('signed-in startup routing', () => {
       { initialUrl: '/' },
     );
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/secret-fixture');
     expect(screen.getByText('Old household secret')).toBeTruthy();
     await navigateTo(renderResult, '/profile/reset-fixture');
@@ -562,7 +532,7 @@ describe('signed-in startup routing', () => {
     mockInitialHouseholdId = 'household-b';
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile');
     await fireEvent.press(screen.getByRole('button', { name: 'My households' }));
     await screen.findByText('My households');
@@ -589,7 +559,7 @@ describe('signed-in startup routing', () => {
     await waitFor(() => expect(renderResult.getPathname()).toBe('/profile/my-households/household-a'));
     await fireEvent.press(screen.getByRole('button', { name: 'Switch to this household' }));
     expect(mockSelectCalls).toEqual(['household-a']);
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
     expect(renderResult.getPathname()).toBe('/plan');
     expect(mockSetSelectedHouseholdId).toBeDefined();
 
@@ -608,7 +578,7 @@ describe('signed-in startup routing', () => {
     mockInitialHouseholdId = 'household-b';
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households');
 
     expect(screen.getByRole('button', { name: 'Home' })).toBeTruthy();
@@ -627,7 +597,7 @@ describe('signed-in startup routing', () => {
     }];
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households/create');
     await fireEvent.changeText(screen.getByLabelText('Household name'), 'Guest home');
     await fireEvent.press(screen.getByRole('button', { name: 'Create household' }));
@@ -646,7 +616,7 @@ describe('signed-in startup routing', () => {
     mockRefreshResults = [pendingRefresh.promise];
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households/create');
     await fireEvent.changeText(screen.getByLabelText('Household name'), 'Guest home');
     await fireEvent.press(screen.getByRole('button', { name: 'Create household' }));
@@ -675,7 +645,7 @@ describe('signed-in startup routing', () => {
     }];
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households/household-a/edit');
     await fireEvent.changeText(screen.getByLabelText('Household name'), 'Renamed home');
     await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
@@ -694,7 +664,7 @@ describe('signed-in startup routing', () => {
     mockRefreshResults = [pendingRefresh.promise];
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households/household-a/edit');
     await fireEvent.changeText(screen.getByLabelText('Household name'), 'Renamed home');
     await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
@@ -722,7 +692,7 @@ describe('signed-in startup routing', () => {
     }];
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households/create');
     await fireEvent.changeText(screen.getByLabelText('Household name'), 'Guest home');
     await fireEvent.press(screen.getByRole('button', { name: 'Create household' }));
@@ -740,7 +710,7 @@ describe('signed-in startup routing', () => {
   it('keeps Profile, My households, household details, and Invitations in one working Back history', async () => {
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
 
     await navigateTo(renderResult, '/profile');
     await fireEvent.press(screen.getByRole('button', { name: 'My households' }));
@@ -788,7 +758,7 @@ describe('signed-in startup routing', () => {
     } });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a');
     const memberRow = await screen.findByRole('button', { name: /Sam Member, member/u });
     await fireEvent.press(memberRow);
@@ -832,7 +802,7 @@ describe('signed-in startup routing', () => {
 
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a');
     await fireEvent.press(await screen.findByRole('button', { name: /Sam Member, member/u }));
     await fireEvent.press(await screen.findByRole('button', { name: 'Make owner' }));
@@ -884,7 +854,7 @@ describe('signed-in startup routing', () => {
 
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a');
     await fireEvent.press(await screen.findByRole('button', { name: /Sam Member, member/u }));
     await fireEvent.press(await screen.findByRole('button', { name: 'Remove member' }));
@@ -918,7 +888,7 @@ describe('signed-in startup routing', () => {
     mockSelectionOverride = { status: 'failed', reason: 'storage' };
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households');
     await fireEvent.press(screen.getByRole('button', { name: 'Home' }));
     await screen.findByText('UTC');
@@ -935,7 +905,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.createInvitation).mockReturnValue(new Promise((resolve) => { resolveInvitation = resolve; }));
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a/invitations');
     expect(renderResult.getPathname()).toBe('/profile/my-households/household-a/invitations');
     await screen.findByLabelText('Recipient email');
@@ -974,7 +944,7 @@ describe('signed-in startup routing', () => {
     mockInitialRole = 'member';
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a');
 
     expect(screen.getByText('Home')).toBeTruthy();
@@ -984,7 +954,7 @@ describe('signed-in startup routing', () => {
   it('does not substitute the active household for an unknown invitation route target', async () => {
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Shopping');
 
     await act(async () => {
       router.navigate('/profile/my-households/not-a-member/invitations' as Href);
@@ -1002,7 +972,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.createInvitation).mockReturnValue(new Promise((resolve) => { resolveInvitation = resolve; }));
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a/invitations');
     await screen.findByLabelText('Recipient email');
     await fireEvent.changeText(screen.getByLabelText('Recipient email'), 'friend@example.com');
@@ -1029,7 +999,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.catalogItems).mockResolvedValue({ items: [catalogItem({ name: 'Apple', category_id: 'produce', category_name: 'Produce' })] });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
     expect(await screen.findByText('Apple')).toBeTruthy();
     expect(api.catalogItems).toHaveBeenCalledTimes(1);
@@ -1056,7 +1026,7 @@ describe('signed-in startup routing', () => {
       .mockResolvedValueOnce({ items: [row('item-b', 'household-b', 'Cabin item')] });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
     await waitFor(() => expect(api.catalogItems).toHaveBeenCalledTimes(1));
 
@@ -1077,7 +1047,7 @@ describe('signed-in startup routing', () => {
     } });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
     await screen.findByLabelText('Item name');
     await fireEvent.changeText(screen.getByLabelText('Item name'), 'Draft apple');
@@ -1104,7 +1074,7 @@ describe('signed-in startup routing', () => {
     });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
     await screen.findByLabelText('Item name');
     await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
@@ -1129,7 +1099,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.catalogStores).mockResolvedValue({ stores: [{ id: 'market', name: 'Market', created_at: '', updated_at: '' }] });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
     await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
 
@@ -1152,7 +1122,7 @@ describe('signed-in startup routing', () => {
   it('clears the empty-name error as soon as the item name is corrected', async () => {
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
     await screen.findByLabelText('Category: Not selected');
     await waitFor(() => expect(screen.getByRole('button', { name: 'Add to catalog' }).props.accessibilityState.disabled).toBe(false));
@@ -1167,7 +1137,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.catalogStores).mockResolvedValue({ stores: [{ id: 'store-1', name: 'Market', created_at: '', updated_at: '' }] });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
     await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Draft oats');
     await fireEvent.press(screen.getByLabelText('Preferred store (optional): Not selected'));
@@ -1185,7 +1155,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.catalogUnits).mockResolvedValue({ shopping_units: { built_in: [], household: [{ id: 'crate-id', label: 'Crate' }] }, recipe_measurement_units: [] });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
     await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Draft flour');
     await fireEvent.press(screen.getByLabelText('Typical shopping unit (optional): Not selected'));
@@ -1214,7 +1184,7 @@ describe('signed-in startup routing', () => {
     });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
     await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Draft strawberries');
     await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
@@ -1239,7 +1209,7 @@ describe('signed-in startup routing', () => {
       .mockResolvedValueOnce({ item: catalogItem({ name: 'Original milk', category_id: 'dairy', category_name: 'Dairy' }) });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/item/item-1/edit');
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Retry loading item' })).toBeTruthy();
@@ -1262,7 +1232,7 @@ describe('signed-in startup routing', () => {
     } });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
     await fireEvent.press(screen.getByRole('radio', { name: 'Household' }));
     await fireEvent.press(screen.getByLabelText('Category: Not selected'));
@@ -1284,7 +1254,7 @@ describe('signed-in startup routing', () => {
     } });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
     await fireEvent.press(await screen.findByText('Categories'));
     await fireEvent.press(await screen.findByRole('button', { name: 'Create category' }));
@@ -1301,7 +1271,7 @@ describe('signed-in startup routing', () => {
     } });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
     await fireEvent.press(await screen.findByText('Categories'));
     await fireEvent.press(await screen.findByRole('button', { name: 'Create category' }));
@@ -1326,7 +1296,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/choices/category/wave-category');
     await waitFor(() => expect(screen.getByLabelText('category name').props.value).toBe('Greetings'));
     expect(screen.getByRole('button', { name: 'Emoji: 👋🏻' })).toBeTruthy();
@@ -1347,7 +1317,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category: { ...category, emoji: null } });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/choices/category/wave-category');
     await waitFor(() => expect(screen.getByLabelText('category name').props.value).toBe('Greetings'));
 
@@ -1372,7 +1342,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category: categoryB });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/choices/category/shared-id');
     await waitFor(() => expect(screen.getByLabelText('category name').props.value).toBe('Home Produce'));
     await fireEvent.press(screen.getByRole('button', { name: 'Emoji: 🥬' }));
@@ -1391,7 +1361,7 @@ describe('signed-in startup routing', () => {
     } });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
     await fireEvent.press(await screen.findByText('Categories'));
     await fireEvent.press(await screen.findByRole('button', { name: 'Create category' }));
@@ -1433,7 +1403,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.deleteCatalogCategory).mockResolvedValue(undefined);
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
     await fireEvent.press(await screen.findByText('Categories'));
     await fireEvent.press(await screen.findByText('Dairy'));
@@ -1449,7 +1419,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
     await fireEvent.press(await screen.findByText('Categories'));
     await fireEvent.press(await screen.findByText('Dairy'));
@@ -1469,7 +1439,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
     await fireEvent.press(await screen.findByText('Categories'));
     await fireEvent.press(await screen.findByText('Dairy'));
@@ -1493,7 +1463,7 @@ describe('signed-in startup routing', () => {
     ] });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
     await fireEvent.press(await screen.findByText('Stores'));
     expect(await screen.findByText('Market')).toBeTruthy();
@@ -1510,7 +1480,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category: { ...category, name: 'Laundry' } });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
     await fireEvent.press(screen.getByRole('radio', { name: 'Household' }));
     await fireEvent.press(screen.getByLabelText('Category: Not selected'));
@@ -1531,7 +1501,7 @@ describe('signed-in startup routing', () => {
       .mockResolvedValueOnce({ items: [catalogItem({ id: 'item-c', household_id: 'household-b', name: 'Identity bread' })] });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
     await screen.findByText('Apple');
     await fireEvent.changeText(screen.getByLabelText('Search household items'), 'Apple');
@@ -1562,7 +1532,7 @@ describe('signed-in startup routing', () => {
     ] });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
     const sectionHeadings = screen.getAllByRole('header').map((heading) => heading.props.children);
     expect(sectionHeadings).toContain('Food');
@@ -1579,7 +1549,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.catalogItem).mockRejectedValueOnce(new Error('temporary detail failure')).mockResolvedValueOnce({ item: catalogItem() });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/item/item-1');
     expect(await screen.findByRole('alert')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Retry loading item' }));
@@ -1595,7 +1565,7 @@ describe('signed-in startup routing', () => {
     ] });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/item/item-1');
     expect(await screen.findByText('🥛 Dairy')).toBeTruthy();
   });
@@ -1616,7 +1586,7 @@ describe('signed-in startup routing', () => {
 
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
     await fireEvent.press(await screen.findByText('Milk'));
     expect(await screen.findByText('Dairy')).toBeTruthy();
@@ -1660,7 +1630,7 @@ describe('signed-in startup routing', () => {
 
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
     await fireEvent.press(await screen.findByText('Milk'));
     expect(await screen.findByText('Dairy')).toBeTruthy();
@@ -1700,7 +1670,7 @@ describe('signed-in startup routing', () => {
 
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
     await fireEvent.press(await screen.findByText('Milk'));
     await screen.findByText('Dairy');
@@ -1727,7 +1697,7 @@ describe('signed-in startup routing', () => {
     });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
     await fireEvent.press(screen.getByLabelText('Category: Not selected'));
     await fireEvent.press(screen.getByRole('button', { name: 'Manage categories' }));
@@ -1747,7 +1717,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.deleteCatalogCategory).mockImplementation(async () => { categoryArchived = true; });
     const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
     await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Strawberries');
     await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());

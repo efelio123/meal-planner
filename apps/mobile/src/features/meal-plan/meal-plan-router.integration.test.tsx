@@ -3,7 +3,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
 import { ApiError, api, type CatalogItem, type MealPlanEntry, type MealPlanWeek, type Recipe } from '@/lib/api';
 
 const mockGetToken = jest.fn().mockResolvedValue('session-token');
@@ -171,9 +171,7 @@ describe('meal planning through the Expo Router', () => {
     await waitForLoadedPlan();
   });
 
-  it('reviews the whole week and adds only confirmed selected needs', async () => {
-    const dismissPlanStack = jest.spyOn(router, 'dismissAll');
-    const duplicateAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  it('reviews existing matches separately and adds only new selected Catalog needs', async () => {
     mockedApi.addMealPlanNeedsToShopping.mockResolvedValue({ items: [{ id: 'shopping-new-beans', name: 'Beans' }], replayed: false });
     mockedApi.mealPlanShoppingReview.mockResolvedValue({
       week_start: '2026-10-05', week_end: '2026-10-11', review_token: 'a'.repeat(64), needs: [{
@@ -181,6 +179,11 @@ describe('meal planning through the Expo Router', () => {
         recipe_unit_code: 'cup', recipe_unit_dimension: 'volume', unit_label: 'Cup', custom_unit_label: null,
         sources: [{ planned_for: '2026-10-05', meal_slot: 'dinner', recipe_name: 'Soup', amount: '1', unit_label: 'Cup', note: null }],
         existing_matches: [{ kind: 'exact', item_id: 'shopping-beans', name: 'Beans' }], default_selected: false,
+      }, {
+        need_key: 'rice-cup', catalog_item_id: 'food-rice', name: 'Rice', amount: '2',
+        recipe_unit_code: 'cup', recipe_unit_dimension: 'volume', unit_label: 'Cup', custom_unit_label: null,
+        sources: [{ planned_for: '2026-10-06', meal_slot: 'dinner', recipe_name: 'Rice bowl', amount: '2', unit_label: 'Cup', note: null }],
+        existing_matches: [], default_selected: true,
       }],
     });
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
@@ -191,44 +194,29 @@ describe('meal planning through the Expo Router', () => {
     expect(await screen.findByText('Review what to buy')).toBeTruthy();
     await waitFor(() => expect(screen.getAllByText('1.5 Cup').length).toBeGreaterThan(0));
     await waitFor(() => expect(screen.getAllByText('Soup · Mon').length).toBeGreaterThan(0));
-    expect(screen.getAllByRole('checkbox')).toHaveLength(1);
-    expect(screen.queryByText('Not selected')).toBeNull();
-    await fireEvent.press(screen.getByRole('checkbox', { name: 'Select Beans' }));
+    expect(screen.getAllByRole('checkbox')).toHaveLength(2);
+    expect(screen.getByText('Already on Shopping')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Edit Beans on Shopping' })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Select Beans' }).props.accessibilityState.disabled).toBe(true);
     await fireEvent.press(screen.getByRole('button', { name: 'Add 1 selected to Shopping' }));
-    expect(duplicateAlert).toHaveBeenCalledWith(
-      'Some items are already in the shopping list',
-      expect.stringContaining('separate lines'),
-      expect.any(Array),
-    );
-    expect(mockedApi.addMealPlanNeedsToShopping).not.toHaveBeenCalled();
-    expect(dismissPlanStack).not.toHaveBeenCalled();
-    const firstButtons = duplicateAlert.mock.calls[0][2] ?? [];
-    await act(async () => { firstButtons.find((button) => button.text === 'Cancel')?.onPress?.(); });
-    expect(mockedApi.addMealPlanNeedsToShopping).not.toHaveBeenCalled();
-    expect(screen.getByRole('checkbox', { name: 'Remove Beans' }).props.accessibilityState.checked).toBe(true);
-    await fireEvent.press(screen.getByRole('button', { name: 'Add 1 selected to Shopping' }));
-    const confirmButtons = duplicateAlert.mock.calls[1][2] ?? [];
-    await act(async () => { confirmButtons.find((button) => button.text === 'Add anyway')?.onPress?.(); });
     await waitFor(() => expect(mockedApi.addMealPlanNeedsToShopping).toHaveBeenCalledWith(expect.any(Function), household.id, expect.objectContaining({
-      week_start: '2026-10-05', selected_need_keys: ['beans-cup'], request_id: expect.any(String),
+      week_start: '2026-10-05', selected_need_keys: ['rice-cup'], request_id: expect.any(String),
     })));
     await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
-    expect(dismissPlanStack).toHaveBeenCalledTimes(1);
-    expect(await screen.findByText('1 item added to Shopping.')).toBeTruthy();
+    expect(await screen.findByText('1 item added from this week’s meals.')).toBeTruthy();
     await act(async () => { router.navigate('/plan'); });
     expect(rendered.getPathname()).toBe('/plan');
     await act(async () => { router.navigate('/shopping'); });
-    expect(screen.queryByText('1 item added to Shopping.')).toBeNull();
+    expect(screen.queryByText('1 item added from this week’s meals.')).toBeNull();
   });
 
-  it('confirms adjusted duplicate amounts and ignores an outdated dialog after selection changes', async () => {
-    const duplicateAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  it('confirms an adjusted amount and submits only the selected need', async () => {
     mockedApi.mealPlanShoppingReview.mockResolvedValue({
       week_start: '2026-10-05', week_end: '2026-10-11', review_token: 'd'.repeat(64), needs: [{
         need_key: 'chicken-pound', catalog_item_id: 'food-chicken', name: 'Chicken', amount: '3',
         recipe_unit_code: 'pound', recipe_unit_dimension: 'mass', unit_label: 'Pound', custom_unit_label: null,
         sources: [{ planned_for: '2026-10-05', meal_slot: 'dinner', recipe_name: 'Tacos', amount: '3', unit_label: 'Pound', note: null }],
-        existing_matches: [{ kind: 'exact', item_id: 'shopping-chicken', name: 'Chicken' }], default_selected: true,
+        existing_matches: [], default_selected: true,
       }],
     });
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
@@ -237,20 +225,12 @@ describe('meal planning through the Expo Router', () => {
     await waitForLoadedPlan();
     await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
     await screen.findByText('3 Pound to buy · 3 Pound needed');
-    await fireEvent.press(screen.getByRole('button', { name: 'Add 1 selected to Shopping' }));
-    const oldButtons = duplicateAlert.mock.calls[0][2] ?? [];
-    await fireEvent.press(screen.getByRole('checkbox', { name: 'Remove Chicken' }));
-    await act(async () => { oldButtons.find((button) => button.text === 'Add anyway')?.onPress?.(); });
-    expect(mockedApi.addMealPlanNeedsToShopping).not.toHaveBeenCalled();
-    await fireEvent.press(screen.getByRole('checkbox', { name: 'Select Chicken' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Edit amount to buy for Chicken' }));
     await screen.findByRole('header', { name: 'Amount to buy' });
     await fireEvent.changeText(screen.getByLabelText('Amount to buy'), '1');
     await fireEvent.press(screen.getByRole('button', { name: 'Done editing amount' }));
     await screen.findByText('1 Pound to buy · 3 Pound needed');
     await fireEvent.press(screen.getByRole('button', { name: 'Add 1 selected to Shopping' }));
-    const newButtons = duplicateAlert.mock.calls[1][2] ?? [];
-    await act(async () => { newButtons.find((button) => button.text === 'Add anyway')?.onPress?.(); });
     await waitFor(() => expect(mockedApi.addMealPlanNeedsToShopping).toHaveBeenCalledTimes(1));
     expect(mockedApi.addMealPlanNeedsToShopping.mock.calls[0][2]).toEqual(expect.objectContaining({
       selected_need_keys: ['chicken-pound'], amount_overrides: { 'chicken-pound': '1' },
@@ -407,7 +387,7 @@ describe('meal planning through the Expo Router', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Retry add safely' }));
     await waitFor(() => expect(mockedApi.addMealPlanNeedsToShopping).toHaveBeenCalledTimes(3));
     expect(mockedApi.addMealPlanNeedsToShopping.mock.calls[2][2]).toEqual(adjustedRequest);
-    expect(await screen.findByText('1 item added to Shopping.')).toBeTruthy();
+    expect(await screen.findByText('1 item added from this week’s meals.')).toBeTruthy();
     expect(rendered.getPathname()).toBe('/shopping');
   });
 
@@ -439,11 +419,11 @@ describe('meal planning through the Expo Router', () => {
 
     mockedApi.shoppingList.mockResolvedValue({ shopping_list: { id: 'list-1', household_id: household.id, items: [{
       id: 'generated-milk', name: 'Milk', is_checked: false, checked_at: null, checked_by_user_id: null,
-      created_by_user_id: user.id, created_at: '', meal_plan_source: true, amount: '1', recipe_unit_label: 'Unit',
+      created_by_user_id: user.id, created_at: '', meal_plan_source: true, amount: '1', unit_label: 'Unit',
     }] } });
     const previousListRequests = mockedApi.shoppingList.mock.calls.length;
     await act(async () => { addResponse.resolve({ items: [{ id: 'generated-milk', name: 'Milk' }], replayed: false }); await addResponse.promise; });
-    expect(await screen.findByText('1 item added to Shopping.')).toBeTruthy();
+    expect(await screen.findByText('1 item added from this week’s meals.')).toBeTruthy();
     expect((await screen.findAllByText('Milk')).length).toBeGreaterThan(0);
     await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(previousListRequests + 1));
     expect(screen.getAllByText('1 Unit').length).toBeGreaterThan(0);
@@ -464,22 +444,22 @@ describe('meal planning through the Expo Router', () => {
       .mockResolvedValueOnce({ shopping_list: { id: 'list-1', household_id: household.id, items: [] } })
       .mockResolvedValueOnce({ shopping_list: { id: 'list-1', household_id: household.id, items: [{
         id: 'plan-item-1', name: 'Milk', is_checked: false, checked_at: null, checked_by_user_id: null,
-        created_by_user_id: user.id, created_at: '', meal_plan_source: true, amount: null,
+        created_by_user_id: user.id, created_at: '', meal_plan_source: true, amount: null, unit_label: null,
       }] } });
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
     await act(async () => { router.navigate('/shopping'); });
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await act(async () => { router.navigate('/plan'); });
     await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
     await screen.findByText('Amount not specified');
     await fireEvent.press(screen.getByRole('button', { name: 'Add 1 selected to Shopping' }));
-    await waitFor(() => expect(screen.getByText('1 item added to Shopping.')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('1 item added from this week’s meals.')).toBeTruthy());
     expect(rendered.getPathname()).toBe('/shopping');
     expect((await screen.findAllByText('Milk')).length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Amount not specified').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Amount not specified')).toBeNull();
     expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2);
   });
 

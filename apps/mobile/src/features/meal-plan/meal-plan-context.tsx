@@ -53,7 +53,7 @@ export function MealPlanProvider({ children }: PropsWithChildren) {
   const clearRecipeCreate = useCallback(() => { setIntent(null); setResult(null); }, []);
   const markShoppingChanged = useCallback((householdId: string, count: number, requestId: string) => {
     setShoppingRevisions((current) => ({ ...current, [householdId]: (current[householdId] ?? 0) + 1 }));
-    setShoppingAddNotice({ householdId, count, requestId, scope });
+    setShoppingAddNotice(count > 0 ? { householdId, count, requestId, scope } : null);
   }, [scope]);
   const shoppingRevisionForHousehold = useCallback((householdId: string) => shoppingRevisions[householdId] ?? 0, [shoppingRevisions]);
   const shoppingAddNoticeForHousehold = useCallback((householdId: string) => shoppingAddNotice?.householdId === householdId && shoppingAddNotice.scope === scope ? shoppingAddNotice : null, [scope, shoppingAddNotice]);
