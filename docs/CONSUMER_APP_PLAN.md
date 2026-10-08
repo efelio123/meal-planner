@@ -228,8 +228,10 @@ Version 1 should include:
 - Weekly meal-planning calendar
 - A week-wide, explicit shopping-needs review with member-selected additions
 - Consolidation of ingredients shared by multiple planned recipes
-- Shared shopping list
-- Check, uncheck, edit, and remove shopping items
+- One household-shared Shopping list with Catalog-backed, case-insensitive
+  canonical items; no duplicate row for the same Catalog item
+- Check, uncheck, edit, remove, store-filter/sort, and explicitly clear Shopping
+  items, with an immediate row-only response to check/uncheck
 - Loading, error, empty, and offline-aware states
 - Household settings
 - Account and household deletion
@@ -459,6 +461,18 @@ Critical user journeys:
 8. Adjust the plan when the week changes.
 
 Shopping-list interaction should be optimistic so checking an item feels immediate.
+The approved Shopping redesign replaces the temporary free-text Add form with
+a Catalog-item picker opened from the header `+`. Missing items go through
+Catalog creation first. Each main-list row shows only amount and optional
+store below the name; planned-meal usage belongs in Edit. Plan review cannot
+add a duplicate Catalog item or silently combine unlike quantities. Clear
+list requires confirmation and removes both to-buy and purchased rows across
+all stores without altering Catalog, recipes, or meal plans. The design and
+implementation boundary are in `docs/plans/household-shopping-redesign.md`.
+The implementation is on `codex/household-shopping-redesign`; automated
+mobile normal/cold runs passed 46 suites / 298 tests each, and 87 non-database
+API tests passed. The identity-verified
+disposable-PostgreSQL run and iPhone/Android visual acceptance remain pending.
 
 ### Household invitation delivery
 
