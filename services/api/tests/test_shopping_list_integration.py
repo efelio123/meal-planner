@@ -61,8 +61,8 @@ def insert_household(connection, owner_id: str) -> tuple[str, str]:
 def insert_item(connection, list_id: str, creator_id: str, name: str) -> str:
     return connection.execute(
         text(
-            """INSERT INTO shopping_list_items (shopping_list_id, name, created_by_user_id)
-            VALUES (:list_id, :name, :creator_id) RETURNING id::text"""
+            """INSERT INTO shopping_list_items (household_id, shopping_list_id, name, created_by_user_id)
+            SELECT household_id, id, :name, :creator_id FROM shopping_lists WHERE id=:list_id RETURNING id::text"""
         ),
         {"list_id": list_id, "name": name, "creator_id": creator_id},
     ).scalar_one()
@@ -189,6 +189,13 @@ async def test_get_item_contract_exposes_id_used_to_toggle_and_remove(disposable
                 "checked_by_user_id": None,
                 "created_by_user_id": user_id,
                 "created_at": item["created_at"],
+                "catalog_item_id": None,
+                "amount": None,
+                "recipe_unit_code": None,
+                "recipe_unit_dimension": None,
+                "recipe_unit_label": None,
+                "custom_unit_label": None,
+                "meal_plan_source": False,
             }
             assert isinstance(item["created_at"], str)
 

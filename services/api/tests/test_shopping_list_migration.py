@@ -132,13 +132,13 @@ def test_shopping_list_schema_constraints_indexes_and_foreign_keys(database_conn
     with pytest.raises(IntegrityError), database_connection.begin_nested():
         database_connection.execute(text("INSERT INTO shopping_lists (household_id) VALUES (:id)"), {"id": household_id})
     item_id = database_connection.execute(
-        text("INSERT INTO shopping_list_items (shopping_list_id, name, created_by_user_id) VALUES (:list, 'Valid', :user) RETURNING id::text"),
+        text("INSERT INTO shopping_list_items (household_id, shopping_list_id, name, created_by_user_id) SELECT household_id, id, 'Valid', :user FROM shopping_lists WHERE id=:list RETURNING id::text"),
         {"list": list_id, "user": creator_id},
     ).scalar_one()
 
     with pytest.raises(IntegrityError), database_connection.begin_nested():
         database_connection.execute(
-            text("INSERT INTO shopping_list_items (shopping_list_id, name, created_by_user_id) VALUES (:list, '   ', :user)"),
+            text("INSERT INTO shopping_list_items (household_id, shopping_list_id, name, created_by_user_id) SELECT household_id, id, '   ', :user FROM shopping_lists WHERE id=:list"),
             {"list": list_id, "user": creator_id},
         )
     with pytest.raises(IntegrityError), database_connection.begin_nested():

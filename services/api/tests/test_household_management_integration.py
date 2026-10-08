@@ -116,8 +116,8 @@ async def test_member_privacy_and_household_isolation_for_management_routes(disp
             (household_id, normalized_email, created_by_user_id, token_digest, expires_at)
             VALUES (:household_id, 'pending@example.com', :owner_id, :digest, CURRENT_TIMESTAMP + INTERVAL '1 day')
             RETURNING id::text"""), {"household_id": household_id, "owner_id": owner_id, "digest": str(uuid4())}).scalar_one()
-        item_id = connection.execute(text("""INSERT INTO shopping_list_items (shopping_list_id, name, created_by_user_id)
-            SELECT id, 'Protected item', :owner_id FROM shopping_lists WHERE household_id = :household_id RETURNING id::text"""),
+        item_id = connection.execute(text("""INSERT INTO shopping_list_items (household_id, shopping_list_id, name, created_by_user_id)
+            SELECT household_id, id, 'Protected item', :owner_id FROM shopping_lists WHERE household_id = :household_id RETURNING id::text"""),
             {"owner_id": owner_id, "household_id": household_id}).scalar_one()
 
     try:
@@ -495,7 +495,7 @@ async def test_delete_household_retains_shared_rows_revokes_invites_and_denies_a
     with disposable_engine.begin() as connection:
         owner_id, owner_email = insert_user(connection, "delete-owner")
         household_id = insert_household(connection, owner_id)
-        item_id = connection.execute(text("INSERT INTO shopping_list_items (shopping_list_id, name, created_by_user_id) SELECT id, 'Still retained', :user_id FROM shopping_lists WHERE household_id = :household_id RETURNING id::text"),
+        item_id = connection.execute(text("INSERT INTO shopping_list_items (household_id, shopping_list_id, name, created_by_user_id) SELECT household_id, id, 'Still retained', :user_id FROM shopping_lists WHERE household_id = :household_id RETURNING id::text"),
                                      {"user_id": owner_id, "household_id": household_id}).scalar_one()
         invite_id = connection.execute(text("INSERT INTO household_invitations (household_id, normalized_email, created_by_user_id, token_digest, expires_at) VALUES (:household_id, 'pending@example.com', :user_id, :digest, CURRENT_TIMESTAMP + INTERVAL '1 day') RETURNING id::text"),
                                        {"household_id": household_id, "user_id": owner_id, "digest": str(uuid4())}).scalar_one()

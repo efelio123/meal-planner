@@ -13,7 +13,13 @@ def _not_found() -> HTTPException:
 
 
 def _item(record: dict) -> dict:
-    return dict(record)
+    result = dict(record)
+    if result.get("amount") is not None:
+        result["amount"] = format(result["amount"].normalize(), "f")
+    result["meal_plan_source"] = result.get("meal_plan_request_id") is not None
+    result.pop("meal_plan_request_id", None)
+    result.pop("meal_plan_need_key", None)
+    return result
 
 
 def get_list(user: CurrentUser, household_id: str, engine: Engine | None = None) -> dict:
@@ -22,11 +28,16 @@ def get_list(user: CurrentUser, household_id: str, engine: Engine | None = None)
             SELECT sl.id::text AS list_id, h.id::text AS household_id,
                    item.id::text AS id, item.name, item.is_checked, item.checked_at,
                    item.checked_by_user_id::text AS checked_by_user_id,
-                   item.created_by_user_id::text AS created_by_user_id, item.created_at
+                   item.created_by_user_id::text AS created_by_user_id, item.created_at,
+                   item.catalog_item_id::text AS catalog_item_id, item.amount,
+                   item.recipe_unit_code, item.recipe_unit_dimension, item.custom_unit_label,
+                   item.meal_plan_request_id::text AS meal_plan_request_id, item.meal_plan_need_key,
+                   units.label AS recipe_unit_label
             FROM shopping_lists sl
             JOIN households h ON h.id = sl.household_id
             JOIN household_members hm ON hm.household_id = h.id
             LEFT JOIN shopping_list_items item ON item.shopping_list_id = sl.id
+            LEFT JOIN recipe_measurement_units units ON units.code = item.recipe_unit_code AND units.dimension = item.recipe_unit_dimension
             WHERE h.id = :household_id AND hm.user_id = :user_id
               AND hm.removed_at IS NULL AND h.deleted_at IS NULL
             ORDER BY item.is_checked, item.created_at, item.id
@@ -48,8 +59,8 @@ def add_item(user: CurrentUser, household_id: str, name: str, engine: Engine | N
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
         item = connection.execute(text("""
-            INSERT INTO shopping_list_items (shopping_list_id, name, created_by_user_id)
-            SELECT sl.id, :name, :user_id
+            INSERT INTO shopping_list_items (household_id, shopping_list_id, name, created_by_user_id)
+            SELECT sl.household_id, sl.id, :name, :user_id
             FROM shopping_lists sl
             JOIN households h ON h.id = sl.household_id
             JOIN household_members hm ON hm.household_id = h.id
@@ -58,7 +69,12 @@ def add_item(user: CurrentUser, household_id: str, name: str, engine: Engine | N
             RETURNING shopping_list_items.id::text, shopping_list_items.name,
                       shopping_list_items.is_checked, shopping_list_items.checked_at,
                       shopping_list_items.checked_by_user_id::text,
-                      shopping_list_items.created_by_user_id::text, shopping_list_items.created_at
+                      shopping_list_items.created_by_user_id::text, shopping_list_items.created_at,
+                      shopping_list_items.catalog_item_id::text AS catalog_item_id, shopping_list_items.amount,
+                      shopping_list_items.recipe_unit_code, shopping_list_items.recipe_unit_dimension,
+                      shopping_list_items.custom_unit_label,
+                      shopping_list_items.meal_plan_request_id::text AS meal_plan_request_id,
+                      shopping_list_items.meal_plan_need_key
         """), {"household_id": household_id, "name": normalized_name, "user_id": user.id}).mappings().one_or_none()
         if item is None:
             raise _not_found()
@@ -83,7 +99,12 @@ def set_checked(user: CurrentUser, household_id: str, item_id: str, is_checked: 
             RETURNING shopping_list_items.id::text, shopping_list_items.name,
                       shopping_list_items.is_checked, shopping_list_items.checked_at,
                       shopping_list_items.checked_by_user_id::text,
-                      shopping_list_items.created_by_user_id::text, shopping_list_items.created_at
+                      shopping_list_items.created_by_user_id::text, shopping_list_items.created_at,
+                      shopping_list_items.catalog_item_id::text AS catalog_item_id, shopping_list_items.amount,
+                      shopping_list_items.recipe_unit_code, shopping_list_items.recipe_unit_dimension,
+                      shopping_list_items.custom_unit_label,
+                      shopping_list_items.meal_plan_request_id::text AS meal_plan_request_id,
+                      shopping_list_items.meal_plan_need_key
         """), {"is_checked": is_checked, "user_id": user.id, "item_id": item_id, "household_id": household_id}).mappings().one_or_none()
         if item is None:
             raise _not_found()

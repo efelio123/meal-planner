@@ -98,7 +98,7 @@ def cleanup_household(engine: Engine, household_ids: list[str], user_ids: list[s
 
 def test_recipe_migration_is_current_and_keeps_household_scoped_foreign_keys(recipe_engine: Engine) -> None:
     with recipe_engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "household_recipes"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "household_meal_planning"
         constraints = set(connection.execute(text("""
             SELECT conname FROM pg_constraint
             WHERE conrelid IN (
