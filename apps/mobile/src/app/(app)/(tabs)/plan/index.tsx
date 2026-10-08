@@ -1,5 +1,5 @@
-import { ComingSoonScreen } from '@/features/navigation/coming-soon-screen';
+import { MealPlanScreen } from '@/features/meal-plan/meal-plan-screen';
 
 export default function PlanScreen() {
-  return <ComingSoonScreen title="Plan" />;
+  return <MealPlanScreen />;
 }

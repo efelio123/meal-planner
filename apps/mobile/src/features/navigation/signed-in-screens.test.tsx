@@ -43,7 +43,7 @@ describe.each(['light', 'dark'] as const)('%s signed-in tab screens', (mode) => 
   it('uses semantic screen and secondary-text colors on the Coming soon page', async () => {
     const result = await render(<ComingSoonScreen title="Plan" />);
     const palette = Colors[mode];
-    expect(result.getByTestId('screen').props.style).toMatchObject({ backgroundColor: palette.screen });
+    expect(StyleSheet.flatten(result.getByTestId('screen').props.style)).toMatchObject({ backgroundColor: palette.screen });
     expect(result.getByText('Plan').props.style[0]).toEqual({ color: palette.text });
     expect(result.getByText('Coming soon').props.style[0]).toEqual({ color: palette.textSecondary });
     expect(result.getByLabelText('Plan. Coming soon.')).toBeTruthy();
@@ -52,7 +52,7 @@ describe.each(['light', 'dark'] as const)('%s signed-in tab screens', (mode) => 
   it('keeps Profile identity and household content readable on the shared screen', async () => {
     const result = await render(<ProfileHubScreen />);
     const palette = Colors[mode];
-    expect(result.getByTestId('screen').props.style).toMatchObject({ backgroundColor: palette.screen });
+    expect(StyleSheet.flatten(result.getByTestId('screen').props.style)).toMatchObject({ backgroundColor: palette.screen });
     expect(result.getByText('Current household').props.style[0]).toEqual({ color: palette.textSecondary });
     expect(result.getByText('Home').props.style[0]).toEqual({ color: palette.text });
     expect(result.getByText('Test Person')).toBeTruthy();

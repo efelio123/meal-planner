@@ -63,7 +63,7 @@ jest.mock('@/lib/api', () => {
     ...actual,
     api: {
       ...actual.api,
-      me: jest.fn(), shoppingList: jest.fn(), householdMembers: jest.fn(), household: jest.fn(),
+      me: jest.fn(), shoppingList: jest.fn(), mealPlan: jest.fn(), householdMembers: jest.fn(), household: jest.fn(),
       recipes: jest.fn(), recipe: jest.fn(), createRecipe: jest.fn(), updateRecipe: jest.fn(),
       archiveRecipe: jest.fn(), restoreRecipe: jest.fn(), catalogItems: jest.fn(), catalogUnits: jest.fn(),
       catalogCategories: jest.fn(), catalogStores: jest.fn(), createCatalogCategory: jest.fn(), createCatalogItem: jest.fn(),
@@ -95,6 +95,7 @@ describe('Recipes through the actual Expo Router', () => {
     mockedStorage.removeItem.mockResolvedValue();
     mockedApi.me.mockResolvedValue(signedInMe);
     mockedApi.shoppingList.mockResolvedValue({ shopping_list: { id: 'list-a', household_id: 'household-a', items: [] } });
+    mockedApi.mealPlan.mockResolvedValue({ time_zone: 'UTC', local_today: '2026-10-05', week_start: '2026-10-05', week_end: '2026-10-11', week_offset: 0, entries: [] });
     mockedApi.householdMembers.mockResolvedValue({ members: [] });
     mockedApi.household.mockResolvedValue({ household });
     mockedApi.recipes.mockResolvedValue({ recipes: [] });
@@ -115,7 +116,7 @@ describe('Recipes through the actual Expo Router', () => {
   it('creates a recipe from a linked Food Catalog item and opens its detail route', async () => {
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Plan');
     expect(mockedApi.recipes).not.toHaveBeenCalled();
     await act(async () => { router.navigate('/recipes'); });
     expect(await screen.findByText('No recipes yet. Add a family favorite to get started.')).toBeTruthy();
@@ -154,7 +155,7 @@ describe('Recipes through the actual Expo Router', () => {
     mockedApi.catalogItems.mockResolvedValue({ items: [food, { ...food, id: 'food-bread', name: 'Bread' }] });
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes/create'); });
     await screen.findByRole('button', { name: 'Add ingredient' });
     const addIngredient = screen.getByRole('button', { name: 'Add ingredient' });
@@ -228,7 +229,7 @@ describe('Recipes through the actual Expo Router', () => {
   it('clears zero-valued time fields on focus so a user can type directly', async () => {
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes/create'); });
     await screen.findByLabelText('Recipe name');
     await fireEvent.press(screen.getByText('More details (optional)'));
@@ -247,7 +248,7 @@ describe('Recipes through the actual Expo Router', () => {
   it('keeps Done and Create Food item actions responsive in the ingredient search sheet', async () => {
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes/create'); });
     await screen.findByRole('button', { name: 'Add ingredient' });
     await fireEvent.changeText(screen.getByLabelText('Recipe name'), 'Celery Soup');
@@ -303,7 +304,7 @@ describe('Recipes through the actual Expo Router', () => {
   it('keeps the emoji-entry fields and actions reachable in its scrollable keyboard-safe sheet', async () => {
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes/create'); });
     await screen.findByRole('button', { name: 'Change cover' });
     await fireEvent.press(screen.getByRole('button', { name: 'Change cover' }));
@@ -325,7 +326,7 @@ describe('Recipes through the actual Expo Router', () => {
   it('keeps the main recipe form in the shared scrollable screen while editing fields', async () => {
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes/create'); });
     await screen.findByLabelText('Recipe name');
 
@@ -347,7 +348,7 @@ describe('Recipes through the actual Expo Router', () => {
       .mockResolvedValueOnce({ recipe: recipe({ name: 'Updated Tomato Soup', edit_revision: 2 }) });
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes'); });
     await screen.findByText('Tomato Soup');
     await fireEvent.press(screen.getByText('Tomato Soup'));
@@ -374,7 +375,7 @@ describe('Recipes through the actual Expo Router', () => {
     mockedApi.recipes.mockResolvedValue({ recipes: [recipe()] });
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes'); });
     await screen.findByText('Tomato Soup');
     await fireEvent.press(screen.getByText('Tomato Soup'));
@@ -395,7 +396,7 @@ describe('Recipes through the actual Expo Router', () => {
     }));
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Plan');
 
     await act(async () => { router.navigate('/profile/my-households/household-a'); });
     expect(await screen.findByText('Home')).toBeTruthy();
@@ -419,7 +420,7 @@ describe('Recipes through the actual Expo Router', () => {
 
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    await screen.findByText('Shopping list');
+    await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes'); });
     await screen.findByText('Tomato Soup');
     await fireEvent.press(screen.getByText('Tomato Soup'));

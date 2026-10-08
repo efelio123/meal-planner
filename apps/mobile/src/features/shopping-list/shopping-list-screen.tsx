@@ -1,14 +1,18 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { useShoppingList } from '@/features/shopping-list/use-shopping-list';
 import { useTheme } from '@/hooks/use-theme';
+import { useMealPlanContextOptional } from '@/features/meal-plan/meal-plan-context';
 
 export default function HouseholdHome() {
   const theme = useTheme();
+  const mealPlanContext = useMealPlanContextOptional();
   const { add, error, householdId, items, loading, pendingItemIds, refresh, remove, toggle } = useShoppingList();
+  const shoppingRevision = householdId ? mealPlanContext?.shoppingRevisionForHousehold(householdId) ?? 0 : 0;
+  const previousShoppingRevision = useRef({ householdId, revision: shoppingRevision });
   const [formState, setFormState] = useState({
     householdId: null as string | null,
     name: '',
@@ -22,6 +26,15 @@ export default function HouseholdHome() {
   useLayoutEffect(() => {
     actionVersion.current += 1;
   }, [householdId]);
+
+  useEffect(() => {
+    const previous = previousShoppingRevision.current;
+    previousShoppingRevision.current = { householdId, revision: shoppingRevision };
+    // A household change already triggers useShoppingList's authoritative
+    // initial load. Do not duplicate it because revisions are household-local.
+    if (previous.householdId !== householdId || previous.revision === shoppingRevision) return;
+    void refresh();
+  }, [householdId, refresh, shoppingRevision]);
 
   const updateForm = (updates: Partial<typeof formState>) => {
     setFormState((current) => ({
@@ -128,7 +141,10 @@ export default function HouseholdHome() {
                     <ThemedText accessible={false} style={[styles.indicator, { color: theme.primary }]}>
                       {item.is_checked ? '✓' : '○'}
                     </ThemedText>
-                    <ThemedText style={item.is_checked ? styles.checked : undefined}>{item.name}</ThemedText>
+                    <View style={styles.nameAndAmount}>
+                      <ThemedText style={item.is_checked ? styles.checked : undefined}>{item.name}</ThemedText>
+                      {item.meal_plan_source ? <ThemedText themeColor="textSecondary" style={styles.amount}>{item.amount ? `${item.amount}${item.recipe_unit_label || item.custom_unit_label ? ` ${item.recipe_unit_label ?? item.custom_unit_label}` : ''}` : 'Amount not specified'}</ThemedText> : null}
+                    </View>
                   </Pressable>
                   <Pressable
                     accessibilityLabel={`Remove ${item.name}`}
@@ -164,6 +180,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   itemName: { alignItems: 'center', flex: 1, flexDirection: 'row' },
+  nameAndAmount: { flex: 1, gap: 2 },
+  amount: { fontSize: 13 },
   indicator: { fontSize: 20, fontWeight: '700', marginRight: 8 },
   checked: { textDecorationLine: 'line-through' },
 });

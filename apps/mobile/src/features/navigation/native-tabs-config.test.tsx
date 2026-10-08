@@ -2,6 +2,9 @@ import { render } from '@testing-library/react-native';
 import type { PropsWithChildren } from 'react';
 import NativeTabLayout from '@/app/(app)/(tabs)/_layout.native';
 
+jest.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: 'user-a', sessionId: 'session-a' }) }));
+jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: () => ({ selectedHousehold: null }) }));
+
 jest.mock('expo-router/unstable-native-tabs', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   const { Text, View } = jest.requireActual<typeof import('react-native')>('react-native');

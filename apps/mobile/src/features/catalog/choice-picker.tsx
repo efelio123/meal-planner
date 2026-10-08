@@ -93,7 +93,7 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
   createLabel?: string;
   manageLabel?: string;
   /** Use the owning stack for a sheet that must sit above another sheet. */
-  sheetRoute?: '/(app)/(tabs)/recipes/sheet/unit';
+  sheetRoute?: string;
   disabled?: boolean;
   compact?: boolean;
 }) {

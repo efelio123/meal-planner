@@ -333,4 +333,47 @@ describe('mobile API client', () => {
       expect(new Headers(fetchMock.mock.calls[index][1].headers).get('Authorization')).toBe(`Bearer ${token}`);
     }
   });
+
+  it('uses household-scoped meal-plan routes, exact request bodies, and a fresh token per call', async () => {
+    const getToken = jest.fn()
+      .mockResolvedValueOnce('plan-read-token')
+      .mockResolvedValueOnce('plan-create-token')
+      .mockResolvedValueOnce('plan-update-token')
+      .mockResolvedValueOnce('plan-delete-token')
+      .mockResolvedValueOnce('review-read-token')
+      .mockResolvedValueOnce('review-add-token');
+    const week = { time_zone: 'UTC', local_today: '2026-10-07', week_start: '2026-10-05', week_end: '2026-10-11', week_offset: 0, entries: [] };
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify(week), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ entry: { id: 'entry-1' } }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ entry: { id: 'entry-1' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ week_start: week.week_start, week_end: week.week_end, review_token: 'a'.repeat(64), needs: [] }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], replayed: false }), { status: 201 }));
+    const entry = { planned_for: '2026-10-05', meal_slot: 'dinner' as const, recipe_id: 'recipe-1' };
+    const needs = { week_start: '2026-10-05', review_token: 'a'.repeat(64), request_id: '00000000-0000-4000-8000-000000000001', selected_need_keys: ['need-1'] };
+
+    await api.mealPlan(getToken, 'home-1', 0);
+    await api.createMealPlanEntry(getToken, 'home-1', entry);
+    await api.updateMealPlanEntry(getToken, 'home-1', 'entry-1', { ...entry, expected_revision: 3 });
+    await api.deleteMealPlanEntry(getToken, 'home-1', 'entry-1', 4);
+    await api.mealPlanShoppingReview(getToken, 'home-1', '2026-10-05');
+    await api.addMealPlanNeedsToShopping(getToken, 'home-1', needs);
+
+    expect(getToken).toHaveBeenCalledTimes(6);
+    expect(fetchMock.mock.calls.map(([url, init]) => ({
+      pathname: new URL(url as string).pathname,
+      search: new URL(url as string).search,
+      method: init?.method,
+      body: init?.body ? JSON.parse(init.body as string) : undefined,
+      authorization: (init?.headers as Headers).get('Authorization'),
+    }))).toEqual([
+      expect.objectContaining({ pathname: '/v1/households/home-1/meal-plan', search: '?week_offset=0', method: 'GET', authorization: 'Bearer plan-read-token' }),
+      expect.objectContaining({ pathname: '/v1/households/home-1/meal-plan/entries', method: 'POST', body: entry, authorization: 'Bearer plan-create-token' }),
+      expect.objectContaining({ pathname: '/v1/households/home-1/meal-plan/entries/entry-1', method: 'PATCH', body: { ...entry, expected_revision: 3 }, authorization: 'Bearer plan-update-token' }),
+      expect.objectContaining({ pathname: '/v1/households/home-1/meal-plan/entries/entry-1', search: '?expected_revision=4', method: 'DELETE', authorization: 'Bearer plan-delete-token' }),
+      expect.objectContaining({ pathname: '/v1/households/home-1/meal-plan/shopping-review', search: '?week_start=2026-10-05', method: 'GET', authorization: 'Bearer review-read-token' }),
+      expect.objectContaining({ pathname: '/v1/households/home-1/meal-plan/shopping', method: 'POST', body: needs, authorization: 'Bearer review-add-token' }),
+    ]);
+  });
 });

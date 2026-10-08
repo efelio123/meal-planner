@@ -14,6 +14,7 @@ import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-contex
 import { formatRecipeAmount } from './recipe-presentation';
 import { useRecipeContext } from './recipe-context';
 import { RecipeCover } from './recipe-cover';
+import { useMealPlanContext } from '@/features/meal-plan/meal-plan-context';
 import { draftFromRecipe, ingredientDraftFromRecipe, ingredientInputFromDraft, isValidRecipeAmount, moveDirectionStep, newCreateRequestId, newRecipeDraft, recipeOptionalFieldsError, type RecipeDirectionDraft, type RecipeDraft, type RecipeIngredientDraft } from './recipe-form-utils';
 import { RecipeCoverSheet, RecipeEmojiSheet, RecipeFoodSheet, RecipeIngredientDetailsSheet, type RecipeFoodChoice } from './recipe-native-sheets';
 
@@ -34,7 +35,7 @@ function formatIngredientSummary(ingredient: RecipeIngredientDraft) {
   return amount || unit || 'To taste';
 }
 
-export function RecipeEditorScreen() {
+export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'recipes' | 'plan' }) {
   const { recipeId } = useLocalSearchParams<{ recipeId?: string }>();
   const editing = typeof recipeId === 'string' && recipeId.length > 0;
   const router = useRouter();
@@ -44,7 +45,9 @@ export function RecipeEditorScreen() {
   const { sessionId, userId } = useAuth();
   const sheetFlow = useNativeSheetFlow();
   const { createdFood, markChanged: markRecipeChanged, setCreatedFood } = useRecipeContext();
+  const mealPlanContext = useMealPlanContext();
   const householdId = selectedHousehold?.id ?? null;
+  const editorRouteBase = `/(app)/(tabs)/${routeBase}` as const;
   const scope = `${userId ?? ''}:${sessionId ?? ''}:${householdId ?? ''}:${recipeId ?? 'new'}`;
   const latestGetToken = useRef<GetToken>(getToken);
   const scopeRef = useRef(scope);
@@ -203,7 +206,12 @@ export function RecipeEditorScreen() {
     setSaving(false);
     setError(null);
     if (editing) router.back();
-    else router.replace(`/(app)/(tabs)/recipes/${saved.id}` as never);
+    else {
+      const returnIntent = mealPlanContext.completeRecipeCreate(saved);
+      if (returnIntent) {
+        router.back();
+      } else router.replace(`/(app)/(tabs)/recipes/${saved.id}` as never);
+    }
   };
 
   const checkUnknownSave = async () => {
@@ -286,8 +294,8 @@ export function RecipeEditorScreen() {
   const isCurrentEditorScope = useCallback(() => mounted.current && scopeRef.current === scope, [scope]);
   const pushNativeSheet = useCallback((kind: 'food' | 'details' | 'cover' | 'emoji', content: React.ReactNode, detents: number[]) => {
     const sheetId = sheetFlow.present(content, { detents });
-    router.push({ pathname: `/(app)/(tabs)/recipes/sheet/${kind}`, params: { sheetId } } as never);
-  }, [router, sheetFlow]);
+    router.push({ pathname: `${editorRouteBase}/sheet/${kind}`, params: { sheetId } } as never);
+  }, [editorRouteBase, router, sheetFlow]);
 
   const saveIngredient = useCallback((ingredient: RecipeIngredientDraft, index: number | null) => {
     if (index === null) setIngredients((current) => [...current, ingredient]);
@@ -319,11 +327,12 @@ export function RecipeEditorScreen() {
         getToken={getCurrentToken}
         isCurrent={isCurrentEditorScope}
         initialUnits={units}
+        unitSheetRoute={`${editorRouteBase}/sheet/unit`}
         onSave={saveIngredient}
       />,
       [0.52, 0.92],
     );
-  }, [getCurrentToken, householdId, isCurrentEditorScope, pushNativeSheet, saveIngredient, sheetFlow.scope]);
+  }, [editorRouteBase, getCurrentToken, householdId, isCurrentEditorScope, pushNativeSheet, saveIngredient, sheetFlow.scope]);
 
   const startIngredient = useCallback((food: RecipeFoodChoice, existing?: RecipeIngredientDraft, index?: number) => {
     if (!householdId) return;
@@ -332,8 +341,8 @@ export function RecipeEditorScreen() {
 
   const openFoodCreate = useCallback(() => {
     if (!householdId || !isCurrentEditorScope()) return;
-    router.push(`/(app)/(tabs)/recipes/catalog-food?originScope=${encodeURIComponent(`${scope}:${createRequestId.current}`)}` as never);
-  }, [householdId, isCurrentEditorScope, router, scope]);
+    router.push(`${editorRouteBase}/catalog-food?originScope=${encodeURIComponent(`${scope}:${createRequestId.current}`)}` as never);
+  }, [editorRouteBase, householdId, isCurrentEditorScope, router, scope]);
 
   const openIngredientSearch = () => {
     if (!householdId || !editorLoaded || saving) return;

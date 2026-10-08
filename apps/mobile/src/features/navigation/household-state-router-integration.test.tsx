@@ -51,6 +51,7 @@ jest.mock('@/lib/api', () => {
       ...actual.api,
       me: jest.fn(),
       shoppingList: jest.fn(),
+      mealPlan: jest.fn(),
       householdMembers: jest.fn(),
       createHousehold: jest.fn(),
     },
@@ -87,6 +88,7 @@ describe('household state with the actual Expo Router provider', () => {
     mockedStorage.setItem.mockResolvedValue();
     mockedStorage.removeItem.mockResolvedValue();
     mockedApi.shoppingList.mockResolvedValue({ shopping_list: { id: 'list-a', household_id: 'household-a', items: [] } });
+    mockedApi.mealPlan.mockResolvedValue({ time_zone: 'UTC', local_today: '2026-10-05', week_start: '2026-10-05', week_end: '2026-10-11', week_offset: 0, entries: [] });
     mockedApi.householdMembers.mockResolvedValue({ members: [] });
   });
 
@@ -97,7 +99,7 @@ describe('household state with the actual Expo Router provider', () => {
 
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    expect(await screen.findByText('Shopping list')).toBeTruthy();
+    expect(await screen.findByText('Plan')).toBeTruthy();
     await act(async () => { router.navigate('/profile/my-households/create'); });
     expect(await screen.findByRole('button', { name: 'Create household' })).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Household name'), 'Guest home');
@@ -131,7 +133,7 @@ describe('household state with the actual Expo Router provider', () => {
 
     const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
-    await screen.findByText('Your shopping list is empty.');
+    await screen.findByText('Plan');
     await act(async () => { router.navigate('/profile/my-households'); });
     expect(await screen.findByText('Home')).toBeTruthy();
     const refreshableScreen = screen.getAllByTestId('screen').find((node) => (

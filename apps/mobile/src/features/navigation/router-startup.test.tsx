@@ -2,7 +2,7 @@ import type { PropsWithChildren } from 'react';
 import { createElement } from 'react';
 import { act, fireEvent } from '@testing-library/react-native';
 import { router, type Href } from 'expo-router';
-import { renderRouter, screen, waitFor } from 'expo-router/testing-library';
+import { renderRouter as renderActualRouter, screen, waitFor } from 'expo-router/testing-library';
 import { Alert, Button, Keyboard, Platform, StyleSheet, Text } from 'react-native';
 import { ApiError, api, type CatalogItem, type ShoppingList } from '@/lib/api';
 import { catalogEmojiSheetKeyboardBehavior } from '@/features/catalog/catalog-emoji-input-sheet';
@@ -24,6 +24,15 @@ let mockSelectionOverride: { status: string; reason?: string } | null = null;
 let mockSelectCalls: string[] = [];
 type MockMe = { user: { id: string; email: string; display_name: string }; households: typeof mockHouseholds };
 let mockRefreshResults: (MockMe | null | Promise<MockMe | null>)[] = [];
+let useActualRootStartup = false;
+
+function renderRouter(...args: Parameters<typeof renderActualRouter>) {
+  const adjusted = [...args] as Parameters<typeof renderActualRouter>;
+  if (!useActualRootStartup && adjusted[1]?.initialUrl === '/') {
+    adjusted[1] = { ...adjusted[1], initialUrl: '/shopping' };
+  }
+  return renderActualRouter(...adjusted);
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -139,6 +148,7 @@ jest.mock('@/lib/api', () => ({
   ApiError: jest.requireActual<typeof import('@/lib/api')>('@/lib/api').ApiError,
   api: {
     shoppingList: jest.fn(),
+    mealPlan: jest.fn(),
     createInvitation: jest.fn(),
     householdInvitations: jest.fn(),
     householdMember: jest.fn(),
@@ -238,7 +248,7 @@ function ShoppingDetailsFixture() {
 function ResetTabsFixture() {
   const resetToStartup = useResetToHouseholdStartup();
   return createElement(Button, {
-    title: 'Reset to Shopping',
+    title: 'Reset to Plan',
     onPress: resetToStartup,
   });
 }
@@ -265,7 +275,9 @@ describe('signed-in startup routing', () => {
     mockSelectionOverride = null;
     mockSelectCalls = [];
     mockRefreshResults = [];
+    useActualRootStartup = false;
     jest.mocked(api.shoppingList).mockResolvedValue(shoppingListResponse());
+    jest.mocked(api.mealPlan).mockResolvedValue({ time_zone: 'UTC', local_today: '2026-10-05', week_start: '2026-10-05', week_end: '2026-10-11', week_offset: 0, entries: [] });
     jest.mocked(api.catalogItems).mockResolvedValue({ items: [] });
     jest.mocked(api.catalogUnits).mockResolvedValue({ shopping_units: { built_in: [], household: [] }, recipe_measurement_units: [] });
     jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [] });
@@ -279,26 +291,27 @@ describe('signed-in startup routing', () => {
   });
   afterEach(() => { jest.restoreAllMocks(); });
 
-  it('redirects a cold signed-in launch to the temporary Shopping tab', async () => {
+  it('redirects a cold signed-in launch to the usable Plan tab', async () => {
+    useActualRootStartup = true;
     const renderResult = renderRouter(
       `${process.cwd()}/src/app`,
       { initialUrl: '/' },
     );
     await renderResult;
 
-    expect(await screen.findByText('Shopping list')).toBeTruthy();
-    expect(renderResult.getPathname()).toBe('/shopping');
-    expect(screen.getByText('Your shopping list is empty.')).toBeTruthy();
+    expect(await screen.findByText('Plan')).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/plan');
     const tabs = findTabState(renderResult.getRouterState() as NavigationState);
     expect(tabs?.routeNames).toEqual(['plan', 'recipes', 'shopping', 'catalog', 'profile']);
-    expect(tabs?.index).toBe(2);
-    expect(tabs?.routes?.[tabs.index ?? -1]?.name).toBe('shopping');
+    expect(tabs?.index).toBe(0);
+    expect(tabs?.routes?.[tabs.index ?? -1]?.name).toBe('plan');
     expect(tabs?.routes?.map((route) => route.state?.type)).toEqual([
       'stack', 'stack', 'stack', 'stack', 'stack',
     ]);
   });
 
-  it('returns from household onboarding to the centralized Shopping destination', async () => {
+  it('returns from household onboarding to the centralized Plan destination', async () => {
+    useActualRootStartup = true;
     mockInitialDestination = 'create-or-join';
     const renderResult = renderRouter(
       {
@@ -310,8 +323,8 @@ describe('signed-in startup routing', () => {
     await renderResult;
 
     await fireEvent.press(screen.getByText('Finish onboarding'));
-    expect(await screen.findByText('Shopping list')).toBeTruthy();
-    expect(renderResult.getPathname()).toBe('/shopping');
+    expect(await screen.findByText('Plan')).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/plan');
   });
 
   it('keeps signed-out routing outside the signed-in tab navigator', async () => {
@@ -373,8 +386,8 @@ describe('signed-in startup routing', () => {
     }
 
     await fireEvent.press(screen.getByText('Sign in again'));
-    expect(await screen.findByText('Shopping list')).toBeTruthy();
-    expect(renderResult.getPathname()).toBe('/shopping');
+    expect(await screen.findByText('Plan')).toBeTruthy();
+    expect(renderResult.getPathname()).toBe('/plan');
   });
 
   it('preserves Shopping draft and avoids a tab-switch reload', async () => {
@@ -531,8 +544,8 @@ describe('signed-in startup routing', () => {
     expect(screen.getByText('Old household secret')).toBeTruthy();
     await navigateTo(renderResult, '/profile/reset-fixture');
 
-    await fireEvent.press(screen.getByText('Reset to Shopping'));
-    await waitFor(() => expect(renderResult.getPathname()).toBe('/shopping'));
+    await fireEvent.press(screen.getByText('Reset to Plan'));
+    await waitFor(() => expect(renderResult.getPathname()).toBe('/plan'));
     await navigateTo(renderResult, '/profile');
     expect(screen.getByText('Current household')).toBeTruthy();
     expect(screen.queryByText('Old household secret')).toBeNull();
@@ -541,7 +554,7 @@ describe('signed-in startup routing', () => {
       router.back();
       await jest.runOnlyPendingTimersAsync();
     });
-    expect(renderResult.getPathname()).toBe('/shopping');
+    expect(renderResult.getPathname()).toBe('/plan');
     expect(screen.queryByText('Old household secret')).toBeNull();
   });
 
@@ -577,7 +590,7 @@ describe('signed-in startup routing', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Switch to this household' }));
     expect(mockSelectCalls).toEqual(['household-a']);
     await screen.findByText('Shopping list');
-    expect(renderResult.getPathname()).toBe('/shopping');
+    expect(renderResult.getPathname()).toBe('/plan');
     expect(mockSetSelectedHouseholdId).toBeDefined();
 
     await navigateTo(renderResult, '/profile');
@@ -587,7 +600,7 @@ describe('signed-in startup routing', () => {
       router.back();
       await jest.runOnlyPendingTimersAsync();
     });
-    expect(renderResult.getPathname()).toBe('/shopping');
+    expect(renderResult.getPathname()).toBe('/plan');
     expect(screen.queryByLabelText('Recipient email')).toBeNull();
   });
 

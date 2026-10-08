@@ -79,7 +79,7 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
   </ScrollView>;
 }
 
-export function RecipeIngredientDetailsSheet({ food, initialDraft, existingIndex, returnToSearch, householdId, expectedFlowScope, getToken, isCurrent, initialUnits, onSave }: {
+export function RecipeIngredientDetailsSheet({ food, initialDraft, existingIndex, returnToSearch, householdId, expectedFlowScope, getToken, isCurrent, initialUnits, unitSheetRoute, onSave }: {
   food: RecipeFoodChoice;
   initialDraft: RecipeIngredientDraft;
   existingIndex: number | null;
@@ -89,6 +89,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingIndex
   getToken: GetToken;
   isCurrent: () => boolean;
   initialUnits: CatalogUnits | null;
+  unitSheetRoute: string;
   onSave: (draft: RecipeIngredientDraft, index: number | null) => void;
 }) {
   const theme = useTheme();
@@ -137,7 +138,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingIndex
         <View style={[styles.selectedFoodCard, { backgroundColor: theme.screen }]}><View style={[styles.foodInitial, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{food.name.slice(0, 1).toUpperCase()}</ThemedText></View><View style={styles.foodSummary}><ThemedText style={styles.foodName}>{food.name}</ThemedText><ThemedText themeColor="textSecondary">Food Catalog item</ThemedText></View></View>
         <View style={styles.splitFields}>
           <View style={styles.field}><ThemedText themeColor="textSecondary">Amount</ThemedText><ThemedInput accessibilityLabel="Ingredient amount" keyboardType="decimal-pad" onChangeText={(amount) => setDraft((current) => ({ ...current, amount }))} placeholder="e.g. 2 or 1/2" value={draft.amount} /></View>
-          <View style={styles.field}><ChoicePicker label="Unit" choices={unitChoices} searchable selectedId={draft.customUnitLabel ? '__custom__' : draft.unitCode || ''} value={draft.customUnitLabel || draft.unitLabel || 'No unit'} emptyChoiceLabel="No unit" disabled={loadingUnits || Boolean(unitError)} onOpen={Keyboard.dismiss} onSelect={(unitCode) => { const choice = units?.recipe_measurement_units.find((unit) => unit.code === unitCode); setDraft((current) => ({ ...current, unitCode, unitLabel: choice?.label ?? '', customUnitLabel: '' })); }} onCustomSelect={(customUnitLabel) => setDraft((current) => ({ ...current, customUnitLabel, unitCode: '', unitLabel: '' }))} sheetRoute="/(app)/(tabs)/recipes/sheet/unit" /></View>
+          <View style={styles.field}><ChoicePicker label="Unit" choices={unitChoices} searchable selectedId={draft.customUnitLabel ? '__custom__' : draft.unitCode || ''} value={draft.customUnitLabel || draft.unitLabel || 'No unit'} emptyChoiceLabel="No unit" disabled={loadingUnits || Boolean(unitError)} onOpen={Keyboard.dismiss} onSelect={(unitCode) => { const choice = units?.recipe_measurement_units.find((unit) => unit.code === unitCode); setDraft((current) => ({ ...current, unitCode, unitLabel: choice?.label ?? '', customUnitLabel: '' })); }} onCustomSelect={(customUnitLabel) => setDraft((current) => ({ ...current, customUnitLabel, unitCode: '', unitLabel: '' }))} sheetRoute={unitSheetRoute} /></View>
         </View>
         {loadingUnits ? <ActivityIndicator accessibilityLabel="Loading recipe units" color={theme.activity} /> : null}
         {unitError ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{unitError}</ThemedText><PrimaryButton disabled={loadingUnits} onPress={retryUnitLoad} title="Retry units" /></View> : null}
