@@ -1,15 +1,19 @@
 import os
 from collections.abc import Generator
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from threading import Barrier
 from uuid import uuid4
 
 import pytest
+from fastapi import HTTPException
 from httpx2 import ASGITransport, AsyncClient
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import make_url
 
 from meal_planner_api.main import app
 from meal_planner_api.onboarding import CurrentUser, require_current_user
+from meal_planner_api.shopping_lists import add_item
 
 DISPOSABLE_TEST_DATABASE = "meal_planner_disposable_test"
 
@@ -24,6 +28,9 @@ def disposable_engine() -> Generator[Engine]:
         pytest.fail("Shopping-list integration tests require the explicitly named disposable PostgreSQL database.")
     engine = create_engine(url)
     try:
+        with engine.connect() as connection:
+            if connection.execute(text("SELECT current_database()")).scalar_one() != DISPOSABLE_TEST_DATABASE:
+                pytest.fail("The connected database is not meal_planner_disposable_test.")
         yield engine
     finally:
         engine.dispose()
@@ -59,13 +66,26 @@ def insert_household(connection, owner_id: str) -> tuple[str, str]:
 
 
 def insert_item(connection, list_id: str, creator_id: str, name: str) -> str:
+    catalog_id = connection.execute(text("""
+        INSERT INTO catalog_items (household_id, item_type, name, normalized_name, created_by_user_id)
+        SELECT household_id, 'food', :name, lower(btrim(regexp_replace(:name, '[[:space:]]+', ' ', 'g'))), :creator_id
+        FROM shopping_lists WHERE id=:list_id RETURNING id::text
+    """), {"list_id": list_id, "name": name, "creator_id": creator_id}).scalar_one()
     return connection.execute(
         text(
-            """INSERT INTO shopping_list_items (household_id, shopping_list_id, name, created_by_user_id)
-            SELECT household_id, id, :name, :creator_id FROM shopping_lists WHERE id=:list_id RETURNING id::text"""
+            """INSERT INTO shopping_list_items (household_id, shopping_list_id, name, catalog_item_id, created_by_user_id)
+            SELECT household_id, id, :name, :catalog_id, :creator_id FROM shopping_lists WHERE id=:list_id RETURNING id::text"""
         ),
-        {"list_id": list_id, "name": name, "creator_id": creator_id},
+        {"list_id": list_id, "name": name, "catalog_id": catalog_id, "creator_id": creator_id},
     ).scalar_one()
+
+
+def insert_catalog_item(connection, household_id: str, creator_id: str, name: str) -> str:
+    return connection.execute(text("""
+        INSERT INTO catalog_items (household_id, item_type, name, normalized_name, created_by_user_id)
+        VALUES (:household_id, 'food', :name, lower(btrim(regexp_replace(:name, '[[:space:]]+', ' ', 'g'))), :creator_id)
+        RETURNING id::text
+    """), {"household_id": household_id, "creator_id": creator_id, "name": name}).scalar_one()
 
 
 def item_snapshot(connection, item_id: str) -> tuple:
@@ -96,17 +116,19 @@ async def test_active_owners_and_members_can_read_add_toggle_and_remove(
             text("INSERT INTO household_members (household_id, user_id, role) VALUES (:household_id, :user_id, 'member')"),
             {"household_id": household_id, "user_id": member_id},
         )
+        owner_catalog_id = insert_catalog_item(connection, household_id, owner_id, "Owner oats")
+        member_catalog_id = insert_catalog_item(connection, household_id, member_id, "Member oats")
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
-            for user_id, email in ((owner_id, "owner@example.test"), (member_id, "member@example.test")):
+            for user_id, email, catalog_id in ((owner_id, "owner@example.test", owner_catalog_id), (member_id, "member@example.test", member_catalog_id)):
                 loaded = await call_as(user_id, email, client, "GET", f"/v1/households/{household_id}/shopping-list")
                 assert loaded.status_code == 200
                 assert loaded.json()["shopping_list"]["items"] == []
 
                 created = await call_as(
                     user_id, email, client, "POST", f"/v1/households/{household_id}/shopping-list/items",
-                    json={"name": f"Item from {email}"},
+                    json={"catalog_item_id": catalog_id},
                 )
                 assert created.status_code == 201
                 item_id = created.json()["item"]["id"]
@@ -147,6 +169,7 @@ async def test_active_owners_and_members_can_read_add_toggle_and_remove(
         app.dependency_overrides.clear()
         with disposable_engine.begin() as connection:
             connection.execute(text("DELETE FROM shopping_list_items WHERE shopping_list_id = :id"), {"id": list_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM shopping_lists WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM households WHERE id = :id"), {"id": household_id})
@@ -158,6 +181,7 @@ async def test_get_item_contract_exposes_id_used_to_toggle_and_remove(disposable
     with disposable_engine.begin() as connection:
         user_id = insert_user(connection, f"list-contract-{uuid4()}@example.test")
         household_id, list_id = insert_household(connection, user_id)
+        catalog_id = insert_catalog_item(connection, household_id, user_id, "Oat milk")
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
@@ -167,7 +191,7 @@ async def test_get_item_contract_exposes_id_used_to_toggle_and_remove(disposable
                 client,
                 "POST",
                 f"/v1/households/{household_id}/shopping-list/items",
-                json={"name": "Oat milk"},
+                json={"catalog_item_id": catalog_id},
             )
             assert created.status_code == 201
 
@@ -181,22 +205,15 @@ async def test_get_item_contract_exposes_id_used_to_toggle_and_remove(disposable
             assert loaded.status_code == 200
             item = loaded.json()["shopping_list"]["items"][0]
             item_id = item["id"]
-            assert item == {
-                "id": created.json()["item"]["id"],
-                "name": "Oat milk",
-                "is_checked": False,
-                "checked_at": None,
-                "checked_by_user_id": None,
-                "created_by_user_id": user_id,
-                "created_at": item["created_at"],
-                "catalog_item_id": None,
-                "amount": None,
-                "recipe_unit_code": None,
-                "recipe_unit_dimension": None,
-                "recipe_unit_label": None,
-                "custom_unit_label": None,
-                "meal_plan_source": False,
-            }
+            assert item["id"] == created.json()["item"]["id"]
+            assert item["name"] == "Oat milk"
+            assert item["catalog_item_id"] == catalog_id
+            assert item["catalog_item_type"] == "food"
+            assert item["is_checked"] is False
+            assert item["amount"] is None
+            assert item["unit_label"] is None
+            assert item["store_id"] is None
+            assert item["meal_plan_source"] is False
             assert isinstance(item["created_at"], str)
 
             checked = await call_as(
@@ -223,10 +240,163 @@ async def test_get_item_contract_exposes_id_used_to_toggle_and_remove(disposable
         app.dependency_overrides.clear()
         with disposable_engine.begin() as connection:
             connection.execute(text("DELETE FROM shopping_list_items WHERE shopping_list_id = :id"), {"id": list_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM shopping_lists WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM households WHERE id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM users WHERE id = :id"), {"id": user_id})
+
+
+@pytest.mark.anyio
+async def test_catalog_identity_duplicate_details_update_and_clear_contract(disposable_engine: Engine) -> None:
+    with disposable_engine.begin() as connection:
+        user_id = insert_user(connection, f"list-details-{uuid4()}@example.test")
+        household_id, list_id = insert_household(connection, user_id)
+        catalog_id = insert_catalog_item(connection, household_id, user_id, "Apples")
+        store_id = connection.execute(text("""
+            INSERT INTO catalog_stores (household_id, name, normalized_name)
+            VALUES (:household_id, 'Market', 'market') RETURNING id::text
+        """), {"household_id": household_id}).scalar_one()
+        connection.execute(text("""
+            UPDATE catalog_items SET shopping_unit_code='gallon', preferred_store_id=:store_id
+            WHERE id=:catalog_id
+        """), {"store_id": store_id, "catalog_id": catalog_id})
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            created = await call_as(
+                user_id, "list-details@example.test", client, "POST",
+                f"/v1/households/{household_id}/shopping-list/items",
+                json={"catalog_item_id": catalog_id, "amount": "2.0"},
+            )
+            assert created.status_code == 201, created.text
+            item_id = created.json()["item"]["id"]
+
+            duplicate = await call_as(
+                user_id, "list-details@example.test", client, "POST",
+                f"/v1/households/{household_id}/shopping-list/items",
+                json={"catalog_item_id": catalog_id},
+            )
+            assert duplicate.status_code == 409
+            assert duplicate.json()["detail"]["code"] == "SHOPPING_ITEM_ALREADY_EXISTS"
+
+            details = await call_as(
+                user_id, "list-details@example.test", client, "GET",
+                f"/v1/households/{household_id}/shopping-list/items/{item_id}",
+            )
+            assert details.status_code == 200, details.text
+            assert details.json()["item"]["id"] == item_id
+            assert details.json()["item"]["catalog_item_id"] == catalog_id
+            assert details.json()["item"]["amount"] == "2"
+            assert details.json()["item"]["unit_kind"] == "built_in"
+            assert details.json()["item"]["unit_label"] == "Gallon"
+            assert details.json()["item"]["store_id"] == store_id
+            assert details.json()["item"]["store_name"] == "Market"
+            assert details.json()["item"]["used_in_meals"] == []
+
+            updated = await call_as(
+                user_id, "list-details@example.test", client, "PATCH",
+                f"/v1/households/{household_id}/shopping-list/items/{item_id}",
+                json={"amount": "1/2"},
+            )
+            assert updated.status_code == 200, updated.text
+            assert updated.json()["item"]["amount"] == "0.5"
+
+            cleared = await call_as(
+                user_id, "list-details@example.test", client, "DELETE",
+                f"/v1/households/{household_id}/shopping-list",
+            )
+            assert cleared.status_code == 200
+            assert cleared.json() == {"removed_count": 1}
+            loaded = await call_as(
+                user_id, "list-details@example.test", client, "GET",
+                f"/v1/households/{household_id}/shopping-list",
+            )
+            assert loaded.status_code == 200
+            assert loaded.json()["shopping_list"]["items"] == []
+    finally:
+        app.dependency_overrides.clear()
+        with disposable_engine.begin() as connection:
+            connection.execute(text("DELETE FROM shopping_list_items WHERE shopping_list_id = :id"), {"id": list_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM catalog_stores WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM shopping_lists WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM households WHERE id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM users WHERE id = :id"), {"id": user_id})
+
+
+def test_concurrent_adds_of_one_catalog_item_create_exactly_one_list_row(disposable_engine: Engine) -> None:
+    with disposable_engine.begin() as connection:
+        user_id = insert_user(connection, f"concurrent-list-{uuid4()}@example.test")
+        household_id, list_id = insert_household(connection, user_id)
+        catalog_id = insert_catalog_item(connection, household_id, user_id, "Concurrent oats")
+    barrier = Barrier(2)
+
+    def add_once():
+        barrier.wait()
+        try:
+            return add_item(CurrentUser(user_id, "concurrent-list@example.test", "Test User"), household_id, catalog_id, {}, disposable_engine)
+        except HTTPException as error:
+            return error
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = list(executor.map(lambda _: add_once(), range(2)))
+        assert sum(isinstance(result, dict) for result in results) == 1
+        errors = [result for result in results if isinstance(result, HTTPException)]
+        assert len(errors) == 1
+        assert errors[0].status_code == 409
+        with disposable_engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT count(*) FROM shopping_list_items WHERE household_id=:household_id AND catalog_item_id=:catalog_id"),
+                {"household_id": household_id, "catalog_id": catalog_id},
+            ).scalar_one() == 1
+    finally:
+        with disposable_engine.begin() as connection:
+            connection.execute(text("DELETE FROM shopping_list_items WHERE shopping_list_id=:id"), {"id": list_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE household_id=:id"), {"id": household_id})
+            connection.execute(text("DELETE FROM shopping_lists WHERE household_id=:id"), {"id": household_id})
+            connection.execute(text("DELETE FROM household_members WHERE household_id=:id"), {"id": household_id})
+            connection.execute(text("DELETE FROM households WHERE id=:id"), {"id": household_id})
+            connection.execute(text("DELETE FROM users WHERE id=:id"), {"id": user_id})
+
+
+@pytest.mark.anyio
+async def test_archived_catalog_row_remains_readable_and_removable_but_cannot_be_added_again(
+    disposable_engine: Engine,
+) -> None:
+    with disposable_engine.begin() as connection:
+        user_id = insert_user(connection, f"archived-list-{uuid4()}@example.test")
+        household_id, list_id = insert_household(connection, user_id)
+        catalog_id = insert_catalog_item(connection, household_id, user_id, "Archived lentils")
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            created = await call_as(user_id, "archived-list@example.test", client, "POST", f"/v1/households/{household_id}/shopping-list/items", json={"catalog_item_id": catalog_id})
+            assert created.status_code == 201, created.text
+            item_id = created.json()["item"]["id"]
+            archived = await call_as(user_id, "archived-list@example.test", client, "DELETE", f"/v1/households/{household_id}/catalog/items/{catalog_id}")
+            assert archived.status_code == 204
+
+            listed = await call_as(user_id, "archived-list@example.test", client, "GET", f"/v1/households/{household_id}/shopping-list")
+            assert listed.status_code == 200
+            assert listed.json()["shopping_list"]["items"][0]["catalog_item_archived"] is True
+            details = await call_as(user_id, "archived-list@example.test", client, "GET", f"/v1/households/{household_id}/shopping-list/items/{item_id}")
+            assert details.status_code == 200
+            rejected_add = await call_as(user_id, "archived-list@example.test", client, "POST", f"/v1/households/{household_id}/shopping-list/items", json={"catalog_item_id": catalog_id})
+            assert rejected_add.status_code == 404
+            removed = await call_as(user_id, "archived-list@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list/items/{item_id}")
+            assert removed.status_code == 204
+    finally:
+        app.dependency_overrides.clear()
+        with disposable_engine.begin() as connection:
+            connection.execute(text("DELETE FROM shopping_list_items WHERE shopping_list_id=:id"), {"id": list_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE household_id=:id"), {"id": household_id})
+            connection.execute(text("DELETE FROM shopping_lists WHERE household_id=:id"), {"id": household_id})
+            connection.execute(text("DELETE FROM household_members WHERE household_id=:id"), {"id": household_id})
+            connection.execute(text("DELETE FROM households WHERE id=:id"), {"id": household_id})
+            connection.execute(text("DELETE FROM users WHERE id=:id"), {"id": user_id})
 
 
 @pytest.mark.anyio
@@ -249,13 +419,16 @@ async def test_cross_household_reads_and_mutations_leave_existing_target_unchang
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
             assert (await call_as(member_id, "member@example.test", client, "GET", f"/v1/households/{other_household_id}/shopping-list")).status_code == 404
-            assert (await call_as(member_id, "member@example.test", client, "POST", f"/v1/households/{other_household_id}/shopping-list/items", json={"name": "Intrusion"})).status_code == 404
+            assert (await call_as(member_id, "member@example.test", client, "GET", f"/v1/households/{other_household_id}/shopping-list/items/{target_item_id}")).status_code == 404
+            assert (await call_as(member_id, "member@example.test", client, "POST", f"/v1/households/{other_household_id}/shopping-list/items", json={"catalog_item_id": str(uuid4())})).status_code == 404
             assert (await call_as(member_id, "member@example.test", client, "PATCH", f"/v1/households/{other_household_id}/shopping-list/items/{target_item_id}", json={"is_checked": True})).status_code == 404
             assert (await call_as(member_id, "member@example.test", client, "DELETE", f"/v1/households/{other_household_id}/shopping-list/items/{target_item_id}")).status_code == 404
+            assert (await call_as(member_id, "member@example.test", client, "DELETE", f"/v1/households/{other_household_id}/shopping-list")).status_code == 404
 
             # Even supplying the attacker's own household ID with a known foreign
             # item ID must not update or delete the foreign row.
             assert (await call_as(member_id, "member@example.test", client, "PATCH", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}", json={"is_checked": True})).status_code == 404
+            assert (await call_as(member_id, "member@example.test", client, "GET", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}")).status_code == 404
             assert (await call_as(member_id, "member@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}")).status_code == 404
 
         with disposable_engine.connect() as connection:
@@ -268,6 +441,7 @@ async def test_cross_household_reads_and_mutations_leave_existing_target_unchang
         app.dependency_overrides.clear()
         with disposable_engine.begin() as connection:
             connection.execute(text("DELETE FROM shopping_list_items WHERE shopping_list_id IN (:a, :b)"), {"a": own_list_id, "b": other_list_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE household_id IN (:a, :b)"), {"a": household_id, "b": other_household_id})
             connection.execute(text("DELETE FROM shopping_lists WHERE household_id IN (:a, :b)"), {"a": household_id, "b": other_household_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id IN (:a, :b)"), {"a": household_id, "b": other_household_id})
             connection.execute(text("DELETE FROM households WHERE id IN (:a, :b)"), {"a": household_id, "b": other_household_id})
@@ -299,9 +473,11 @@ async def test_removed_members_cannot_read_or_write_and_target_rows_stay_unchang
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
             assert (await call_as(former_member_id, "former@example.test", client, "GET", f"/v1/households/{household_id}/shopping-list")).status_code == 404
-            assert (await call_as(former_member_id, "former@example.test", client, "POST", f"/v1/households/{household_id}/shopping-list/items", json={"name": "Denied"})).status_code == 404
+            assert (await call_as(former_member_id, "former@example.test", client, "GET", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}")).status_code == 404
+            assert (await call_as(former_member_id, "former@example.test", client, "POST", f"/v1/households/{household_id}/shopping-list/items", json={"catalog_item_id": str(uuid4())})).status_code == 404
             assert (await call_as(former_member_id, "former@example.test", client, "PATCH", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}", json={"is_checked": True})).status_code == 404
             assert (await call_as(former_member_id, "former@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}")).status_code == 404
+            assert (await call_as(former_member_id, "former@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list")).status_code == 404
         with disposable_engine.connect() as connection:
             assert item_snapshot(connection, target_item_id) == before
             assert connection.execute(text("SELECT count(*) FROM shopping_list_items WHERE shopping_list_id = :id"), {"id": list_id}).scalar_one() == 1
@@ -309,6 +485,7 @@ async def test_removed_members_cannot_read_or_write_and_target_rows_stay_unchang
         app.dependency_overrides.clear()
         with disposable_engine.begin() as connection:
             connection.execute(text("DELETE FROM shopping_list_items WHERE shopping_list_id = :id"), {"id": list_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM shopping_lists WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM households WHERE id = :id"), {"id": household_id})
@@ -329,15 +506,18 @@ async def test_soft_deleted_household_cannot_be_read_or_written_and_rows_stay_un
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
             assert (await call_as(owner_id, "owner@example.test", client, "GET", f"/v1/households/{household_id}/shopping-list")).status_code == 404
-            assert (await call_as(owner_id, "owner@example.test", client, "POST", f"/v1/households/{household_id}/shopping-list/items", json={"name": "Denied"})).status_code == 404
+            assert (await call_as(owner_id, "owner@example.test", client, "GET", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}")).status_code == 404
+            assert (await call_as(owner_id, "owner@example.test", client, "POST", f"/v1/households/{household_id}/shopping-list/items", json={"catalog_item_id": str(uuid4())})).status_code == 404
             assert (await call_as(owner_id, "owner@example.test", client, "PATCH", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}", json={"is_checked": True})).status_code == 404
             assert (await call_as(owner_id, "owner@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}")).status_code == 404
+            assert (await call_as(owner_id, "owner@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list")).status_code == 404
         with disposable_engine.connect() as connection:
             assert item_snapshot(connection, target_item_id) == before
     finally:
         app.dependency_overrides.clear()
         with disposable_engine.begin() as connection:
             connection.execute(text("DELETE FROM shopping_list_items WHERE shopping_list_id = :id"), {"id": list_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM shopping_lists WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM households WHERE id = :id"), {"id": household_id})

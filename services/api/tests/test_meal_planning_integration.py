@@ -4,6 +4,7 @@ import os
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
+from decimal import Decimal
 from threading import Barrier
 from uuid import uuid4
 
@@ -103,7 +104,7 @@ def _cleanup(engine: Engine, households: list[str], users: list[str]) -> None:
 
 def test_meal_plan_migration_has_household_scoped_keys_and_preserves_manual_shopping_rows(meal_plan_engine: Engine) -> None:
     with meal_plan_engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "household_meal_planning"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "household_shopping_catalog_items"
         entry_constraints = set(connection.execute(text("""
             SELECT conname FROM pg_constraint WHERE conrelid='household_meal_plan_entries'::regclass
         """)).scalars())
@@ -114,8 +115,8 @@ def test_meal_plan_migration_has_household_scoped_keys_and_preserves_manual_shop
             SELECT column_name FROM information_schema.columns WHERE table_name='shopping_list_items'
         """)).scalars())
     assert {"household_meal_plan_household_recipe_fk", "household_meal_plan_household_date_slot_unique"} <= entry_constraints
-    assert {"shopping_list_items_household_list_fk", "shopping_list_items_household_catalog_fk", "shopping_list_items_meal_plan_request_fk"} <= item_constraints
-    assert {"household_id", "catalog_item_id", "amount", "recipe_unit_code", "meal_plan_request_id"} <= columns
+    assert {"shopping_list_items_household_list_fk", "shopping_list_items_household_catalog_fk", "shopping_list_items_meal_plan_request_fk", "shopping_list_items_catalog_item_unique"} <= item_constraints
+    assert {"household_id", "catalog_item_id", "amount", "recipe_unit_code", "meal_plan_request_id", "shopping_unit_code", "shopping_store_id"} <= columns
 
 
 async def _as(client: AsyncClient, user_id: str, method: str, path: str, **kwargs):
@@ -255,12 +256,10 @@ async def test_shopping_review_aggregates_exact_units_keeps_unknown_separate_and
         first_recipe = _recipe(connection, household, owner, [(beans, "1", "cup", None), (rice, None, None, None)])
         second_recipe = _recipe(connection, household, owner, [(beans, "0.5", "cup", None), (beans, "2", "gram", None)])
         list_id = connection.execute(text("SELECT id::text FROM shopping_lists WHERE household_id=:id"), {"id": household}).scalar_one()
-        # Exact catalog/unit match and a possible name-only manual match remain unchanged.
+        # A different measurement does not create a second Shopping row for the same Catalog item.
         connection.execute(text("""INSERT INTO shopping_list_items (household_id,shopping_list_id,name,created_by_user_id,catalog_item_id,amount,recipe_unit_code,recipe_unit_dimension)
             VALUES (:household,:list,'Beans',:owner,:beans,3,'milliliter','volume')"""), {"household": household, "list": list_id, "owner": owner, "beans": beans})
-        connection.execute(text("""INSERT INTO shopping_list_items (household_id,shopping_list_id,name,created_by_user_id,catalog_item_id)
-            VALUES (:household,:list,'Rice',:owner,:rice)"""), {"household": household, "list": list_id, "owner": owner, "rice": rice})
-        manual_rice_id = connection.execute(text("INSERT INTO shopping_list_items (household_id,shopping_list_id,name,created_by_user_id) VALUES (:household,:list,'Rice',:owner) RETURNING id::text"), {"household": household, "list": list_id, "owner": owner}).scalar_one()
+        manual_beans_id = connection.execute(text("SELECT id::text FROM shopping_list_items WHERE household_id=:household AND catalog_item_id=:beans"), {"household": household, "beans": beans}).scalar_one()
 
     app.dependency_overrides.clear()
     try:
@@ -287,10 +286,18 @@ async def test_shopping_review_aggregates_exact_units_keeps_unknown_separate_and
             beans_gram = next(need for need in review["needs"] if need["name"] == "Beans" and need["unit_label"] == "Gram")
             rice_need = next(need for need in review["needs"] if need["name"] == "Rice")
             assert beans_cup["amount"] == "1.5" and len(beans_cup["sources"]) == 2
-            assert beans_cup["default_selected"] is True
+            assert beans_cup["default_selected"] is False
             assert beans_gram["amount"] == "2"
-            assert rice_need["amount"] is None and rice_need["default_selected"] is False
-            assert {match["kind"] for match in rice_need["existing_matches"]} == {"exact", "possible"}
+            assert beans_gram["default_selected"] is False
+            assert rice_need["amount"] is None and rice_need["default_selected"] is True
+            assert beans_cup["existing_matches"][0]["item_id"] == manual_beans_id
+            assert rice_need["existing_matches"] == []
+            existing_amount_override = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json={
+                "week_start": monday, "review_token": review["review_token"], "request_id": str(uuid4()),
+                "selected_need_keys": [beans_cup["need_key"]],
+                "amount_overrides": {beans_cup["need_key"]: "1"},
+            })
+            assert existing_amount_override.status_code == 422
 
             # A same-week slot change keeps the quantities and source order,
             # but the old review must not confirm an out-of-date meal source.
@@ -336,10 +343,9 @@ async def test_shopping_review_aggregates_exact_units_keeps_unknown_separate_and
             beans_cup = next(need for need in review["needs"] if need["name"] == "Black Beans" and need["unit_label"] == "Cup")
             rice_need = next(need for need in review["needs"] if need["name"] == "Rice")
 
-            # A manual Shopping edit after preview invalidates the confirmation
-            # token even when it does not match a planned need.
+            # A manual Shopping amount edit after preview invalidates confirmation.
             with meal_plan_engine.begin() as connection:
-                connection.execute(text("UPDATE shopping_list_items SET name='Brown rice' WHERE id=:id"), {"id": manual_rice_id})
+                connection.execute(text("UPDATE shopping_list_items SET amount=4 WHERE id=:id"), {"id": manual_beans_id})
             changed_shopping = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json={
                 "week_start": monday, "review_token": review["review_token"], "request_id": str(uuid4()),
                 "selected_need_keys": [beans_cup["need_key"]],
@@ -356,15 +362,13 @@ async def test_shopping_review_aggregates_exact_units_keeps_unknown_separate_and
                        "selected_need_keys": [beans_cup["need_key"], rice_need["need_key"]]}
             added = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json=payload)
             assert added.status_code == 201, added.text
-            assert len(added.json()["items"]) == 2 and added.json()["replayed"] is False
+            assert len(added.json()["items"]) == 1 and added.json()["replayed"] is False
             shopping_after_add = await _as(client, owner, "GET", f"/v1/households/{household}/shopping-list")
             assert shopping_after_add.status_code == 200, shopping_after_add.text
-            generated_beans = next(item for item in shopping_after_add.json()["shopping_list"]["items"] if item["id"] in {row["id"] for row in added.json()["items"]} and item["name"] == "Black Beans")
             generated_rice = next(item for item in shopping_after_add.json()["shopping_list"]["items"] if item["id"] in {row["id"] for row in added.json()["items"]} and item["name"] == "Rice")
-            manual_brown_rice = next(item for item in shopping_after_add.json()["shopping_list"]["items"] if item["id"] == manual_rice_id)
-            assert (generated_beans["amount"], generated_beans["recipe_unit_label"], generated_beans["meal_plan_source"]) == ("1.5", "Cup", True)
+            existing_beans = next(item for item in shopping_after_add.json()["shopping_list"]["items"] if item["id"] == manual_beans_id)
             assert (generated_rice["amount"], generated_rice["meal_plan_source"]) == (None, True)
-            assert (manual_brown_rice["amount"], manual_brown_rice["meal_plan_source"]) == (None, False)
+            assert (existing_beans["amount"], existing_beans["meal_plan_source"]) == ("4", False)
             retry = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json=payload)
             assert retry.status_code == 201 and retry.json()["replayed"] is True
             assert [row["id"] for row in retry.json()["items"]] == [row["id"] for row in added.json()["items"]]
@@ -375,17 +379,17 @@ async def test_shopping_review_aggregates_exact_units_keeps_unknown_separate_and
             assert another_member_replay.status_code == 409
             assert another_member_replay.json()["detail"]["code"] == "MEAL_PLAN_REQUEST_REUSED"
             with meal_plan_engine.connect() as connection:
-                assert connection.execute(text("SELECT count(*) FROM shopping_list_items WHERE household_id=:id"), {"id": household}).scalar_one() == 5
+                assert connection.execute(text("SELECT count(*) FROM shopping_list_items WHERE household_id=:id"), {"id": household}).scalar_one() == 2
                 generated = connection.execute(text("""
                     SELECT name, amount::text AS amount, recipe_unit_code, catalog_item_id::text AS catalog_item_id,
                            meal_plan_request_id::text AS request_id
                     FROM shopping_list_items WHERE household_id=:household AND meal_plan_request_id=:request
                 """), {"household": household, "request": request_id}).mappings().all()
                 assert {(row["name"], row["amount"], row["recipe_unit_code"], row["catalog_item_id"]) for row in generated} == {
-                    ("Black Beans", "1.500000", "cup", beans), ("Rice", None, None, rice),
+                    ("Rice", None, None, rice),
                 }
-                manual_rice = connection.execute(text("SELECT name,amount,is_checked FROM shopping_list_items WHERE id=:id"), {"id": manual_rice_id}).one()
-                assert manual_rice.name == "Brown rice" and manual_rice.amount is None and manual_rice.is_checked is False
+                manual_beans = connection.execute(text("SELECT name,amount,is_checked FROM shopping_list_items WHERE id=:id"), {"id": manual_beans_id}).one()
+                assert manual_beans.name == "Beans" and manual_beans.amount == Decimal(4) and manual_beans.is_checked is False
     finally:
         app.dependency_overrides.clear()
         _cleanup(meal_plan_engine, [household], [owner, member, outsider])
@@ -628,9 +632,9 @@ def test_composite_foreign_keys_reject_cross_household_plan_and_shopping_referen
             """), {"household": household_b, "recipe": recipe_a, "owner": owner_b})
         with pytest.raises(IntegrityError), connection.begin_nested():
             connection.execute(text("""
-                INSERT INTO shopping_list_items (household_id,shopping_list_id,name,created_by_user_id)
-                VALUES (:household,:list,'Cross household',:owner)
-            """), {"household": household_a, "list": list_b, "owner": owner_a})
+                INSERT INTO shopping_list_items (household_id,shopping_list_id,name,catalog_item_id,created_by_user_id)
+                VALUES (:household,:list,'Cross household',:catalog_item_id,:owner)
+            """), {"household": household_a, "list": list_b, "owner": owner_a, "catalog_item_id": item_a})
     _cleanup(meal_plan_engine, [household_a, household_b], [owner_a, owner_b])
 
 

@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 
 DISPOSABLE_TEST_DATABASE = "meal_planner_disposable_test"
 REVISION_PATH = Path(__file__).resolve().parents[3] / "db" / "migrations" / "versions" / "household_shopping_lists.py"
+CATALOG_ITEM_REVISION_PATH = Path(__file__).resolve().parents[3] / "db" / "migrations" / "versions" / "household_shopping_catalog_items.py"
 
 
 def load_revision():
@@ -20,6 +21,63 @@ def load_revision():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def load_catalog_item_revision():
+    spec = importlib.util.spec_from_file_location("household_shopping_catalog_items_revision", CATALOG_ITEM_REVISION_PATH)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class EmptyQueryResult:
+    def mappings(self):
+        return self
+
+    def all(self):
+        return []
+
+
+def test_catalog_item_migration_reports_unmatched_legacy_rows_before_schema_changes(monkeypatch: pytest.MonkeyPatch) -> None:
+    revision = load_catalog_item_revision()
+
+    class UnmatchedConnection:
+        def execute(self, _statement):
+            class UnmatchedResult(EmptyQueryResult):
+                def all(self):
+                    return [{"id": "legacy-row", "name": "Unknown household item", "candidate_count": 0}]
+
+            return UnmatchedResult()
+
+    ddl: list[str] = []
+    monkeypatch.setattr(alembic.op, "get_bind", lambda: UnmatchedConnection())
+    monkeypatch.setattr(alembic.op, "execute", lambda statement: ddl.append(str(statement)))
+
+    with pytest.raises(RuntimeError, match="legacy-row.*Unknown household item"):
+        revision.upgrade()
+    assert ddl == []
+
+
+def test_catalog_item_migration_adds_identity_guards_and_downgrade_retains_mapping(monkeypatch: pytest.MonkeyPatch) -> None:
+    revision = load_catalog_item_revision()
+    ddl: list[str] = []
+
+    class EmptyConnection:
+        def execute(self, _statement):
+            return EmptyQueryResult()
+
+    monkeypatch.setattr(alembic.op, "get_bind", lambda: EmptyConnection())
+    monkeypatch.setattr(alembic.op, "execute", lambda statement: ddl.append(str(statement)))
+    revision.upgrade()
+    assert revision.down_revision == "household_meal_planning"
+    assert any("catalog_item_id SET NOT NULL" in statement for statement in ddl)
+    assert any("shopping_list_items_catalog_item_unique" in statement for statement in ddl)
+    assert any("shopping_list_items_shopping_store_fk" in statement for statement in ddl)
+
+    ddl.clear()
+    revision.downgrade()
+    assert all("DROP COLUMN catalog_item_id" not in statement for statement in ddl)
 
 
 @pytest.fixture(scope="module")
@@ -32,6 +90,9 @@ def migration_engine() -> Generator[Engine]:
         pytest.fail("Shopping-list migration tests require meal_planner_disposable_test.")
     engine = create_engine(url)
     try:
+        with engine.connect() as connection:
+            if connection.execute(text("SELECT current_database()")).scalar_one() != DISPOSABLE_TEST_DATABASE:
+                pytest.fail("The connected database is not meal_planner_disposable_test.")
         yield engine
     finally:
         engine.dispose()
@@ -117,6 +178,8 @@ def test_shopping_list_schema_constraints_indexes_and_foreign_keys(database_conn
         "shopping_lists_household_unique",
         "shopping_list_items_name_not_blank",
         "shopping_list_items_checked_audit_is_consistent",
+        "shopping_list_items_catalog_item_unique",
+        "shopping_list_items_household_catalog_fk",
     }.issubset(constraint_names)
     indexes = database_connection.execute(
         text("SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND tablename = 'shopping_list_items'")
@@ -131,15 +194,61 @@ def test_shopping_list_schema_constraints_indexes_and_foreign_keys(database_conn
     ).scalar_one()
     with pytest.raises(IntegrityError), database_connection.begin_nested():
         database_connection.execute(text("INSERT INTO shopping_lists (household_id) VALUES (:id)"), {"id": household_id})
+    catalog_item_id = database_connection.execute(
+        text("""
+            INSERT INTO catalog_items (household_id, item_type, name, normalized_name, created_by_user_id)
+            VALUES (:household_id, 'food', 'Valid', 'valid', :user_id)
+            RETURNING id::text
+        """),
+        {"household_id": household_id, "user_id": creator_id},
+    ).scalar_one()
     item_id = database_connection.execute(
-        text("INSERT INTO shopping_list_items (household_id, shopping_list_id, name, created_by_user_id) SELECT household_id, id, 'Valid', :user FROM shopping_lists WHERE id=:list RETURNING id::text"),
-        {"list": list_id, "user": creator_id},
+        text("""INSERT INTO shopping_list_items
+            (household_id, shopping_list_id, name, catalog_item_id, created_by_user_id)
+            SELECT household_id, id, 'Valid', :catalog_item_id, :user FROM shopping_lists
+            WHERE id=:list RETURNING id::text"""),
+        {"list": list_id, "user": creator_id, "catalog_item_id": catalog_item_id},
     ).scalar_one()
 
+    blank_name_catalog_item_id = database_connection.execute(
+        text("""
+            INSERT INTO catalog_items (household_id, item_type, name, normalized_name, created_by_user_id)
+            VALUES (:household_id, 'food', 'Blank-name test target', 'blank-name test target', :user_id)
+            RETURNING id::text
+        """),
+        {"household_id": household_id, "user_id": creator_id},
+    ).scalar_one()
     with pytest.raises(IntegrityError), database_connection.begin_nested():
         database_connection.execute(
-            text("INSERT INTO shopping_list_items (household_id, shopping_list_id, name, created_by_user_id) SELECT household_id, id, '   ', :user FROM shopping_lists WHERE id=:list"),
-            {"list": list_id, "user": creator_id},
+            text("""INSERT INTO shopping_list_items
+                (household_id, shopping_list_id, name, catalog_item_id, created_by_user_id)
+                SELECT household_id, id, '   ', :catalog_item_id, :user FROM shopping_lists WHERE id=:list"""),
+            {"list": list_id, "user": creator_id, "catalog_item_id": blank_name_catalog_item_id},
+        )
+    other_user_id = insert_user(database_connection)
+    other_household_id = insert_household(database_connection, other_user_id, "Foreign catalog household")
+    foreign_catalog_item_id = database_connection.execute(
+        text("""
+            INSERT INTO catalog_items (household_id, item_type, name, normalized_name, created_by_user_id)
+            VALUES (:household_id, 'food', 'Foreign', 'foreign', :user_id)
+            RETURNING id::text
+        """),
+        {"household_id": other_household_id, "user_id": other_user_id},
+    ).scalar_one()
+    with pytest.raises(IntegrityError), database_connection.begin_nested():
+        database_connection.execute(text("""INSERT INTO shopping_list_items
+            (household_id, shopping_list_id, name, catalog_item_id, created_by_user_id)
+            VALUES (:household_id, :list_id, 'Cross household', :foreign_id, :user_id)"""), {
+            "household_id": household_id, "list_id": list_id,
+            "foreign_id": foreign_catalog_item_id, "user_id": creator_id,
+        })
+    with pytest.raises(IntegrityError), database_connection.begin_nested():
+        database_connection.execute(
+            text("""INSERT INTO shopping_list_items
+                (household_id, shopping_list_id, name, catalog_item_id, created_by_user_id)
+                SELECT household_id, id, 'Duplicate catalog identity', :catalog_item_id, :user
+                FROM shopping_lists WHERE id=:list"""),
+            {"list": list_id, "user": creator_id, "catalog_item_id": catalog_item_id},
         )
     with pytest.raises(IntegrityError), database_connection.begin_nested():
         database_connection.execute(

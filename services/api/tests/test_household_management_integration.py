@@ -116,9 +116,12 @@ async def test_member_privacy_and_household_isolation_for_management_routes(disp
             (household_id, normalized_email, created_by_user_id, token_digest, expires_at)
             VALUES (:household_id, 'pending@example.com', :owner_id, :digest, CURRENT_TIMESTAMP + INTERVAL '1 day')
             RETURNING id::text"""), {"household_id": household_id, "owner_id": owner_id, "digest": str(uuid4())}).scalar_one()
-        item_id = connection.execute(text("""INSERT INTO shopping_list_items (household_id, shopping_list_id, name, created_by_user_id)
-            SELECT household_id, id, 'Protected item', :owner_id FROM shopping_lists WHERE household_id = :household_id RETURNING id::text"""),
+        catalog_item_id = connection.execute(text("""INSERT INTO catalog_items (household_id, item_type, name, normalized_name, created_by_user_id)
+            VALUES (:household_id, 'food', 'Protected item', 'protected item', :owner_id) RETURNING id::text"""),
             {"owner_id": owner_id, "household_id": household_id}).scalar_one()
+        item_id = connection.execute(text("""INSERT INTO shopping_list_items (household_id, shopping_list_id, name, catalog_item_id, created_by_user_id)
+            SELECT household_id, id, 'Protected item', :catalog_item_id, :owner_id FROM shopping_lists WHERE household_id = :household_id RETURNING id::text"""),
+            {"owner_id": owner_id, "household_id": household_id, "catalog_item_id": catalog_item_id}).scalar_one()
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
@@ -153,7 +156,7 @@ async def test_member_privacy_and_household_isolation_for_management_routes(disp
                     await request_as(client, actor_id, actor_email, "DELETE", f"/v1/households/{household_id}/leave"),
                     await request_as(client, actor_id, actor_email, "DELETE", f"/v1/households/{household_id}"),
                     await request_as(client, actor_id, actor_email, "GET", f"/v1/households/{household_id}/shopping-list"),
-                    await request_as(client, actor_id, actor_email, "POST", f"/v1/households/{household_id}/shopping-list/items", json={"name": "Unauthorized"}),
+                    await request_as(client, actor_id, actor_email, "POST", f"/v1/households/{household_id}/shopping-list/items", json={"catalog_item_id": str(uuid4())}),
                     await request_as(client, actor_id, actor_email, "PATCH", f"/v1/households/{household_id}/shopping-list/items/{item_id}", json={"is_checked": True}),
                     await request_as(client, actor_id, actor_email, "DELETE", f"/v1/households/{household_id}/shopping-list/items/{item_id}"),
                 ]
@@ -183,6 +186,7 @@ async def test_member_privacy_and_household_isolation_for_management_routes(disp
             connection.execute(text("DELETE FROM household_members WHERE household_id IN (:a, :b)"), {"a": household_id, "b": foreign_household_id})
             connection.execute(text("DELETE FROM household_invitations WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM shopping_list_items WHERE id = :id"), {"id": item_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE id = :id"), {"id": catalog_item_id})
             connection.execute(text("DELETE FROM shopping_lists WHERE household_id IN (:a, :b)"), {"a": household_id, "b": foreign_household_id})
             connection.execute(text("DELETE FROM households WHERE id IN (:a, :b)"), {"a": household_id, "b": foreign_household_id})
             connection.execute(text("DELETE FROM users WHERE id IN (:owner, :member, :foreign, :removed)"),
@@ -495,15 +499,17 @@ async def test_delete_household_retains_shared_rows_revokes_invites_and_denies_a
     with disposable_engine.begin() as connection:
         owner_id, owner_email = insert_user(connection, "delete-owner")
         household_id = insert_household(connection, owner_id)
-        item_id = connection.execute(text("INSERT INTO shopping_list_items (household_id, shopping_list_id, name, created_by_user_id) SELECT household_id, id, 'Still retained', :user_id FROM shopping_lists WHERE household_id = :household_id RETURNING id::text"),
+        catalog_item_id = connection.execute(text("INSERT INTO catalog_items (household_id, item_type, name, normalized_name, created_by_user_id) VALUES (:household_id, 'food', 'Still retained', 'still retained', :user_id) RETURNING id::text"),
                                      {"user_id": owner_id, "household_id": household_id}).scalar_one()
+        item_id = connection.execute(text("INSERT INTO shopping_list_items (household_id, shopping_list_id, name, catalog_item_id, created_by_user_id) SELECT household_id, id, 'Still retained', :catalog_item_id, :user_id FROM shopping_lists WHERE household_id = :household_id RETURNING id::text"),
+                                     {"user_id": owner_id, "household_id": household_id, "catalog_item_id": catalog_item_id}).scalar_one()
         invite_id = connection.execute(text("INSERT INTO household_invitations (household_id, normalized_email, created_by_user_id, token_digest, expires_at) VALUES (:household_id, 'pending@example.com', :user_id, :digest, CURRENT_TIMESTAMP + INTERVAL '1 day') RETURNING id::text"),
                                        {"household_id": household_id, "user_id": owner_id, "digest": str(uuid4())}).scalar_one()
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
             deleted = await request_as(client, owner_id, owner_email, "DELETE", f"/v1/households/{household_id}")
             assert deleted.status_code == 204
-            denied = await request_as(client, owner_id, owner_email, "POST", f"/v1/households/{household_id}/shopping-list/items", json={"name": "Must fail"})
+            denied = await request_as(client, owner_id, owner_email, "POST", f"/v1/households/{household_id}/shopping-list/items", json={"catalog_item_id": str(uuid4())})
             assert denied.status_code == 404
         with disposable_engine.connect() as connection:
             assert connection.execute(text("SELECT deleted_at IS NOT NULL FROM households WHERE id = :id"), {"id": household_id}).scalar_one()
@@ -514,6 +520,7 @@ async def test_delete_household_retains_shared_rows_revokes_invites_and_denies_a
         with disposable_engine.begin() as connection:
             connection.execute(text("DELETE FROM household_invitations WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM shopping_list_items WHERE id = :id"), {"id": item_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE id = :id"), {"id": catalog_item_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM shopping_lists WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM households WHERE id = :id"), {"id": household_id})

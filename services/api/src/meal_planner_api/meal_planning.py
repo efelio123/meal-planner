@@ -274,10 +274,9 @@ def _review_snapshot(connection, household_id: str, week_start: date) -> dict:
 
     needs = []
     for need in grouped.values():
-        exact = [item for item in shopping if item["catalog_item_id"] == need["catalog_item_id"]
-                 and item["recipe_unit_code"] == need["recipe_unit_code"]
-                 and item["recipe_unit_dimension"] == need["recipe_unit_dimension"]
-                 and _normalized_label(item["custom_unit_label"]) == _normalized_label(need["custom_unit_label"])]
+        # Shopping identity is the household Catalog item, independent of the
+        # recipe measurement or the amount already on the list.
+        exact = [item for item in shopping if item["catalog_item_id"] == need["catalog_item_id"]]
         possible = [item for item in shopping if item["catalog_item_id"] is None and item["normalized_name"] == _normalized_label(need["name"])]
         need["existing_matches"] = [{"kind": "exact", "item_id": item["id"], "name": item["name"]} for item in exact]
         need["existing_matches"].extend({"kind": "possible", "item_id": item["id"], "name": item["name"]} for item in possible)
@@ -339,13 +338,22 @@ def add_reviewed_needs(user: CurrentUser, household_id: str, week_start: str, re
             raise _invalid("An amount cannot be set when the recipe quantity is unknown.")
         if any(key not in available for key in keys):
             raise _conflict("MEAL_PLAN_REVIEW_STALE", "The selected needs changed. Refresh this review before adding items.")
+        if any(available[key]["existing_matches"] for key in normalized_overrides):
+            raise _invalid("Shopping amount adjustments apply only to items that are not already on the list.")
         connection.execute(text("""
             INSERT INTO shopping_list_meal_plan_requests (household_id, request_id, created_by_user_id, request_hash)
             VALUES (:household_id, :request_id, :user_id, :request_hash)
         """), {"household_id": household_id, "request_id": request_id, "user_id": user.id, "request_hash": request_hash})
         created = []
+        already_added_catalog_ids: set[str] = set()
         for key in keys:
             need = available[key]
+            catalog_item_id = need["catalog_item_id"]
+            if catalog_item_id in already_added_catalog_ids or connection.execute(text("""
+                SELECT 1 FROM shopping_list_items
+                WHERE household_id=:household_id AND catalog_item_id=:catalog_item_id
+            """), {"household_id": household_id, "catalog_item_id": catalog_item_id}).scalar_one_or_none() is not None:
+                continue
             unit_code = need["recipe_unit_code"]
             unit_dimension = need["recipe_unit_dimension"]
             custom_unit = need["custom_unit_label"]
@@ -366,4 +374,5 @@ def add_reviewed_needs(user: CurrentUser, household_id: str, week_start: str, re
             if list_item is None:
                 raise _not_found()
             created.append(dict(list_item))
+            already_added_catalog_ids.add(catalog_item_id)
         return {"items": created, "replayed": False}

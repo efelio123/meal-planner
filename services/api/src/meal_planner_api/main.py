@@ -2,7 +2,7 @@ from time import perf_counter
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, Query, Request, Response, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, EmailStr, Field, StrictBool, StrictInt, StrictStr
 
 from meal_planner_api import catalog, meal_planning, recipes
@@ -27,7 +27,14 @@ from meal_planner_api.onboarding import (
     require_current_user,
     revoke_invitation,
 )
-from meal_planner_api.shopping_lists import add_item, delete_item, get_list, set_checked
+from meal_planner_api.shopping_lists import (
+    add_item,
+    clear_list,
+    delete_item,
+    get_item,
+    get_list,
+    update_item,
+)
 
 app = FastAPI(
     title="Meal Planner API",
@@ -92,11 +99,19 @@ class AcceptInvitationRequest(BaseModel):
 
 
 class CreateShoppingListItemRequest(BaseModel):
-    name: str = Field(max_length=200)
+    catalog_item_id: UUID
+    amount: StrictStr | None = Field(default=None, max_length=80)
+    shopping_unit_code: StrictStr | None = Field(default=None, max_length=40)
+    custom_shopping_unit_id: UUID | None = None
+    store_id: UUID | None = None
 
 
-class SetShoppingListItemCheckedRequest(BaseModel):
-    is_checked: StrictBool
+class UpdateShoppingListItemRequest(BaseModel):
+    is_checked: StrictBool | None = None
+    amount: StrictStr | None = Field(default=None, max_length=80)
+    shopping_unit_code: StrictStr | None = Field(default=None, max_length=40)
+    custom_shopping_unit_id: UUID | None = None
+    store_id: UUID | None = None
 
 
 class CreateMealPlanEntryRequest(BaseModel):
@@ -448,12 +463,36 @@ def get_shopping_list(household_id: UUID, user: User) -> dict:
 
 @app.post("/v1/households/{household_id}/shopping-list/items", status_code=status.HTTP_201_CREATED, tags=["shopping-list"])
 def post_shopping_list_item(household_id: UUID, payload: CreateShoppingListItemRequest, user: User) -> dict:
-    return {"item": add_item(user, str(household_id), payload.name)}
+    values = payload.model_dump(exclude_unset=True)
+    values.pop("catalog_item_id", None)
+    if values.get("custom_shopping_unit_id") is not None:
+        values["custom_shopping_unit_id"] = str(values["custom_shopping_unit_id"])
+    if values.get("store_id") is not None:
+        values["store_id"] = str(values["store_id"])
+    return {"item": add_item(user, str(household_id), str(payload.catalog_item_id), values)}
 
 
 @app.patch("/v1/households/{household_id}/shopping-list/items/{item_id}", tags=["shopping-list"])
-def patch_shopping_list_item(household_id: UUID, item_id: UUID, payload: SetShoppingListItemCheckedRequest, user: User) -> dict:
-    return {"item": set_checked(user, str(household_id), str(item_id), payload.is_checked)}
+def patch_shopping_list_item(household_id: UUID, item_id: UUID, payload: UpdateShoppingListItemRequest, user: User) -> dict:
+    fields = payload.model_fields_set
+    values = payload.model_dump(exclude_unset=True)
+    if "is_checked" in fields and payload.is_checked is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="is_checked must be true or false.")
+    if "custom_shopping_unit_id" in values and values["custom_shopping_unit_id"] is not None:
+        values["custom_shopping_unit_id"] = str(values["custom_shopping_unit_id"])
+    if "store_id" in values and values["store_id"] is not None:
+        values["store_id"] = str(values["store_id"])
+    return {"item": update_item(user, str(household_id), str(item_id), values, fields)}
+
+
+@app.get("/v1/households/{household_id}/shopping-list/items/{item_id}", tags=["shopping-list"])
+def get_shopping_list_item(household_id: UUID, item_id: UUID, user: User) -> dict:
+    return {"item": get_item(user, str(household_id), str(item_id))}
+
+
+@app.delete("/v1/households/{household_id}/shopping-list", tags=["shopping-list"])
+def clear_shopping_list(household_id: UUID, user: User) -> dict:
+    return {"removed_count": clear_list(user, str(household_id))}
 
 
 @app.delete("/v1/households/{household_id}/shopping-list/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["shopping-list"])

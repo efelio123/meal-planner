@@ -105,7 +105,9 @@ async def test_shopping_list_rejects_malformed_identifiers_before_database_acces
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
             responses = [
                 await client.get("/v1/households/not-a-uuid/shopping-list"),
-                await client.post("/v1/households/not-a-uuid/shopping-list/items", json={"name": "Milk"}),
+                await client.delete("/v1/households/not-a-uuid/shopping-list"),
+                await client.post("/v1/households/not-a-uuid/shopping-list/items", json={"catalog_item_id": "00000000-0000-4000-8000-000000000001"}),
+                await client.get("/v1/households/00000000-0000-4000-8000-000000000001/shopping-list/items/not-a-uuid"),
                 await client.patch(
                     "/v1/households/not-a-uuid/shopping-list/items/not-a-uuid",
                     json={"is_checked": True},
@@ -115,22 +117,22 @@ async def test_shopping_list_rejects_malformed_identifiers_before_database_acces
     finally:
         app.dependency_overrides.clear()
 
-    assert [response.status_code for response in responses] == [422, 422, 422, 422]
+    assert [response.status_code for response in responses] == [422, 422, 422, 422, 422, 422]
 
 
 @pytest.mark.anyio
-async def test_shopping_list_distinguishes_request_and_domain_validation() -> None:
+async def test_shopping_list_uses_catalog_identity_and_validates_amount_requests() -> None:
     app.dependency_overrides[require_current_user] = lambda: CurrentUser(
         id="user-id", normalized_email="person@example.test", display_name="Person"
     )
     household_id = "00000000-0000-0000-0000-000000000001"
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
-            blank_name = await client.post(
-                f"/v1/households/{household_id}/shopping-list/items", json={"name": "   "}
+            missing_catalog_identity = await client.post(
+                f"/v1/households/{household_id}/shopping-list/items", json={"amount": "1"}
             )
-            too_long_name = await client.post(
-                f"/v1/households/{household_id}/shopping-list/items", json={"name": "x" * 201}
+            too_long_amount = await client.post(
+                f"/v1/households/{household_id}/shopping-list/items", json={"catalog_item_id": "00000000-0000-4000-8000-000000000001", "amount": "1" * 81}
             )
             non_boolean_checked = await client.patch(
                 f"/v1/households/{household_id}/shopping-list/items/00000000-0000-0000-0000-000000000002",
@@ -139,6 +141,6 @@ async def test_shopping_list_distinguishes_request_and_domain_validation() -> No
     finally:
         app.dependency_overrides.clear()
 
-    assert blank_name.status_code == 400
-    assert too_long_name.status_code == 422
+    assert missing_catalog_identity.status_code == 422
+    assert too_long_amount.status_code == 422
     assert non_boolean_checked.status_code == 422
