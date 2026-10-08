@@ -1,6 +1,6 @@
 # Household-scoped meal planning and shopping review
 
-Status: approved by Felipe for VS Code coding-agent implementation on October 7, 2026; implementation not started.
+Status: implementation is committed on `codex/household-meal-planning`; disposable-PostgreSQL validation and device review remain pending. The branch has not been pushed or deployed.
 
 Branch: `codex/household-meal-planning`
 
@@ -188,3 +188,39 @@ Out of scope: inventory/on-hand tracking, automatic Shopping additions while
 planning, shopping from recipe screens, serving-based scaling, automatic unit
 conversion, member assignment, recurring meals, drag-and-drop calendar
 editing, notifications, and the deferred quick-add uncatalogued item flow.
+
+## Implementation and validation record — October 7, 2026
+
+The approved slice is implemented on `codex/household-meal-planning` in focused
+backend/schema and mobile commits; it has not been pushed or deployed. The migration adds household-
+scoped plan entries and idempotent selected-need additions to Shopping. The
+mobile Plan tab is now the startup destination, with nested native-sheet flows,
+and Shopping renders generated quantity/source metadata alongside existing
+manual entries. Recipe creation from Add meal stays in the Plan stack so its
+day/slot draft survives and the newly saved recipe is selected on return.
+
+Automated validation actually run in this session:
+
+- Mobile normal run: 44 suites, 281 tests passed.
+- A Jest-cache-cleared cold run: 39 suites and 276 tests passed; five tests in
+  otherwise unrelated Catalog, Recipe-library, time-zone, and auth-form suites
+  exceeded Jest's 5-second per-test timeout during cold startup. The five
+  affected suites were then rerun with the cache warm: 5 suites / 22 tests
+  passed. No broad timeout change was made.
+- TypeScript (`npx tsc --noEmit`), mobile lint, API Ruff, and whitespace check
+  passed.
+- API pytest: 85 passed, 50 skipped. `DATABASE_URL` was absent in this shell,
+  so all PostgreSQL-backed migration/integration tests—including this slice's
+  tests—were skipped, not validated.
+
+No migration, Alembic head check, or PostgreSQL test was run. The database
+preflight reported `configured_database=absent` and
+`current_database=unavailable`; the next database run must first verify both
+the configured URL and live `current_database()` are exactly
+`meal_planner_disposable_test`. `meal_planner_dev` was not contacted.
+
+The four approved references were inspected before coding, but no running iOS
+or Android device/emulator was available for side-by-side visual or native
+sheet-drag verification (`adb` was unavailable). Device appearance, native
+sheet drag/dismissal, keyboard behavior, and two-device refresh remain
+unverified. No visual acceptance or device-specific design match is claimed.
