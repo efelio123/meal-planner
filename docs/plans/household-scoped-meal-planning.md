@@ -1,6 +1,6 @@
 # Household-scoped meal planning and shopping review
 
-Status: implementation is committed on `codex/household-meal-planning`; disposable-PostgreSQL validation and device review remain pending. The branch has not been pushed or deployed.
+Status: v1 implementation and phone-UX follow-ups are complete and approved by Felipe for `main`. The final amount-override PostgreSQL tests were not rerun in this shell because `DATABASE_URL` was absent.
 
 Branch: `codex/household-meal-planning`
 
@@ -191,8 +191,9 @@ editing, notifications, and the deferred quick-add uncatalogued item flow.
 
 ## Implementation and validation record — October 7, 2026
 
-The approved slice is implemented on `codex/household-meal-planning` in focused
-backend/schema and mobile commits; it has not been pushed or deployed. The migration adds household-
+The approved slice was implemented on `codex/household-meal-planning` in focused
+backend/schema and mobile commits; at this initial handoff, it had not been
+pushed or deployed. The migration adds household-
 scoped plan entries and idempotent selected-need additions to Shopping. The
 mobile Plan tab is now the startup destination, with nested native-sheet flows,
 and Shopping renders generated quantity/source metadata alongside existing
@@ -224,3 +225,18 @@ or Android device/emulator was available for side-by-side visual or native
 sheet-drag verification (`adb` was unavailable). Device appearance, native
 sheet drag/dismissal, keyboard behavior, and two-device refresh remain
 unverified. No visual acceptance or device-specific design match is claimed.
+
+## Later follow-up and main-branch handoff
+
+The original validation record above describes the first implementation before
+the partial-shopping-amount and phone-UX follow-ups. Those follow-ups are in
+`docs/plans/meal-plan-shopping-amount-adjustment.md` and
+`docs/plans/meal-planning-phone-ux-followup.md`. Felipe reports the corrected
+phone screens look good. No separate Android or keyboard-open acceptance is
+claimed for the final follow-up.
+
+Against the final code, the normal mobile suite passed 45 suites / 297 tests,
+and TypeScript, mobile lint, API Ruff, and whitespace checks passed. API pytest
+passed 88 non-database tests and skipped 51 PostgreSQL-backed tests because
+`DATABASE_URL` was absent. Those skipped tests are not a validation of the
+final amount-override behavior; no database was contacted in this final run.
