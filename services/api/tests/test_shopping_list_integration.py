@@ -157,6 +157,7 @@ async def test_active_owners_and_members_can_read_add_toggle_and_remove(
                     json={"is_checked": False},
                 )
                 assert unchecked.status_code == 200
+                assert unchecked.json()["item"]["is_checked"] is False
                 assert unchecked.json()["item"]["checked_at"] is None
                 assert unchecked.json()["item"]["checked_by_user_id"] is None
 
@@ -319,6 +320,135 @@ async def test_catalog_identity_duplicate_details_update_and_clear_contract(disp
         with disposable_engine.begin() as connection:
             connection.execute(text("DELETE FROM shopping_list_items WHERE shopping_list_id = :id"), {"id": list_id})
             connection.execute(text("DELETE FROM catalog_items WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM catalog_stores WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM shopping_lists WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM households WHERE id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM users WHERE id = :id"), {"id": user_id})
+
+
+@pytest.mark.anyio
+async def test_add_rejects_archived_catalog_preferences_until_an_active_choice_is_submitted(disposable_engine: Engine) -> None:
+    with disposable_engine.begin() as connection:
+        user_id = insert_user(connection, f"stale-preference-{uuid4()}@example.test")
+        household_id, list_id = insert_household(connection, user_id)
+        unit_id = connection.execute(text("""
+            INSERT INTO household_shopping_units (household_id, name, normalized_name)
+            VALUES (:household_id, 'Crate', 'crate') RETURNING id::text
+        """), {"household_id": household_id}).scalar_one()
+        store_id = connection.execute(text("""
+            INSERT INTO catalog_stores (household_id, name, normalized_name)
+            VALUES (:household_id, 'Market', 'market') RETURNING id::text
+        """), {"household_id": household_id}).scalar_one()
+        unit_catalog_id = insert_catalog_item(connection, household_id, user_id, "Apples")
+        store_catalog_id = insert_catalog_item(connection, household_id, user_id, "Bread")
+        unit_replacement_catalog_id = insert_catalog_item(connection, household_id, user_id, "Cereal")
+        unit_override_catalog_id = insert_catalog_item(connection, household_id, user_id, "Carrots")
+        store_override_catalog_id = insert_catalog_item(connection, household_id, user_id, "Dates")
+        independent_override_catalog_id = insert_catalog_item(connection, household_id, user_id, "Eggs")
+        connection.execute(text("UPDATE catalog_items SET custom_shopping_unit_id=:unit WHERE id=:id"), {"unit": unit_id, "id": unit_catalog_id})
+        connection.execute(text("UPDATE catalog_items SET preferred_store_id=:store WHERE id=:id"), {"store": store_id, "id": store_catalog_id})
+        connection.execute(text("UPDATE catalog_items SET custom_shopping_unit_id=:unit WHERE id=:id"), {"unit": unit_id, "id": unit_replacement_catalog_id})
+        connection.execute(text("UPDATE catalog_items SET custom_shopping_unit_id=:unit WHERE id=:id"), {"unit": unit_id, "id": unit_override_catalog_id})
+        connection.execute(text("UPDATE catalog_items SET preferred_store_id=:store WHERE id=:id"), {"store": store_id, "id": store_override_catalog_id})
+        connection.execute(text("UPDATE catalog_items SET custom_shopping_unit_id=:unit, preferred_store_id=:store WHERE id=:id"),
+                           {"unit": unit_id, "store": store_id, "id": independent_override_catalog_id})
+        active_store_id = connection.execute(text("""
+            INSERT INTO catalog_stores (household_id, name, normalized_name)
+            VALUES (:household_id, 'Corner Market', 'corner market') RETURNING id::text
+        """), {"household_id": household_id}).scalar_one()
+        # Model an archive racing with a previously saved Catalog preference.
+        # Catalog management normally prevents archiving a choice while an
+        # active Catalog item references it.
+        connection.execute(text("UPDATE household_shopping_units SET archived_at=CURRENT_TIMESTAMP WHERE id=:id"), {"id": unit_id})
+        connection.execute(text("UPDATE catalog_stores SET archived_at=CURRENT_TIMESTAMP WHERE id=:id"), {"id": store_id})
+
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            for catalog_id in (unit_catalog_id, store_catalog_id):
+                stale = await call_as(
+                    user_id, "stale-preference@example.test", client, "POST",
+                    f"/v1/households/{household_id}/shopping-list/items",
+                    json={"catalog_item_id": catalog_id},
+                )
+                assert stale.status_code == 409, stale.text
+                assert stale.json()["detail"]["code"] == "CATALOG_PREFERENCE_ARCHIVED"
+                assert "saved Catalog" in stale.json()["detail"]["message"]
+                assert "no longer active" in stale.json()["detail"]["message"]
+
+                added = await call_as(
+                    user_id, "stale-preference@example.test", client, "POST",
+                    f"/v1/households/{household_id}/shopping-list/items",
+                    json={
+                        "catalog_item_id": catalog_id,
+                        "shopping_unit_code": None,
+                        "custom_shopping_unit_id": None,
+                        "store_id": None,
+                    },
+                )
+                assert added.status_code == 201, added.text
+                assert added.json()["item"]["unit_label"] is None
+                assert added.json()["item"]["store_id"] is None
+
+            # Overriding one inherited preference does not implicitly clear or
+            # validate only that field: the other resolved default is checked
+            # independently and still blocks the add when it is archived.
+            stale_store_with_unit_override = await call_as(
+                user_id, "stale-preference@example.test", client, "POST",
+                f"/v1/households/{household_id}/shopping-list/items",
+                json={"catalog_item_id": store_override_catalog_id, "shopping_unit_code": "bag"},
+            )
+            assert stale_store_with_unit_override.status_code == 409
+            assert stale_store_with_unit_override.json()["detail"]["code"] == "CATALOG_PREFERENCE_ARCHIVED"
+            assert "saved Catalog store" in stale_store_with_unit_override.json()["detail"]["message"]
+
+            unit_replaced = await call_as(
+                user_id, "stale-preference@example.test", client, "POST",
+                f"/v1/households/{household_id}/shopping-list/items",
+                json={"catalog_item_id": unit_replacement_catalog_id, "shopping_unit_code": "bag"},
+            )
+            assert unit_replaced.status_code == 201, unit_replaced.text
+            assert unit_replaced.json()["item"]["unit_label"] == "Bag"
+            assert unit_replaced.json()["item"]["store_id"] is None
+
+            stale_unit_with_store_override = await call_as(
+                user_id, "stale-preference@example.test", client, "POST",
+                f"/v1/households/{household_id}/shopping-list/items",
+                json={"catalog_item_id": unit_override_catalog_id, "store_id": active_store_id},
+            )
+            assert stale_unit_with_store_override.status_code == 409
+            assert stale_unit_with_store_override.json()["detail"]["code"] == "CATALOG_PREFERENCE_ARCHIVED"
+            assert "saved Catalog unit" in stale_unit_with_store_override.json()["detail"]["message"]
+
+            # Explicitly replacing both archived defaults succeeds; replacing
+            # only the store leaves the archived unit as the effective unit.
+            replaced = await call_as(
+                user_id, "stale-preference@example.test", client, "POST",
+                f"/v1/households/{household_id}/shopping-list/items",
+                json={
+                    "catalog_item_id": independent_override_catalog_id,
+                    "shopping_unit_code": "bag",
+                    "store_id": active_store_id,
+                },
+            )
+            assert replaced.status_code == 201, replaced.text
+            assert replaced.json()["item"]["unit_label"] == "Bag"
+            assert replaced.json()["item"]["store_id"] == active_store_id
+
+            store_replaced = await call_as(
+                user_id, "stale-preference@example.test", client, "POST",
+                f"/v1/households/{household_id}/shopping-list/items",
+                json={"catalog_item_id": store_override_catalog_id, "store_id": active_store_id},
+            )
+            assert store_replaced.status_code == 201, store_replaced.text
+            assert store_replaced.json()["item"]["unit_label"] is None
+            assert store_replaced.json()["item"]["store_id"] == active_store_id
+    finally:
+        app.dependency_overrides.clear()
+        with disposable_engine.begin() as connection:
+            connection.execute(text("DELETE FROM shopping_list_items WHERE shopping_list_id = :id"), {"id": list_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM household_shopping_units WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM catalog_stores WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM shopping_lists WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})

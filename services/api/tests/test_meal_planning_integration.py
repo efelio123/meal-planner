@@ -5,7 +5,7 @@ from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from decimal import Decimal
-from threading import Barrier
+from time import monotonic, sleep
 from uuid import uuid4
 
 import pytest
@@ -17,12 +17,9 @@ from sqlalchemy.exc import IntegrityError
 
 from meal_planner_api.household_management import delete_household
 from meal_planner_api.main import app
-from meal_planner_api.meal_planning import (
-    add_reviewed_needs,
-    create_entry,
-    get_shopping_review,
-)
+from meal_planner_api.meal_planning import create_entry
 from meal_planner_api.onboarding import CurrentUser, require_current_user
+from meal_planner_api.shopping_lists import add_item
 
 DISPOSABLE_TEST_DATABASE = "meal_planner_disposable_test"
 
@@ -439,9 +436,9 @@ async def test_reviewed_shopping_amount_overrides_are_validated_and_idempotent(m
             list_response = await _as(client, owner, "GET", f"/v1/households/{household}/shopping-list")
             assert list_response.status_code == 200, list_response.text
             generated = {item["name"]: item for item in list_response.json()["shopping_list"]["items"]}
-            assert (generated["Chicken"]["amount"], generated["Chicken"]["recipe_unit_label"]) == ("1.500000", "Pound")
-            assert (generated["Rice"]["amount"], generated["Rice"]["recipe_unit_label"]) == ("5.000000", "Cup")
-            assert (generated["Apples"]["amount"], generated["Apples"]["recipe_unit_label"]) == ("4.000000", "Unit")
+            assert (generated["Chicken"]["amount"], generated["Chicken"]["unit_label"], generated["Chicken"]["unit_kind"]) == ("1.5", "Pound", "recipe")
+            assert (generated["Rice"]["amount"], generated["Rice"]["unit_label"], generated["Rice"]["unit_kind"]) == ("5", "Cup", "recipe")
+            assert (generated["Apples"]["amount"], generated["Apples"]["unit_label"], generated["Apples"]["unit_kind"]) == ("4", "Unit", "recipe")
             assert generated["Salt"]["amount"] is None
 
             replay = await _as(client, owner, "POST", f"/v1/households/{household}/meal-plan/shopping", json=payload)
@@ -568,50 +565,88 @@ def test_concurrent_slot_claims_allow_exactly_one_household_member(meal_plan_eng
         _cleanup(meal_plan_engine, [household], [owner])
 
 
-def test_household_archive_serializes_with_reviewed_shopping_write(meal_plan_engine: Engine) -> None:
+def test_household_archive_serializes_with_shopping_item_add(meal_plan_engine: Engine) -> None:
     with meal_plan_engine.begin() as connection:
         owner = _user(connection, "archive-review-owner")
         household = _household(connection, owner, "Archive review race")
         catalog_item = _food(connection, household, "Apples")
-        recipe = _recipe(connection, household, owner, [(catalog_item, "2", "unit", None)])
-        today = connection.execute(text("SELECT (timezone(time_zone,CURRENT_TIMESTAMP))::date FROM households WHERE id=:id"), {"id": household}).scalar_one()
-        monday = today.fromordinal(today.toordinal() - today.weekday()).isoformat()
-        connection.execute(text("""
-            INSERT INTO household_meal_plan_entries (household_id,planned_for,meal_slot,recipe_id,created_by_user_id)
-            VALUES (:household,:day,'breakfast',:recipe,:owner)
-        """), {"household": household, "day": monday, "recipe": recipe, "owner": owner})
     current_user = CurrentUser(owner, "archive-review@example.com", "Meal Plan Test")
-    preview = get_shopping_review(current_user, household, monday, meal_plan_engine)
-    request_id = str(uuid4())
-    barrier = Barrier(2)
+    application_name = f"shopping-archive-race-{uuid4().hex}"
+    mutation_engine = create_engine(
+        meal_plan_engine.url,
+        pool_size=2,
+        max_overflow=0,
+        connect_args={"application_name": application_name},
+    )
+    holder = meal_plan_engine.connect()
+    transaction = holder.begin()
+    holder_pid = holder.execute(text("SELECT pg_backend_pid()")).scalar_one()
+    holder.execute(text("SELECT id FROM households WHERE id=:id FOR UPDATE"), {"id": household})
+
+    def wait_for_blocked_writers(expected: int) -> None:
+        deadline = monotonic() + 10
+        while monotonic() < deadline:
+            with meal_plan_engine.connect() as observer:
+                blocked = observer.execute(text("""
+                    WITH RECURSIVE blocking_chain(waiting_pid, blocker_pid, visited) AS (
+                        SELECT activity.pid, blocker.pid, ARRAY[activity.pid]
+                        FROM pg_stat_activity AS activity
+                        CROSS JOIN LATERAL unnest(pg_blocking_pids(activity.pid)) AS blocker(pid)
+                        WHERE activity.wait_event_type = 'Lock'
+                          AND activity.application_name = :application_name
+                        UNION ALL
+                        SELECT chain.waiting_pid, next_blocker.pid, chain.visited || chain.blocker_pid
+                        FROM blocking_chain AS chain
+                        JOIN pg_stat_activity AS blocker_activity ON blocker_activity.pid = chain.blocker_pid
+                        CROSS JOIN LATERAL unnest(pg_blocking_pids(blocker_activity.pid)) AS next_blocker(pid)
+                        WHERE NOT chain.blocker_pid = ANY(chain.visited)
+                    )
+                    SELECT count(DISTINCT waiting_pid) FROM blocking_chain WHERE blocker_pid = :holder_pid
+                """), {"holder_pid": holder_pid, "application_name": application_name}).scalar_one()
+            if blocked >= expected:
+                return
+            sleep(0.01)
+        raise AssertionError(f"Expected {expected} transaction(s) to be waiting on the household row lock.")
 
     def add():
-        barrier.wait()
         try:
-            return add_reviewed_needs(current_user, household, monday, preview["review_token"], request_id,
-                                      [preview["needs"][0]["need_key"]], meal_plan_engine)
+            return add_item(current_user, household, catalog_item, {}, mutation_engine)
         except HTTPException as error:
             return error
 
     def archive():
-        barrier.wait()
         try:
-            delete_household(current_user, household, meal_plan_engine)
+            delete_household(current_user, household, mutation_engine)
             return None
         except HTTPException as error:
             return error
 
     try:
         with ThreadPoolExecutor(max_workers=2) as pool:
-            add_result, archive_result = list(pool.map(lambda action: action(), (add, archive)))
+            try:
+                archive_future = pool.submit(archive)
+                wait_for_blocked_writers(1)
+                add_future = pool.submit(add)
+                wait_for_blocked_writers(2)
+                transaction.commit()
+                archive_result = archive_future.result(timeout=10)
+                add_result = add_future.result(timeout=10)
+            finally:
+                # Release the holder before the executor joins workers if an
+                # assertion fails while either request is waiting on its lock.
+                if transaction.is_active:
+                    transaction.rollback()
         assert archive_result is None
-        assert isinstance(add_result, dict) or isinstance(add_result, HTTPException) and add_result.status_code == 404
+        assert isinstance(add_result, HTTPException) and add_result.status_code == 404
         with meal_plan_engine.connect() as connection:
             assert connection.execute(text("SELECT deleted_at IS NOT NULL FROM households WHERE id=:id"), {"id": household}).scalar_one()
             item_count = connection.execute(text("SELECT count(*) FROM shopping_list_items WHERE household_id=:id"), {"id": household}).scalar_one()
-            assert item_count == (1 if isinstance(add_result, dict) else 0)
-            assert connection.execute(text("SELECT count(*) FROM household_meal_plan_entries WHERE household_id=:id"), {"id": household}).scalar_one() == 1
+            assert item_count == 0
     finally:
+        if transaction.is_active:
+            transaction.rollback()
+        holder.close()
+        mutation_engine.dispose()
         _cleanup(meal_plan_engine, [household], [owner])
 
 

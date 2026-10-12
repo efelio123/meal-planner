@@ -277,6 +277,13 @@ def test_household_archive_denies_mutation_waiting_on_parent_lock(disposable_eng
     with disposable_engine.begin() as connection:
         owner_id, owner_email = insert_user(connection, f"archive-{action}")
         household_id = insert_household(connection, owner_id, "Archive race")
+        catalog_item_id = None
+        if action == "shopping_write":
+            catalog_item_id = connection.execute(text("""
+                INSERT INTO catalog_items (household_id, item_type, name, normalized_name, created_by_user_id)
+                VALUES (:household_id, 'food', 'Late item', 'late item', :owner_id)
+                RETURNING id::text
+            """), {"household_id": household_id, "owner_id": owner_id}).scalar_one()
         invitation_id = connection.execute(text("""
             INSERT INTO household_invitations
                 (household_id, normalized_email, created_by_user_id, token_digest, expires_at)
@@ -298,7 +305,9 @@ def test_household_archive_denies_mutation_waiting_on_parent_lock(disposable_eng
     def mutate() -> int:
         try:
             if action == "shopping_write":
-                shopping_lists.add_item(as_user(owner_id, owner_email), household_id, "Late item", mutation_engine)
+                shopping_lists.add_item(
+                    as_user(owner_id, owner_email), household_id, catalog_item_id, {}, mutation_engine,
+                )
             else:
                 household_management.reissue_invitation(as_user(owner_id, owner_email), household_id, invitation_id, mutation_engine)
         except HTTPException as error:
@@ -309,12 +318,17 @@ def test_household_archive_denies_mutation_waiting_on_parent_lock(disposable_eng
     try:
         with ThreadPoolExecutor(max_workers=2) as executor:
             archive = executor.submit(household_management.delete_household, as_user(owner_id, owner_email), household_id, disposable_engine)
-            assert archive_updated.wait(timeout=10), "Archive did not reach its uncommitted household update."
-            mutation = executor.submit(mutate)
-            wait_for_lock_wait(disposable_engine, application_name)
-            release_archive.set()
-            archive.result(timeout=10)
-            assert mutation.result(timeout=10) == 404
+            try:
+                assert archive_updated.wait(timeout=10), "Archive did not reach its uncommitted household update."
+                mutation = executor.submit(mutate)
+                wait_for_lock_wait(disposable_engine, application_name)
+                release_archive.set()
+                archive.result(timeout=10)
+                assert mutation.result(timeout=10) == 404
+            finally:
+                # Do not let executor shutdown wait forever if an assertion
+                # fails while archive is paused or its writer is queued.
+                release_archive.set()
         with disposable_engine.connect() as connection:
             assert connection.execute(text("SELECT deleted_at IS NOT NULL FROM households WHERE id = :id"), {"id": household_id}).scalar_one()
             assert connection.execute(text("SELECT count(*) FROM shopping_list_items i JOIN shopping_lists sl ON sl.id = i.shopping_list_id WHERE sl.household_id = :id AND i.name = 'Late item'"), {"id": household_id}).scalar_one() == 0
@@ -325,6 +339,8 @@ def test_household_archive_denies_mutation_waiting_on_parent_lock(disposable_eng
         mutation_engine.dispose()
         with disposable_engine.begin() as connection:
             connection.execute(text("DELETE FROM household_invitations WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM shopping_list_items WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM catalog_items WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM shopping_lists WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM households WHERE id = :id"), {"id": household_id})

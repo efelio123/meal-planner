@@ -134,11 +134,15 @@ def get_item(user: CurrentUser, household_id: str, item_id: str, engine: Engine 
 
 
 def _active_reference(connection, table: str, household_id: str, identifier: str, label: str) -> None:
+    if not _is_active_reference(connection, table, household_id, identifier):
+        raise _conflict("CATALOG_REFERENCE_ARCHIVED", f"Choose an active {label}.")
+
+
+def _is_active_reference(connection, table: str, household_id: str, identifier: str) -> bool:
     row = connection.execute(text(f"SELECT 1 FROM {table} WHERE household_id=:household_id AND id=:id AND archived_at IS NULL"), {
         "household_id": household_id, "id": identifier,
     }).scalar_one_or_none()
-    if row is None:
-        raise _conflict("CATALOG_REFERENCE_ARCHIVED", f"Choose an active {label}.")
+    return row is not None
 
 
 def _validate_list_values(connection, household_id: str, values: dict, *, creating: bool) -> dict:
@@ -178,13 +182,38 @@ def add_item(user: CurrentUser, household_id: str, catalog_item_id: str, values:
         if catalog is None or catalog["archived_at"] is not None:
             raise _not_found()
         selected = _validate_list_values(connection, household_id, values, creating=True)
-        if "shopping_unit_code" in values or "custom_shopping_unit_id" in values:
+        has_explicit_shopping_unit = "shopping_unit_code" in values or "custom_shopping_unit_id" in values
+        if has_explicit_shopping_unit:
             selected["shopping_unit_code"] = values.get("shopping_unit_code")
             selected["custom_shopping_unit_id"] = values.get("custom_shopping_unit_id")
         else:
             selected["shopping_unit_code"] = catalog["shopping_unit_code"]
             selected["custom_shopping_unit_id"] = catalog["custom_shopping_unit_id"]
+
+        # Resolve and validate each effective reference independently. An
+        # explicit unit must not hide an archived inherited store (or vice
+        # versa), while an explicit replacement/clear overrides only that
+        # matching Catalog default.
+        store_is_explicit = "store_id" in values
         selected["shopping_store_id"] = values.get("store_id", catalog["preferred_store_id"])
+        if selected["custom_shopping_unit_id"] and not _is_active_reference(
+            connection, "household_shopping_units", household_id, selected["custom_shopping_unit_id"]
+        ):
+            if not has_explicit_shopping_unit:
+                raise _conflict(
+                    "CATALOG_PREFERENCE_ARCHIVED",
+                    "The saved Catalog unit is no longer active. Choose an active unit or clear it, then try again.",
+                )
+            _active_reference(connection, "household_shopping_units", household_id, selected["custom_shopping_unit_id"], "shopping unit")
+        if selected["shopping_store_id"] and not _is_active_reference(
+            connection, "catalog_stores", household_id, selected["shopping_store_id"]
+        ):
+            if not store_is_explicit:
+                raise _conflict(
+                    "CATALOG_PREFERENCE_ARCHIVED",
+                    "The saved Catalog store is no longer active. Choose an active store or clear it, then try again.",
+                )
+            _active_reference(connection, "catalog_stores", household_id, selected["shopping_store_id"], "store")
         existing = connection.execute(text("SELECT id::text AS id FROM shopping_list_items WHERE household_id=:household_id AND catalog_item_id=:catalog_item_id"), {
             "household_id": household_id, "catalog_item_id": catalog_item_id,
         }).mappings().one_or_none()
@@ -234,7 +263,7 @@ def update_item(user: CurrentUser, household_id: str, item_id: str, values: dict
             updated = connection.execute(text("""
                 UPDATE shopping_list_items SET is_checked=:checked,
                     checked_at=CASE WHEN :checked THEN CURRENT_TIMESTAMP ELSE NULL END,
-                    checked_by_user_id=CASE WHEN :checked THEN :user_id ELSE NULL END,
+                    checked_by_user_id=CASE WHEN :checked THEN CAST(:user_id AS UUID) ELSE NULL END,
                     updated_at=CURRENT_TIMESTAMP
                 WHERE household_id=:household_id AND id=:item_id RETURNING id::text AS id
             """), {"checked": checked, "user_id": user.id, "household_id": household_id, "item_id": item_id}).scalar_one_or_none()
