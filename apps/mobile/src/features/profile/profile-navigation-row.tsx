@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 
 import { ThemedText } from '@/components/themed-text';
+import { DisclosureChevron } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 
 type ProfileNavigationRowProps = {
@@ -41,24 +42,13 @@ export function ProfileNavigationRow({ accessibilityLabel, icon, onPress, subtit
         <ThemedText numberOfLines={isPlain ? 1 : undefined} style={styles.title}>{title}</ThemedText>
         {subtitle ? <ThemedText themeColor="textSecondary">{subtitle}</ThemedText> : null}
       </View>
-      {isPlain ? (
-        <SymbolView
-          accessibilityElementsHidden
-          importantForAccessibility="no"
-          name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
-          size={18}
-          testID={`profile-row-chevron-${title.toLowerCase().replace(/\s+/gu, '-')}`}
-          tintColor={theme.textSecondary}
-        />
-      ) : (
-        <ThemedText themeColor="link" accessibilityElementsHidden importantForAccessibility="no">›</ThemedText>
-      )}
+      <DisclosureChevron testID={`profile-row-chevron-${title.toLowerCase().replace(/\s+/gu, '-')}`} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  row: { alignItems: 'center', borderRadius: 12, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 64, paddingHorizontal: 16, paddingVertical: 12 },
+  row: { alignItems: 'center', borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', minHeight: 64, paddingHorizontal: 16, paddingVertical: 12 },
   plainRow: { borderRadius: 8, borderWidth: 0, gap: 14, minHeight: 56, paddingHorizontal: 0, paddingVertical: 8 },
   copy: { flex: 1, gap: 3 },
   title: { fontSize: 17, fontWeight: '600' },

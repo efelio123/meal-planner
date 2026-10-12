@@ -82,6 +82,9 @@ describe('Catalog choice native sheet', () => {
     expect(view.getAllByText('Pantry')).toHaveLength(2);
     expect(view.getByText('Food')).toBeTruthy();
     expect(view.getByText('Household')).toBeTruthy();
+    expect(StyleSheet.flatten(view.getByText('Category').props.style)).toMatchObject({ fontSize: 20, lineHeight: 26 });
+    expect(StyleSheet.flatten(view.getByRole('button', { name: 'Close Category choices' }).props.style)).toMatchObject({ minHeight: 44 });
+    expect(StyleSheet.flatten(view.getAllByRole('button', { name: 'Pantry' })[0].props.style).borderBottomWidth).toBeUndefined();
   });
 
   it('uses platform-appropriate keyboard dismissal and theme action colors', async () => {

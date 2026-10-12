@@ -6,6 +6,7 @@ import { ActivityIndicator, Linking, Modal, Platform, Pressable, StyleSheet, Vie
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, api, type GetToken, type Recipe } from '@/lib/api';
@@ -136,7 +137,7 @@ export function RecipeDetailScreen() {
             </View> : null}
 
             <View style={styles.section}>
-              <ThemedText accessibilityRole="header" style={styles.sectionTitle}>Ingredients</ThemedText>
+              <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Ingredients</ThemedText>
               <View style={[styles.ingredientCard, { backgroundColor: theme.surface }]}>
                 {(activeRecipe.ingredients ?? []).map((ingredient, index) => (
                   <View key={ingredient.id} style={[styles.ingredientRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
@@ -151,7 +152,7 @@ export function RecipeDetailScreen() {
             </View>
 
             {(activeRecipe.steps?.length ?? 0) > 0 ? <View style={styles.section}>
-              <ThemedText accessibilityRole="header" style={styles.sectionTitle}>Directions</ThemedText>
+              <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Directions</ThemedText>
               {activeRecipe.steps?.map((step, index) => <View key={step.id} style={[styles.stepRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
                 <View style={[styles.stepNumber, { backgroundColor: theme.surfaceSelected }]}><ThemedText themeColor="link" style={styles.stepNumberText}>{index + 1}</ThemedText></View>
                 <ThemedText style={styles.stepInstruction}>{step.instruction}</ThemedText>
@@ -159,7 +160,7 @@ export function RecipeDetailScreen() {
             </View> : null}
 
             {activeRecipe.notes ? <View style={styles.section}>
-              <ThemedText accessibilityRole="header" style={styles.sectionTitle}>Notes</ThemedText>
+              <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Notes</ThemedText>
               <View style={[styles.notesCard, { backgroundColor: theme.surface }]}><ThemedText>{activeRecipe.notes}</ThemedText></View>
             </View> : null}
             {activeRecipe.source_url ? <Pressable accessibilityRole="link" onPress={() => { void Linking.openURL(activeRecipe.source_url!).catch(() => setError({ scope, message: 'We couldn’t open this source link.' })); }} style={[styles.source, { borderTopColor: theme.border }]}>
@@ -206,7 +207,6 @@ const styles = StyleSheet.create({
   metaCell: { alignItems: 'center', flex: 1, gap: 4 },
   metaValue: { fontSize: 16, fontWeight: '700' },
   section: { gap: 10 },
-  sectionTitle: { fontSize: 22, fontWeight: '700' },
   ingredientCard: { borderRadius: 16, overflow: 'hidden' },
   ingredientRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 10, minHeight: 60, paddingHorizontal: 14, paddingVertical: 14 },
   measure: { width: 56 },

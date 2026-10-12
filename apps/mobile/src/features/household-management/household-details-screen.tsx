@@ -8,6 +8,7 @@ import { ProfileNavigationRow } from '@/features/profile/profile-navigation-row'
 import { useResetToHouseholdStartup } from '@/features/profile/use-reset-to-household-startup';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, api, type HouseholdMember } from '@/lib/api';
@@ -301,7 +302,7 @@ export default function HouseholdDetailsScreen() {
         {canManageHousehold ? <PrimaryButton disabled={refreshing || detailsStale} onPress={() => router.push(`/(app)/(tabs)/profile/my-households/${target.id}/edit` as Href)} title="Edit household" /> : null}
         {canManageHousehold ? <ProfileNavigationRow onPress={() => router.push(`/(app)/(tabs)/profile/my-households/${target.id}/invitations` as Href)} title="Invitations" /> : null}
         <ProfileNavigationRow onPress={() => router.push(`/(app)/(tabs)/profile/my-households/${target.id}/archived-recipes` as Href)} title="Archived recipes" />
-        <ThemedText accessibilityRole="header" type="smallBold">People</ThemedText>
+        <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>People</ThemedText>
         {loading ? <ThemedText themeColor="textSecondary">Loading members…</ThemedText> : null}
         {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
         {error ? <PrimaryButton onPress={() => { void loadMembers(); }} title="Retry" /> : null}
@@ -315,7 +316,7 @@ export default function HouseholdDetailsScreen() {
           >
             {member.avatar_url ? <Image accessibilityLabel={`${member.display_name} profile photo`} source={{ uri: member.avatar_url }} style={styles.avatar} /> : <View accessibilityLabel={`${member.display_name} initials`} style={[styles.avatar, styles.initials, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{member.display_name.slice(0, 1).toUpperCase()}</ThemedText></View>}
             <View style={styles.memberCopy}><ThemedText style={styles.memberName}>{member.display_name}</ThemedText><ThemedText themeColor="textSecondary">{member.role} · {dateLabel(member.joined_at)}</ThemedText></View>
-            <ThemedText themeColor="link" accessibilityElementsHidden importantForAccessibility="no">›</ThemedText>
+            <DisclosureChevron />
           </Pressable>
         ))}
         <PrimaryButton disabled={actionBusy} onPress={() => destructiveAction('leave')} title="Leave household" />
@@ -328,7 +329,7 @@ export default function HouseholdDetailsScreen() {
 const styles = StyleSheet.create({
   content: { gap: 16 },
   field: { gap: 4 },
-  memberRow: { alignItems: 'center', borderRadius: 12, borderWidth: 1, flexDirection: 'row', gap: 12, minHeight: 72, padding: 12 },
+  memberRow: { alignItems: 'center', borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, minHeight: 72, paddingHorizontal: 16, paddingVertical: 12 },
   avatar: { borderRadius: 24, height: 48, width: 48 },
   initials: { alignItems: 'center', justifyContent: 'center' },
   memberCopy: { flex: 1, gap: 3 },

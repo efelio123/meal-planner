@@ -5,6 +5,7 @@ import { SymbolView } from 'expo-symbols';
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { DisclosureChevron, TabPageHeader, visualStyles } from '@/components/visual-roles';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { useMealPlanContext } from './meal-plan-context';
 import { RecipeCover } from '@/features/recipes/recipe-cover';
@@ -77,7 +78,7 @@ export function MealPlanScreen() {
 
   return <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']} onRefresh={async () => { await refresh(); }} refreshing={refreshing}>
     <View style={styles.page}>
-      <View style={styles.titleRow}><ThemedText accessibilityRole="header" style={styles.title}>Plan</ThemedText><Pressable accessibilityRole="button" onPress={() => { setDaySelection({ scope, day: null }); void setTodayWeek(); }} style={styles.todayAction}><ThemedText themeColor="link">Today</ThemedText></Pressable></View>
+      <TabPageHeader title="Plan" actions={<Pressable accessibilityRole="button" onPress={() => { setDaySelection({ scope, day: null }); void setTodayWeek(); }} style={styles.todayAction}><ThemedText themeColor="link">Today</ThemedText></Pressable>} />
       <View style={styles.weekHeader}>
         <View><ThemedText themeColor="textSecondary" style={styles.eyebrow}>THIS WEEK</ThemedText><ThemedText style={styles.weekText}>{weekText || 'This week'}</ThemedText></View>
         <View style={styles.weekNavigation}>
@@ -98,13 +99,13 @@ export function MealPlanScreen() {
       <Pressable accessibilityLabel="Review shopping needs" accessibilityRole="button" disabled={reviewUnavailable} onPress={openShoppingReview} style={[styles.reviewBanner, { backgroundColor: theme.surfaceSelected, borderColor: theme.border }, reviewUnavailable && styles.disabledBanner]}>
         <View style={[styles.reviewIcon, { backgroundColor: theme.primary }]}><SymbolView name={{ ios: 'cart', android: 'shopping_cart', web: 'shopping_cart' }} size={22} tintColor={theme.primaryText} /></View>
         <View style={styles.reviewCopy}><ThemedText style={styles.reviewTitle}>Review shopping needs</ThemedText><ThemedText themeColor="textSecondary">Choose ingredients to add to Shopping</ThemedText></View>
-        <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={20} tintColor={theme.link} />
+        <DisclosureChevron variant="action" />
       </Pressable>
       {loading && !week ? <ActivityIndicator accessibilityLabel="Loading meal plan" color={theme.activity} /> : null}
       {error ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText><PrimaryButton onPress={() => void refresh()} title="Retry" /></View> : null}
       {!loading && !error && !week ? <ThemedText themeColor="textSecondary">Your week could not be loaded.</ThemedText> : null}
       {activeDay && week && !error ? <View style={styles.mealList}>
-        <View style={styles.dayHeading}><ThemedText accessibilityRole="header" style={styles.dayTitle}>{dateLabel(activeDay)}</ThemedText><ThemedText themeColor="textSecondary">{activeDayEntries.length} {activeDayEntries.length === 1 ? 'meal' : 'meals'}</ThemedText></View>
+        <View style={styles.dayHeading}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>{dateLabel(activeDay)}</ThemedText><ThemedText themeColor="textSecondary">{activeDayEntries.length} {activeDayEntries.length === 1 ? 'meal' : 'meals'}</ThemedText></View>
         {MEAL_SLOTS.map((slot) => {
           const entry = entries.find((candidate) => candidate.planned_for === activeDay && candidate.meal_slot === slot.id);
           return <View key={slot.id} style={styles.mealSection}>
@@ -112,7 +113,7 @@ export function MealPlanScreen() {
             {entry ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${entry.recipe_name}, ${slot.label}`} onPress={() => editEntry(entry)} style={[styles.filledMeal, { backgroundColor: theme.surface, borderColor: theme.border }]}>
               <RecipeCover recipe={{ name: entry.recipe_name ?? 'Recipe', cover_kind: entry.cover_kind ?? 'initials', cover_emoji: entry.cover_emoji ?? null }} size="row" />
               <View style={styles.mealInfo}><ThemedText numberOfLines={2} style={styles.recipeTitle}>{entry.recipe_name}</ThemedText><ThemedText themeColor="textSecondary">{entry.archived_at ? 'Archived recipe' : 'Household meal'}</ThemedText></View>
-              <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={17} tintColor={theme.textSecondary} />
+              <DisclosureChevron />
             </Pressable> : <Pressable accessibilityRole="button" accessibilityLabel={`Add ${slot.label}`} onPress={() => addEntry(activeDay, slot.id)} style={[styles.emptyMeal, { borderColor: theme.border }]}>
               <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={19} tintColor={theme.link} /><ThemedText themeColor="link">Add {slot.label.toLocaleLowerCase()}</ThemedText>
             </Pressable>}
@@ -126,8 +127,6 @@ export function MealPlanScreen() {
 
 const styles = StyleSheet.create({
   page: { gap: 18 },
-  titleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  title: { fontSize: 34, fontWeight: '700', lineHeight: 40 },
   todayAction: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44 },
   weekHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   eyebrow: { fontSize: 11, fontWeight: '600', letterSpacing: 1 },
@@ -146,7 +145,6 @@ const styles = StyleSheet.create({
   reviewTitle: { fontSize: 16, fontWeight: '700' },
   mealList: { gap: 20 },
   dayHeading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  dayTitle: { fontSize: 19, fontWeight: '700' },
   mealSection: { gap: 8 },
   mealHeading: { fontSize: 18, fontWeight: '700', marginLeft: 2 },
   filledMeal: { alignItems: 'center', borderRadius: 16, borderWidth: 1, flexDirection: 'row', gap: 12, minHeight: 82, padding: 12 },

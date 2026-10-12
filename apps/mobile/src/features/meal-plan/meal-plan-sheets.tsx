@@ -5,6 +5,7 @@ import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleShee
 import { SymbolView } from 'expo-symbols';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { ThemedText } from '@/components/themed-text';
+import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { RecipeCover } from '@/features/recipes/recipe-cover';
 import { useHouseholdState } from '@/hooks/use-household-state';
@@ -20,9 +21,9 @@ function Header({ title, onCancel }: { title: string; onCancel: () => void }) {
   return <View collapsable={false} style={[styles.header, { borderBottomColor: theme.border }]}>
     {Platform.OS === 'web' ? <View style={styles.grabber} /> : null}
     <View style={styles.headerRow}>
-      <ThemedText accessibilityRole="header" style={styles.headerTitle}>{title}</ThemedText>
+      <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>{title}</ThemedText>
       <Pressable accessibilityRole="button" accessibilityLabel="Cancel" hitSlop={12} onPress={onCancel} style={styles.headerButton}>
-        <ThemedText themeColor="link">Cancel</ThemedText>
+        <ThemedText themeColor="link" style={visualStyles.sheetActionText}>Cancel</ThemedText>
       </Pressable>
     </View>
   </View>;
@@ -34,7 +35,7 @@ function DayPickerSheet({ dates, selected, onSelect }: { dates: string[]; select
   return <View collapsable={false} style={[styles.picker, { backgroundColor: theme.elevatedSurface }]}>
     <Header title="Choose a day" onCancel={() => router.back()} />
     <ScrollView contentContainerStyle={styles.pickerList}>
-      {dates.map((date) => <Pressable key={date} accessibilityRole="radio" accessibilityState={{ selected: date === selected }} onPress={() => { onSelect(date); router.back(); }} style={[styles.dayOption, { borderBottomColor: theme.border }]}>
+      {dates.map((date, index) => <Pressable key={date} accessibilityRole="radio" accessibilityState={{ selected: date === selected }} onPress={() => { onSelect(date); router.back(); }} style={[styles.dayOption, index > 0 && { borderTopColor: theme.border, ...visualStyles.groupedDivider }]}>
         <ThemedText>{dateLabel(date)}</ThemedText>
         {date === selected ? <SymbolView name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={20} tintColor={theme.primary} /> : null}
       </Pressable>)}
@@ -138,7 +139,7 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
       <ThemedText style={styles.label}>Day</ThemedText>
       <Pressable accessibilityRole="button" accessibilityLabel={dateLabel(draft.plannedFor)} onPress={openDay} style={[styles.selector, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <SymbolView name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }} size={20} tintColor={theme.textSecondary} />
-        <ThemedText style={styles.selectorText}>{dateLabel(draft.plannedFor)}</ThemedText><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={19} tintColor={theme.textSecondary} />
+        <ThemedText style={styles.selectorText}>{dateLabel(draft.plannedFor)}</ThemedText><DisclosureChevron />
       </Pressable>
       <ThemedText style={styles.label}>Meal</ThemedText>
       <View style={[styles.segments, { backgroundColor: theme.surface, borderColor: theme.border }]}>
@@ -160,7 +161,7 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
       </Pressable>)}</View> : null}
       {!loading && !recipeLoadError && filtered.length === 0 ? <ThemedText themeColor="textSecondary">{query.trim() ? 'No recipes match your search.' : 'No active recipes yet.'}</ThemedText> : null}
       <Pressable accessibilityRole="button" onPress={createRecipe} style={[styles.createRecipe, { borderTopColor: theme.border }]}>
-        <SymbolView name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={22} tintColor={theme.link} /><ThemedText themeColor="link" style={styles.flexText}>Create a new recipe</ThemedText><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={theme.link} />
+        <SymbolView name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={22} tintColor={theme.link} /><ThemedText themeColor="link" style={styles.flexText}>Create a new recipe</ThemedText><DisclosureChevron variant="action" />
       </Pressable>
     </ScrollView>
     <View collapsable={false} style={[styles.footer, { borderTopColor: theme.border }]}>
@@ -255,14 +256,14 @@ export function MealPlanEditSheet({ householdId, dates, entry, onSave, onRemove,
     <Header title="Edit meal" onCancel={() => router.back()} />
     <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
       <ThemedText style={styles.label}>Day</ThemedText>
-      <Pressable accessibilityRole="button" accessibilityLabel={dateLabel(draft.plannedFor)} disabled={needsPlanReload} onPress={chooseDay} style={[styles.selector, { backgroundColor: theme.surface, borderColor: theme.border }, needsPlanReload && styles.disabled]}><SymbolView name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }} size={20} tintColor={theme.textSecondary} /><ThemedText style={styles.selectorText}>{dateLabel(draft.plannedFor)}</ThemedText><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={19} tintColor={theme.textSecondary} /></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel={dateLabel(draft.plannedFor)} disabled={needsPlanReload} onPress={chooseDay} style={[styles.selector, { backgroundColor: theme.surface, borderColor: theme.border }, needsPlanReload && styles.disabled]}><SymbolView name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }} size={20} tintColor={theme.textSecondary} /><ThemedText style={styles.selectorText}>{dateLabel(draft.plannedFor)}</ThemedText><DisclosureChevron /></Pressable>
       <ThemedText style={styles.label}>Meal</ThemedText>
       <View style={[styles.segments, { backgroundColor: theme.surface, borderColor: theme.border }]}>{MEAL_SLOTS.map((slot) => <Pressable key={slot.id} disabled={needsPlanReload} accessibilityRole="radio" accessibilityState={{ selected: draft.mealSlot === slot.id, disabled: needsPlanReload }} onPress={() => { setActionError(null); setNeedsPlanReload(false); setDraft((current) => ({ ...current, mealSlot: slot.id })); }} style={[styles.segment, draft.mealSlot === slot.id && { backgroundColor: theme.surfaceSelected }, needsPlanReload && styles.disabled]}><ThemedText themeColor={draft.mealSlot === slot.id ? 'link' : undefined} style={styles.segmentText}>{slot.label}</ThemedText></Pressable>)}</View>
       <ThemedText accessibilityRole="header" style={styles.label}>Recipe</ThemedText>
       {!choosingRecipe ? <Pressable accessibilityRole="button" accessibilityLabel="Change recipe" disabled={needsPlanReload} onPress={() => { setActionError(null); setChoosingRecipe(true); setQuery(''); }} style={[styles.selectedRecipe, { backgroundColor: theme.surface, borderColor: theme.border }, needsPlanReload && styles.disabled]}>
         <RecipeCover recipe={selectedRecipe ?? { name: selectedRecipeName, cover_kind: entry.cover_kind ?? 'initials', cover_emoji: entry.cover_emoji ?? null }} size="row" />
         <View style={styles.recipeInfo}><ThemedText numberOfLines={1} style={styles.recipeName}>{selectedRecipeName}</ThemedText><ThemedText themeColor="textSecondary">{entry.archived_at ? 'Archived recipe' : 'Change recipe'}</ThemedText></View>
-        <SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={theme.textSecondary} />
+        <DisclosureChevron />
       </Pressable> : <>
       <View style={[styles.searchRow, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}><SymbolView name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={19} tintColor={theme.textSecondary} /><ThemedInput accessibilityLabel="Search recipes" onChangeText={setQuery} placeholder="Search recipes" returnKeyType="search" value={query} style={styles.searchInput} /></View>
       {loading ? <ActivityIndicator accessibilityLabel="Loading recipes" color={theme.activity} /> : null}
@@ -291,13 +292,12 @@ const styles = StyleSheet.create({
   header: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 20, paddingTop: 8 },
   grabber: { alignSelf: 'center', backgroundColor: '#8e8e93', borderRadius: 3, height: 5, marginBottom: 10, opacity: 0.55, width: 36 },
   headerRow: { alignItems: 'center', flexDirection: 'row', minHeight: 48, justifyContent: 'space-between' },
-  headerButton: { alignItems: 'flex-start', justifyContent: 'center', minWidth: 64 },
-  headerTitle: { fontSize: 17, fontWeight: '700' },
+  headerButton: { alignItems: 'flex-start', justifyContent: 'center', minHeight: 44, minWidth: 64 },
   sheetScroll: { flex: 1, minHeight: 0 },
   sheetContent: { gap: 14, padding: 20, paddingBottom: 24 },
   footer: { borderTopWidth: StyleSheet.hairlineWidth, gap: 10, paddingHorizontal: 20, paddingTop: 12, paddingBottom: Platform.OS === 'web' ? 16 : 8 },
   pickerList: { paddingHorizontal: 20, paddingBottom: 28 },
-  dayOption: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', minHeight: 54 },
+  dayOption: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 54 },
   label: { fontSize: 16, fontWeight: '700' },
   selector: { alignItems: 'center', borderRadius: 13, borderWidth: 1, flexDirection: 'row', justifyContent: 'space-between', minHeight: 52, paddingHorizontal: 14 },
   segments: { borderRadius: 13, borderWidth: 1, flexDirection: 'row', overflow: 'hidden', padding: 3 },
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
   searchRow: { alignItems: 'center', borderRadius: 12, borderWidth: 1, flexDirection: 'row', gap: 9, minHeight: 48, paddingHorizontal: 13 },
   searchInput: { backgroundColor: 'transparent', borderWidth: 0, flex: 1, minHeight: 44, paddingHorizontal: 0 },
   flexText: { flex: 1 },
-  recipeList: { borderRadius: 14, borderWidth: 1, overflow: 'hidden' },
+  recipeList: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   recipeRow: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 76, paddingHorizontal: 10, paddingVertical: 9 },
   selectedRecipe: { alignItems: 'center', borderRadius: 13, borderWidth: 1, flexDirection: 'row', gap: 12, minHeight: 72, paddingHorizontal: 10, paddingVertical: 9 },
   recipeInfo: { flex: 1, gap: 5 },

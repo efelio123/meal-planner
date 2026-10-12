@@ -3,6 +3,7 @@ import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { DisclosureChevron } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import type { CatalogChoiceKind } from './catalog-context';
 
@@ -50,13 +51,7 @@ export function CatalogManagementHome() {
                 <ThemedText style={styles.rowTitle}>{row.title}</ThemedText>
                 <ThemedText themeColor="textSecondary">{row.subtitle}</ThemedText>
               </View>
-              <SymbolView
-                accessibilityElementsHidden
-                importantForAccessibility="no"
-                name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
-                size={20}
-                tintColor={theme.textSecondary}
-              />
+              <DisclosureChevron />
             </Pressable>
             </View>
           ))}
@@ -70,7 +65,7 @@ export function CatalogManagementHome() {
 const styles = StyleSheet.create({
   content: { gap: 20 },
   options: { gap: 18 },
-  card: { borderRadius: 18, overflow: 'hidden' },
+  card: { borderRadius: 16, overflow: 'hidden' },
   row: { alignItems: 'center', flexDirection: 'row', gap: 16, minHeight: 96, paddingHorizontal: 16, paddingVertical: 16 },
   iconSurface: { alignItems: 'center', borderRadius: 28, height: 56, justifyContent: 'center', width: 56 },
   copy: { flex: 1, gap: 4 },

@@ -7,6 +7,7 @@ import { View } from 'react-native';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { ApiError, api, type CreatedInvitation, type PendingInvitation } from '@/lib/api';
 
@@ -384,7 +385,7 @@ export function OwnerInvitationScreen({ householdId: routeHouseholdId }: { house
         ) : null}
 
         <View style={{ gap: 12 }}>
-          <ThemedText accessibilityRole="header" type="smallBold">Pending invitations</ThemedText>
+          <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Pending invitations</ThemedText>
           {isLoadingInvitations ? <ThemedText themeColor="textSecondary">Loading invitations…</ThemedText> : null}
           {invitationListError ? <ThemedText accessibilityRole="alert" themeColor="error">{invitationListError}</ThemedText> : null}
           {invitationListError ? <PrimaryButton onPress={() => { void loadPendingInvitations(); }} title="Retry invitations" /> : null}

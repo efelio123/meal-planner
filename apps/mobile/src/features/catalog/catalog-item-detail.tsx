@@ -5,6 +5,7 @@ import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, View } from 
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { ApiError, api, type CatalogItem, type GetToken } from '@/lib/api';
 import { useTheme } from '@/hooks/use-theme';
@@ -122,15 +123,15 @@ export function CatalogItemDetail() {
             </View>
           </View>
           <View style={styles.detailsSection}>
-            <ThemedText accessibilityRole="header" style={styles.sectionTitle}>Shopping preferences</ThemedText>
-            <View style={[styles.detailCard, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
+            <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Shopping preferences</ThemedText>
+            <View style={[styles.detailCard, visualStyles.groupedSurface, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
               <DetailRow label="Typical shopping unit" value={item.shopping_unit_label ?? 'Not set'} />
               <DetailRow label="Preferred store" value={item.preferred_store_name ?? 'Not set'} last />
             </View>
           </View>
           {item.item_type === 'food' ? <View style={styles.detailsSection}>
-            <ThemedText accessibilityRole="header" style={styles.sectionTitle}>Recipe measurement</ThemedText>
-            <View style={[styles.detailCard, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
+            <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Recipe measurement</ThemedText>
+            <View style={[styles.detailCard, visualStyles.groupedSurface, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
               <DetailRow label="Base unit" value={item.recipe_measurement_unit_label ?? 'Not set'} last />
             </View>
           </View> : null}
@@ -171,8 +172,7 @@ const styles = StyleSheet.create({
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   badge: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 6 },
   detailsSection: { gap: 8 },
-  sectionTitle: { fontSize: 19, fontWeight: '700', paddingHorizontal: 2 },
-  detailCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  detailCard: { borderWidth: StyleSheet.hairlineWidth },
   detailRow: { alignItems: 'center', flexDirection: 'row', gap: 16, justifyContent: 'space-between', minHeight: 54, paddingHorizontal: 16, paddingVertical: 12 },
   detailValue: { flexShrink: 1, fontSize: 16, fontWeight: '600', textAlign: 'right' },
   removeAction: { alignItems: 'center', borderRadius: 12, justifyContent: 'center', minHeight: 50, marginTop: 4 },

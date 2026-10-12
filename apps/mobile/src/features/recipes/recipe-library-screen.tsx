@@ -7,6 +7,7 @@ import { SymbolView } from 'expo-symbols';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { CircularAddButton, DisclosureChevron, TabPageHeader, visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import { RecipeCover } from './recipe-cover';
 import { useRecipeContext } from './recipe-context';
@@ -41,12 +42,7 @@ export function RecipeLibraryScreen() {
   return (
     <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']}>
       <View style={styles.content}>
-        <View style={styles.titleRow}>
-          <ThemedText accessibilityRole="header" style={styles.title}>Recipes</ThemedText>
-          <Pressable accessibilityLabel="Create recipe" accessibilityRole="button" onPress={() => router.push('/(app)/(tabs)/recipes/create' as never)} style={[styles.addButton, { backgroundColor: theme.primary }]}>
-            <ThemedText style={{ color: theme.primaryText, fontSize: 26, lineHeight: 30 }}>＋</ThemedText>
-          </Pressable>
-        </View>
+        <TabPageHeader title="Recipes" actions={<CircularAddButton accessibilityLabel="Create recipe" onPress={() => router.push('/(app)/(tabs)/recipes/create' as never)} />} />
         <View style={[styles.searchField, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}>
           <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={19} testID="recipe-search-icon" tintColor={theme.inputPlaceholder} />
           <ThemedInput accessibilityLabel="Search recipes" onChangeText={setSearch} placeholder="Search recipes" returnKeyType="search" value={search} style={styles.searchInput} />
@@ -78,15 +74,15 @@ export function RecipeLibraryScreen() {
           ))}
         </View> : null}
 
-        {!error && viewMode === 'list' && filteredRecipes.length > 0 ? <View style={[styles.listCard, { backgroundColor: theme.surface }]}>
+        {!error && viewMode === 'list' && filteredRecipes.length > 0 ? <View style={[styles.listCard, visualStyles.groupedSurface, { backgroundColor: theme.surface }]}>
           {filteredRecipes.map((recipe, index) => (
-            <Pressable key={recipe.id} accessibilityRole="button" onPress={() => router.push(`/(app)/(tabs)/recipes/${recipe.id}` as never)} style={[styles.listRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+            <Pressable key={recipe.id} accessibilityRole="button" onPress={() => router.push(`/(app)/(tabs)/recipes/${recipe.id}` as never)} style={[visualStyles.groupedRow, styles.listRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
                 <RecipeCover recipe={recipe} size="row" />
                 <View style={styles.listCopy}>
                   <ThemedText numberOfLines={1} style={styles.recipeName}>{recipe.name}</ThemedText>
                   <ThemedText themeColor="textSecondary">{recipe.ingredient_count} {recipe.ingredient_count === 1 ? 'ingredient' : 'ingredients'}</ThemedText>
                 </View>
-                <ThemedText accessibilityElementsHidden importantForAccessibility="no" themeColor="textSecondary" style={styles.chevron}>›</ThemedText>
+                <DisclosureChevron />
             </Pressable>
           ))}
         </View> : null}
@@ -108,9 +104,6 @@ function ViewToggle({ mode, selected, onPress }: { mode: 'grid' | 'list'; select
 
 const styles = StyleSheet.create({
   content: { gap: 16 },
-  titleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  title: { fontSize: 32, fontWeight: '700', lineHeight: 40 },
-  addButton: { alignItems: 'center', borderRadius: 26, height: 52, justifyContent: 'center', width: 52 },
   searchField: { alignItems: 'center', borderRadius: 9, borderWidth: 1, flexDirection: 'row', gap: 12, minHeight: 52, paddingHorizontal: 14 },
   searchInput: { backgroundColor: 'transparent', borderWidth: 0, flex: 1, minWidth: 0, paddingHorizontal: 0 },
   libraryMeta: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
@@ -121,8 +114,7 @@ const styles = StyleSheet.create({
   recipeCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   cardText: { gap: 2, paddingHorizontal: 14, paddingVertical: 12 },
   recipeName: { fontWeight: '700' },
-  listCard: { borderRadius: 16, overflow: 'hidden' },
-  listRow: { alignItems: 'center', flexDirection: 'row', gap: 14, minHeight: 86, paddingHorizontal: 16, paddingVertical: 12 },
+  listCard: { overflow: 'hidden' },
+  listRow: { alignItems: 'center', flexDirection: 'row', gap: 14, minHeight: 86, paddingVertical: 12 },
   listCopy: { flex: 1, gap: 2 },
-  chevron: { fontSize: 26 },
 });

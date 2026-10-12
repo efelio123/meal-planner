@@ -6,6 +6,7 @@ import { SymbolView } from 'expo-symbols';
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { useTheme } from '@/hooks/use-theme';
@@ -186,16 +187,16 @@ export function ShoppingReviewScreen() {
       {error ? <View style={styles.message}><ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText><PrimaryButton disabled={loading} onPress={() => void load()} title="Retry" /></View> : null}
       {review && needs.length === 0 ? <ThemedText themeColor="textSecondary">No recipe ingredients are planned for this week.</ThemedText> : null}
       {review && needs.length > 0 ? <>
-        <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={styles.sectionTitle}>Ingredients</ThemedText><Pressable accessibilityRole="button" disabled={submitting || loading || Boolean(error) || selectableNeeds.length === 0} accessibilityState={{ disabled: submitting || loading || Boolean(error) || selectableNeeds.length === 0 }} accessibilityLabel={selected.length === selectableNeeds.length ? 'Deselect all ingredients' : 'Select all ingredients'} onPress={() => { confirmationVersion.current += 1; setRequestId(newMealRequestId()); setSelected(selected.length === selectableNeeds.length ? [] : selectableNeeds.map((need) => need.need_key)); setNotice(null); }}><ThemedText themeColor="link">{selected.length === selectableNeeds.length ? 'Deselect all' : 'Select all'}</ThemedText></Pressable></View>
+        <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Ingredients</ThemedText><Pressable accessibilityRole="button" disabled={submitting || loading || Boolean(error) || selectableNeeds.length === 0} accessibilityState={{ disabled: submitting || loading || Boolean(error) || selectableNeeds.length === 0 }} accessibilityLabel={selected.length === selectableNeeds.length ? 'Deselect all ingredients' : 'Select all ingredients'} onPress={() => { confirmationVersion.current += 1; setRequestId(newMealRequestId()); setSelected(selected.length === selectableNeeds.length ? [] : selectableNeeds.map((need) => need.need_key)); setNotice(null); }} style={visualStyles.sheetAction}><ThemedText themeColor="link">{selected.length === selectableNeeds.length ? 'Deselect all' : 'Select all'}</ThemedText></Pressable></View>
         <View style={[styles.needList, { backgroundColor: theme.surface }]}>
           {needs.map((need, index) => <NeedRow key={need.need_key} need={need} buyAmount={amountOverrides[need.need_key] ?? need.amount} first={index === 0} selected={selected.includes(need.need_key)} expanded={expanded.includes(need.need_key)} disabled={submitting || loading || Boolean(error) || need.existing_matches.length > 0} editDisabled={submitting || loading || reviewNeedsRefresh} onToggle={() => toggleSelected(need.need_key)} onEditAmount={() => editAmount(need)} onExpand={() => setExpanded((current) => current.includes(need.need_key) ? current.filter((item) => item !== need.need_key) : [...current, need.need_key])} />)}
         </View>
         {needs.some((need) => need.existing_matches.length > 0) ? <>
-          <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={styles.sectionTitle}>Already on Shopping</ThemedText></View>
+          <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Already on Shopping</ThemedText></View>
           <View style={[styles.needList, { backgroundColor: theme.surface }]}>{needs.filter((need) => need.existing_matches.length > 0).map((need, index) => <View key={`existing-${need.need_key}`} style={[styles.existingRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
             <View style={styles.needInfo}><ThemedText style={styles.needName}>{need.name}</ThemedText><ThemedText themeColor="textSecondary" numberOfLines={2}>{[need.sources[0] ? `${need.sources[0].recipe_name} · ${shortDayLabel(need.sources[0].planned_for)}` : null, 'Already on Shopping'].filter(Boolean).join(' · ')}</ThemedText></View>
             <ThemedText style={styles.amount}>{formatAmount(need.amount, need.unit_label)}</ThemedText>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${need.name} on Shopping`} onPress={() => {
+            <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${need.name} on Shopping`} style={visualStyles.sheetAction} onPress={() => {
               const match = need.existing_matches[0];
               if (!match) return;
               router.dismissAll();
@@ -247,18 +248,17 @@ const styles = StyleSheet.create({
   eyebrow: { fontSize: 11, fontWeight: '700', letterSpacing: 1 },
   title: { fontSize: 25, fontWeight: '700', lineHeight: 31, marginTop: -7 },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: 19, fontWeight: '700' },
-  needList: { borderRadius: 15, overflow: 'hidden', paddingHorizontal: 12 },
+  needList: { borderRadius: 16, overflow: 'hidden', paddingHorizontal: 16 },
   needCard: { backgroundColor: 'transparent' },
   needMain: { alignItems: 'center', flexDirection: 'row', gap: 8, minHeight: 72, paddingHorizontal: 0, paddingVertical: 10 },
-  checkbox: { alignItems: 'center', height: 42, justifyContent: 'center', width: 30 },
+  checkbox: { alignItems: 'center', height: 44, justifyContent: 'center', width: 30 },
   checkIcon: { alignItems: 'center', borderRadius: 7, borderWidth: 1.5, height: 23, justifyContent: 'center', width: 23 },
   needInfo: { flex: 1, gap: 4, minWidth: 0 },
   needName: { fontSize: 15, fontWeight: '600' },
   amount: { fontSize: 12, fontWeight: '700', textAlign: 'right' },
-  editAmountAction: { alignItems: 'flex-end', justifyContent: 'center', minHeight: 42, minWidth: 84, paddingLeft: 4 },
+  editAmountAction: { alignItems: 'flex-end', justifyContent: 'center', minHeight: 44, minWidth: 84, paddingLeft: 4 },
   amountSummary: { fontSize: 12, fontWeight: '600', marginLeft: 38, marginBottom: 10 },
-  sourceAction: { alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', minHeight: 42, marginLeft: 32, paddingHorizontal: 0 },
+  sourceAction: { alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', minHeight: 44, marginLeft: 32, paddingHorizontal: 0 },
   sourceList: { gap: 10, paddingLeft: 32, paddingBottom: 14, paddingTop: 9 },
   sourceRow: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between' },
   sourceCopy: { flex: 1, gap: 3 },

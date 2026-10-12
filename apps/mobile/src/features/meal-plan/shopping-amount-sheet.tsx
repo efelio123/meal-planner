@@ -3,6 +3,7 @@ import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, View } from 'rea
 
 import { ThemedInput } from '@/components/themed-controls';
 import { ThemedText } from '@/components/themed-text';
+import { visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import type { MealPlanNeed } from '@/lib/api';
 import { formatAmount, isValidShoppingAmount } from './meal-plan-utils';
@@ -12,9 +13,9 @@ function SheetHeader({ onCancel }: { onCancel: () => void }) {
   return <View collapsable={false} style={[styles.header, { borderBottomColor: theme.border }]}>
     {Platform.OS === 'web' ? <View style={[styles.webGrabber, { backgroundColor: theme.border }]} /> : null}
     <View style={styles.headerRow}>
-      <ThemedText accessibilityRole="header" style={styles.title}>Amount to buy</ThemedText>
-      <Pressable accessibilityRole="button" accessibilityLabel="Cancel amount change" hitSlop={12} onPress={onCancel}>
-        <ThemedText themeColor="link">Cancel</ThemedText>
+      <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Amount to buy</ThemedText>
+      <Pressable accessibilityRole="button" accessibilityLabel="Cancel amount change" hitSlop={12} onPress={onCancel} style={visualStyles.sheetAction}>
+        <ThemedText themeColor="link" style={visualStyles.sheetActionText}>Cancel</ThemedText>
       </Pressable>
     </View>
   </View>;
@@ -91,7 +92,6 @@ const styles = StyleSheet.create({
   header: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 14 },
   webGrabber: { alignSelf: 'center', borderRadius: 3, height: 5, marginBottom: 18, width: 48 },
   headerRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  title: { fontSize: 20, fontWeight: '700' },
   content: { gap: 18, padding: 24, paddingBottom: 30 },
   totalRow: { alignItems: 'center', borderRadius: 14, flexDirection: 'row', justifyContent: 'space-between', minHeight: 64, paddingHorizontal: 18 },
   totalAmount: { fontSize: 16, fontWeight: '700' },

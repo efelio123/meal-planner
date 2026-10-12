@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, api, type GetToken, type Recipe } from '@/lib/api';
@@ -62,7 +63,7 @@ export function ArchivedRecipesScreen() {
             <ThemedText themeColor="textSecondary">Recipes removed from this household can be restored here.</ThemedText>
           </> : null}
           <View style={styles.headingRow}>
-            <ThemedText accessibilityRole="header" style={styles.heading}>Archived recipes</ThemedText>
+            <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Archived recipes</ThemedText>
             <ThemedText themeColor="textSecondary">{recipes.length} {recipes.length === 1 ? 'recipe' : 'recipes'}</ThemedText>
           </View>
           {loading && recipes.length === 0 ? <ActivityIndicator accessibilityLabel="Loading archived recipes" color={theme.activity} /> : null}
@@ -94,7 +95,6 @@ const styles = StyleSheet.create({
   content: { gap: 18 },
   household: { fontSize: 16, fontWeight: '600' },
   headingRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
-  heading: { fontSize: 22, fontWeight: '700' },
   errorBlock: { gap: 8 },
   listCard: { borderRadius: 16, overflow: 'hidden' },
   row: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 92, padding: 14 },

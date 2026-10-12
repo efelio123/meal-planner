@@ -6,6 +6,7 @@ import { ActivityIndicator, Keyboard, Modal, Platform, Pressable, StyleSheet, Vi
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { ApiError, api, type CatalogCategory, type CatalogChoice, type CatalogItemType, type GetToken } from '@/lib/api';
@@ -117,7 +118,7 @@ export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?:
         {choicesScope === scope ? groupedChoices.map((group) => (
           filterGroup(group.choices).length > 0 ? (
           <View key={group.type ?? kind} style={styles.group}>
-            {group.type ? <ThemedText accessibilityRole="header" style={styles.groupTitle}>{group.type === 'food' ? 'Food' : 'Household'}</ThemedText> : null}
+            {group.type ? <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>{group.type === 'food' ? 'Food' : 'Household'}</ThemedText> : null}
             <View style={[styles.choiceCard, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
               {filterGroup(group.choices).map((choice, index) => {
                 const choiceType = (choice as ManagedChoice).item_type ?? itemType;
@@ -126,7 +127,7 @@ export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?:
                     <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.row, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }])}>
                       {(choice as ManagedChoice).emoji ? <ThemedText style={styles.choiceEmoji}>{(choice as ManagedChoice).emoji}</ThemedText> : null}
                       <ThemedText style={styles.choiceName}>{choice.name}</ThemedText>
-                      <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={18} tintColor={theme.textSecondary} />
+                      <DisclosureChevron />
                     </Pressable>
                   </Link>
                 );
@@ -535,7 +536,7 @@ function CatalogCategoryForm({ editing = false }: { editing?: boolean }) {
               </View>
             </View>
             <Pressable accessibilityLabel={`Emoji: ${emoji ?? 'Not set'}`} accessibilityRole="button" onPress={openEmojiSheet} style={[styles.categorySettingRow, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
-              <ThemedText>Emoji</ThemedText><ThemedText style={styles.emojiPreview}>{emoji ?? '—'}</ThemedText><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={18} tintColor={theme.textSecondary} />
+              <ThemedText>Emoji</ThemedText><ThemedText style={styles.emojiPreview}>{emoji ?? '—'}</ThemedText><DisclosureChevron />
             </Pressable>
             {editing ? <>
               <View style={[styles.categorySettingRow, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
@@ -583,8 +584,7 @@ const styles = StyleSheet.create({
   label: { fontWeight: '600' },
   headerAction: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44 },
   group: { gap: 8 },
-  groupTitle: { fontSize: 18, fontWeight: '700', paddingHorizontal: 4 },
-  choiceCard: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  choiceCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   row: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 58, paddingHorizontal: 16, paddingVertical: 12 },
   choiceEmoji: { fontSize: 24, width: 32 },
   choiceName: { flex: 1, fontSize: 17 },

@@ -5,6 +5,7 @@ import { useRouter } from 'expo-router';
 
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { ThemedText } from '@/components/themed-text';
+import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 
@@ -44,8 +45,8 @@ function ChoiceSheet({ label, choices, selectedId, emptyChoiceLabel, searchable,
   return <KeyboardAvoidingView testID="catalog-choice-keyboard-area" behavior="padding" style={styles.keyboardArea}>
     <View accessibilityViewIsModal testID="catalog-choice-sheet" style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
     <View style={styles.sheetHeading}>
-      <ThemedText accessibilityRole="header" style={styles.modalTitle}>{customMode ? 'Custom unit' : label}</ThemedText>
-      <Pressable accessibilityLabel={`Close ${label} choices`} accessibilityRole="button" onPress={close} style={styles.closeButton}><ThemedText themeColor="link">{customMode ? 'Back' : 'Done'}</ThemedText></Pressable>
+      <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>{customMode ? 'Custom unit' : label}</ThemedText>
+      <Pressable accessibilityLabel={`Close ${label} choices`} accessibilityRole="button" onPress={close} style={styles.closeButton}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>{customMode ? 'Back' : 'Done'}</ThemedText></Pressable>
     </View>
     {customMode ? <View style={styles.customEntry}>
       <ThemedText themeColor="textSecondary">For this ingredient only</ThemedText>
@@ -55,10 +56,10 @@ function ChoiceSheet({ label, choices, selectedId, emptyChoiceLabel, searchable,
       {searchable ? <ThemedInput ref={searchInput} accessibilityLabel={`Search ${label}`} onChangeText={setSearch} placeholder={`Search ${label.toLocaleLowerCase()}`} value={search} returnKeyType="search" /> : null}
       <ScrollView testID="catalog-choice-scroll" contentContainerStyle={styles.list} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={styles.choices}>
         <View style={[styles.choiceCard, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
-          {emptyChoiceLabel ? <Pressable accessibilityLabel={emptyChoiceLabel} accessibilityRole="button" accessibilityState={{ selected: !selectedId }} onPress={() => choose('')} style={[styles.choice, { borderBottomColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'circle.slash', android: 'block', web: 'block' }} size={24} tintColor={theme.textSecondary} /><ThemedText style={styles.choiceLabel}>{emptyChoiceLabel}</ThemedText>{!selectedId ? <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={20} tintColor={theme.link} /> : null}</Pressable> : null}
-          {filtered.map((choice, index) => <View key={choice.id}>
+          {emptyChoiceLabel ? <Pressable accessibilityLabel={emptyChoiceLabel} accessibilityRole="button" accessibilityState={{ selected: !selectedId }} onPress={() => choose('')} style={styles.choice}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'circle.slash', android: 'block', web: 'block' }} size={24} tintColor={theme.textSecondary} /><ThemedText style={styles.choiceLabel}>{emptyChoiceLabel}</ThemedText>{!selectedId ? <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={20} tintColor={theme.link} /> : null}</Pressable> : null}
+          {filtered.map((choice, index) => <View key={choice.id} style={(index > 0 || Boolean(emptyChoiceLabel)) && { borderTopColor: theme.border, ...visualStyles.groupedDivider }}>
             {choice.group && (index === 0 || filtered[index - 1]?.group !== choice.group) ? <ThemedText style={styles.groupHeading} themeColor="textSecondary">{choice.group}</ThemedText> : null}
-            <Pressable accessibilityLabel={choice.label} accessibilityRole="button" accessibilityState={{ selected: choice.id === selectedId }} onPress={() => choose(choice.id)} style={[styles.choice, { borderBottomColor: theme.border }]}>
+            <Pressable accessibilityLabel={choice.label} accessibilityRole="button" accessibilityState={{ selected: choice.id === selectedId }} onPress={() => choose(choice.id)} style={styles.choice}>
               {choice.emoji ? <ThemedText style={styles.choiceEmoji}>{choice.emoji}</ThemedText> : null}
               <ThemedText style={styles.choiceLabel}>{choice.label}</ThemedText>
               {choice.id === selectedId ? <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={20} tintColor={theme.link} /> : null}
@@ -132,7 +133,7 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
 
   return <View style={[styles.field, compact && styles.compactField]}>
     {compact ? <Pressable testID="choice-picker-field" accessibilityLabel={`${label}: ${value || 'Not selected'}`} accessibilityRole="button" disabled={disabled} onPress={open} style={[styles.select, styles.compactSelect, { backgroundColor: theme.inputBackground, borderColor: theme.border, opacity: disabled ? 0.6 : 1 }]}>
-      <View style={styles.selectCopy}><ThemedText themeColor="textSecondary">{label}</ThemedText><ThemedText style={styles.selectedValue}>{value || 'Select…'}</ThemedText></View><ThemedText themeColor="textSecondary">›</ThemedText>
+      <View style={styles.selectCopy}><ThemedText themeColor="textSecondary">{label}</ThemedText><ThemedText style={styles.selectedValue}>{value || 'Select…'}</ThemedText></View><DisclosureChevron />
     </Pressable> : <>
       <ThemedText style={styles.label}>{label}</ThemedText>
       <Pressable testID="choice-picker-field" accessibilityLabel={`${label}: ${value || 'Not selected'}`} accessibilityRole="button" disabled={disabled} onPress={open} style={[styles.select, { backgroundColor: theme.inputBackground, borderColor: theme.border, opacity: disabled ? 0.6 : 1 }]}>
@@ -154,11 +155,10 @@ const styles = StyleSheet.create({
   sheet: { flex: 1, gap: 12, paddingBottom: 12, paddingHorizontal: 22, paddingTop: 12 },
   sheetHeading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 44 },
   closeButton: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 50 },
-  modalTitle: { fontSize: 21, fontWeight: '700' },
   choices: { flex: 1, flexShrink: 1 },
   list: { gap: 2, paddingBottom: 8 },
-  choiceCard: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  choice: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, justifyContent: 'space-between', minHeight: 58, paddingHorizontal: 16 },
+  choiceCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  choice: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between', minHeight: 58, paddingHorizontal: 16 },
   choiceEmoji: { fontSize: 24, width: 32 },
   choiceLabel: { flex: 1 },
   groupHeading: { fontSize: 13, fontWeight: '600', paddingBottom: 4, paddingHorizontal: 16, paddingTop: 14 },

@@ -4,6 +4,7 @@ import { Image, StyleSheet, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { TabPageHeader, visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -27,7 +28,7 @@ export function ProfileHubScreen() {
   return (
     <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']}>
       <View style={styles.content}>
-        <ThemedText accessibilityRole="header" style={styles.heading}>Profile</ThemedText>
+        <TabPageHeader title="Profile" />
         <View style={[styles.identity, { backgroundColor: theme.surface, borderColor: theme.border }]} testID="profile-user-card">
           {user?.imageUrl ? (
             <Image accessibilityLabel={`${name} profile photo`} source={{ uri: user.imageUrl }} style={styles.avatar} />
@@ -47,7 +48,7 @@ export function ProfileHubScreen() {
           {selectedHousehold ? <ThemedText themeColor="textSecondary">{selectedHousehold.role}</ThemedText> : null}
         </View>
         <View style={styles.navigationSection} testID="profile-navigation-group">
-          <ThemedText accessibilityRole="header" style={styles.sectionHeading}>Account Settings</ThemedText>
+          <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Account Settings</ThemedText>
           <View>
             <ProfileNavigationRow
               icon={{ ios: 'person.crop.circle', android: 'person', web: 'person' }}
@@ -71,15 +72,13 @@ export function ProfileHubScreen() {
 
 const styles = StyleSheet.create({
   content: { gap: 20 },
-  heading: { fontSize: 30, fontWeight: '700', lineHeight: 34 },
-  sectionHeading: { fontSize: 20, fontWeight: '600', lineHeight: 26 },
-  identity: { alignItems: 'center', borderRadius: 14, borderWidth: 1, flexDirection: 'row', gap: 14, padding: 14 },
+  identity: { alignItems: 'center', borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 14, padding: 16 },
   avatar: { borderRadius: 32, height: 64, width: 64 },
   initials: { alignItems: 'center', justifyContent: 'center' },
   initialsText: { fontSize: 21, fontWeight: '700' },
   identityCopy: { flex: 1, gap: 4 },
   name: { fontSize: 20, fontWeight: '700' },
-  household: { borderRadius: 12, borderWidth: 1, gap: 5, padding: 16 },
+  household: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, gap: 5, padding: 16 },
   householdName: { fontSize: 18, fontWeight: '600' },
   navigationSection: { gap: 8 },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: 36, opacity: 0.4 },

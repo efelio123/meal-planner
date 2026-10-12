@@ -5,6 +5,7 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { CircularAddButton, DisclosureChevron, TabPageHeader, visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import { useCatalog } from './use-catalog';
 
@@ -42,17 +43,12 @@ export function CatalogScreen() {
   return (
     <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']} onRefresh={refresh} refreshing={refreshing}>
       <View style={styles.content}>
-        <View style={styles.titleRow}>
-          <ThemedText accessibilityRole="header" style={styles.title}>Catalog</ThemedText>
-          <View style={styles.titleActions}>
+        <TabPageHeader title="Catalog" actions={<>
             <Pressable accessibilityRole="button" onPress={() => router.push('/(app)/(tabs)/catalog/manage' as never)} style={styles.manageAction}>
               <ThemedText themeColor="link" style={styles.manageText}>Manage</ThemedText>
             </Pressable>
-            <Pressable accessibilityLabel="Add catalog item" accessibilityRole="button" onPress={() => router.push('/(app)/(tabs)/catalog/add')} style={[styles.add, { backgroundColor: theme.primary }]}>
-              <ThemedText style={{ color: theme.primaryText, fontSize: 24 }}>＋</ThemedText>
-            </Pressable>
-          </View>
-        </View>
+            <CircularAddButton accessibilityLabel="Add catalog item" onPress={() => router.push('/(app)/(tabs)/catalog/add')} />
+          </>} />
         <ThemedInput accessibilityLabel="Search household items" onChangeText={setSearch} placeholder="Search household items" value={search} />
         <View style={styles.filters}>
           {(['all', 'food', 'household'] as const).map((value) => (
@@ -73,18 +69,18 @@ export function CatalogScreen() {
           <View key={section.itemType} style={styles.typeSection}>
             {filter === 'all' ? (
               <View style={styles.groupHeading}>
-                <ThemedText accessibilityRole="header" style={styles.groupTitle}>{section.itemType === 'food' ? 'Food' : 'Household'}</ThemedText>
+                <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>{section.itemType === 'food' ? 'Food' : 'Household'}</ThemedText>
               </View>
             ) : null}
-            <View style={[styles.card, { borderColor: theme.surfaceSelected, backgroundColor: theme.surface }]}>
+            <View style={[styles.card, visualStyles.groupedSurface, { borderColor: theme.surfaceSelected, backgroundColor: theme.surface }]}>
                   {section.items.map((item, index) => (
                     <Link key={item.id} href={`/(app)/(tabs)/catalog/item/${item.id}` as never} asChild>
-                      <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.row, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }])}>
+                      <Pressable accessibilityRole="button" style={StyleSheet.flatten([visualStyles.groupedRow, styles.row, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }])}>
                         <View style={styles.rowContent}>
                           <ThemedText style={styles.itemName}>{item.name}</ThemedText>
                           <ThemedText themeColor="textSecondary">{item.category_name ?? 'Uncategorized'}{item.shopping_unit_label ? ` · ${item.shopping_unit_label}` : ''}</ThemedText>
                         </View>
-                        <ThemedText accessibilityElementsHidden importantForAccessibility="no" themeColor="textSecondary">›</ThemedText>
+                        <DisclosureChevron />
                       </Pressable>
                     </Link>
                   ))}
@@ -100,20 +96,15 @@ export function CatalogScreen() {
 
 const styles = StyleSheet.create({
   content: { gap: 16 },
-  titleRow: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  title: { fontSize: 30, fontWeight: '700', lineHeight: 36 },
-  titleActions: { alignItems: 'center', flexDirection: 'row', gap: 16 },
   manageAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
   manageText: { fontSize: 16, fontWeight: '600' },
-  add: { alignItems: 'center', borderRadius: 24, height: 48, justifyContent: 'center', width: 48 },
   filters: { flexDirection: 'row', gap: 8 },
   filter: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 10 },
   message: { gap: 8 },
   typeSection: { gap: 16 },
   groupHeading: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 2 },
-  groupTitle: { fontSize: 18, fontWeight: '700' },
-  card: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
-  row: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 70, paddingHorizontal: 18, paddingVertical: 12 },
+  card: { borderWidth: StyleSheet.hairlineWidth },
+  row: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 70, paddingVertical: 12 },
   rowContent: { flex: 1, gap: 2 },
   itemName: { fontWeight: '700' },
 });

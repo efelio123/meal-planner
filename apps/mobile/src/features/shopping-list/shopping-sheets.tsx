@@ -5,6 +5,7 @@ import { AccessibilityInfo, ActivityIndicator, Dimensions, Keyboard, Platform, P
 import { SymbolView } from 'expo-symbols';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { ThemedText } from '@/components/themed-text';
+import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, api, type CatalogItem, type CatalogUnits, type ShoppingListItem, type ShoppingListItemInput } from '@/lib/api';
@@ -23,8 +24,8 @@ function Header({ title, onBack }: { title: string; onBack?: () => void }) {
   const theme = useTheme();
   const router = useRouter();
   return <View collapsable={false} style={[styles.header, { borderBottomColor: theme.border }]}>
-    <ThemedText accessibilityRole="header" style={styles.headerTitle}>{title}</ThemedText>
-    <Pressable accessibilityRole="button" accessibilityLabel={onBack ? 'Back' : 'Cancel'} onPress={onBack ?? (() => router.back())} style={styles.headerAction}><ThemedText themeColor="link">{onBack ? 'Back' : 'Cancel'}</ThemedText></Pressable>
+    <ThemedText accessibilityRole="header" style={[visualStyles.sheetTitle, styles.headerTitle]}>{title}</ThemedText>
+    <Pressable accessibilityRole="button" accessibilityLabel={onBack ? 'Back' : 'Cancel'} onPress={onBack ?? (() => router.back())} style={styles.headerAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>{onBack ? 'Back' : 'Cancel'}</ThemedText></Pressable>
   </View>;
 }
 
@@ -117,7 +118,7 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
     router.back();
   };
   const createCatalogAction = () => <Pressable accessibilityRole="button" accessibilityLabel="Create item in Catalog" disabled={Boolean(addingId)} onPress={createCatalogItem} style={styles.createCatalog}>
-    <SymbolView name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={22} tintColor={theme.link} /><ThemedText themeColor="link">Create item in Catalog</ThemedText><ThemedText themeColor="link">›</ThemedText>
+    <SymbolView name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={22} tintColor={theme.link} /><ThemedText themeColor="link">Create item in Catalog</ThemedText><DisclosureChevron variant="action" />
   </Pressable>;
   const filtered = catalogItems.filter((item) => item.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const selectItem = async (item: CatalogItem, existing?: ShoppingListItem) => {
@@ -158,10 +159,10 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
   return <View collapsable={false} testID="shopping-catalog-picker-sheet" style={[styles.pickerSheet, { backgroundColor: theme.elevatedSurface }]}>
       <View testID="shopping-catalog-sticky-header" collapsable={false} style={[styles.pickerSticky, { backgroundColor: theme.elevatedSurface }]}>
         <View collapsable={false} style={[styles.header, { borderBottomColor: theme.border }]}>
-          <ThemedText accessibilityRole="header" style={styles.headerTitle}>Add item</ThemedText>
+          <ThemedText accessibilityRole="header" style={[visualStyles.sheetTitle, styles.headerTitle]}>Add item</ThemedText>
           <View style={styles.headerActions}>
             <Pressable accessibilityRole="button" accessibilityLabel="Create Catalog item" disabled={Boolean(addingId)} onPress={createCatalogItem} style={styles.headerIconAction}><SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={23} tintColor={theme.link} /></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Done" disabled={Boolean(addingId)} onPress={closePicker} style={styles.headerAction}><ThemedText themeColor="link">Done</ThemedText></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Done" disabled={Boolean(addingId)} onPress={closePicker} style={styles.headerAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Done</ThemedText></Pressable>
           </View>
         </View>
         <View style={styles.pickerSearch}><ThemedInput accessibilityLabel="Search Catalog" onChangeText={setSearch} placeholder="Search household items" value={search} returnKeyType="search" /></View>
@@ -172,14 +173,14 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
         {loadError ? <View style={styles.message}><ThemedText accessibilityRole="alert" themeColor="error">{loadError}</ThemedText><PrimaryButton onPress={() => void load()} title="Retry" /></View> : null}
         {!loading && !loadError && filtered.length === 0 ? <ThemedText themeColor="textSecondary">{catalogItems.length ? 'No matching items.' : 'Your Catalog is empty.'}</ThemedText> : null}
         <View style={[styles.catalogCard, { backgroundColor: theme.surface }]}>
-          {filtered.map((item) => {
+          {filtered.map((item, index) => {
             const existing = items.find((entry) => entry.catalog_item_id === item.id) ?? (duplicateItem?.catalog_item_id === item.id ? duplicateItem : undefined);
             const justAdded = addedIds.has(item.id);
             const disabled = Boolean(addingId) || justAdded;
-            return <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={justAdded ? `${item.name} on Shopping` : existing ? `Edit ${item.name} on Shopping` : `Add ${item.name} from Catalog`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => void selectItem(item, existing)} style={[styles.catalogRow, { borderBottomColor: theme.border }]}>
+            return <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={justAdded ? `${item.name} on Shopping` : existing ? `Edit ${item.name} on Shopping` : `Add ${item.name} from Catalog`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => void selectItem(item, existing)} style={[styles.catalogRow, index > 0 && { borderTopColor: theme.border, ...visualStyles.groupedDivider }]}>
               <View style={[styles.itemGlyph, { backgroundColor: theme.screen }]}><ThemedText style={styles.glyphText}>{item.name.trim().slice(0, 1).toLocaleUpperCase()}</ThemedText></View>
               <View style={styles.rowCopy}><ThemedText style={styles.rowTitle}>{item.name}</ThemedText><ThemedText themeColor="textSecondary">{item.item_type === 'food' ? 'Food' : 'Household'}{item.category_name ? ` · ${item.category_name}` : ''}</ThemedText></View>
-              {addingId === item.id ? <ActivityIndicator accessibilityLabel={`Adding ${item.name}`} color={theme.activity} /> : existing || justAdded ? <ThemedText themeColor="link">On list</ThemedText> : <ThemedText themeColor="textSecondary">›</ThemedText>}
+              {addingId === item.id ? <ActivityIndicator accessibilityLabel={`Adding ${item.name}`} color={theme.activity} /> : existing || justAdded ? <ThemedText themeColor="link">On list</ThemedText> : <DisclosureChevron />}
             </Pressable>;
           })}
         </View>
@@ -356,13 +357,13 @@ function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemo
     <Header title={existingItem ? 'Edit item' : 'Add to Shopping'} />
     {scopeChanged ? <View style={styles.message}><ThemedText accessibilityRole="alert" themeColor="error">Your household or sign-in changed. Close this sheet and choose an item again.</ThemedText><PrimaryButton onPress={() => router.back()} title="Close" /></View> : <>
       <View style={styles.itemHero}><View style={[styles.itemGlyph, { backgroundColor: theme.screen }]}><ThemedText style={styles.glyphText}>{currentCatalogItem.name.trim().slice(0, 1).toLocaleUpperCase()}</ThemedText></View><View style={styles.rowCopy}><ThemedText style={styles.heroName}>{currentCatalogItem.name}</ThemedText><ThemedText themeColor="textSecondary">{currentCatalogItem.item_type === 'food' ? 'Food' : 'Household'}{currentCatalogItem.category_name ? ` · ${currentCatalogItem.category_name}` : ''}</ThemedText></View></View>
-      {!currentCatalogItem.archived ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${currentCatalogItem.name} in Catalog`} onPress={editCatalogItem} style={styles.editCatalogAction}><ThemedText themeColor="link">Edit Catalog item</ThemedText><ThemedText themeColor="link">›</ThemedText></Pressable> : null}
+      {!currentCatalogItem.archived ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${currentCatalogItem.name} in Catalog`} onPress={editCatalogItem} style={styles.editCatalogAction}><ThemedText themeColor="link">Edit Catalog item</ThemedText><DisclosureChevron variant="action" /></Pressable> : null}
       <View style={styles.amountUnitRow}><View style={styles.amountField}><ThemedText style={styles.fieldLabel}>Amount</ThemedText><ThemedInput accessibilityLabel="Amount" autoCapitalize="none" autoCorrect={false} keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'} onChangeText={setAmount} placeholder="e.g. 2 2/3" selectTextOnFocus value={amount} /></View><View style={styles.unitField}><ChoicePicker label="Unit" searchable choices={shoppingUnits} selectedId={unitId} value={selectedUnit} emptyChoiceLabel="No unit" disabled={loading || loadError} sheetRoute="/shopping/sheet/choice" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Add unit" onOpen={() => Keyboard.dismiss()} onSelect={(id) => { unitOverridden.current = true; unitIdRef.current = id; setUnitId(id); setPreferenceNotice(null); }} onCreate={() => routeToChoices('shopping-unit', 'create')} /></View></View>
       {amountValidationError ? <ThemedText accessibilityRole="alert" themeColor="error">{amountValidationError}</ThemedText> : null}
       <ChoicePicker label="Store (optional)" searchable choices={storesChoices} selectedId={storeId} value={selectedStore} emptyChoiceLabel="No store" disabled={loading || loadError} sheetRoute="/shopping/sheet/choice" sheetDetents={[0.52, 0.92]} createLabel="Create store" manageLabel="Manage stores" onOpen={() => Keyboard.dismiss()} onSelect={(id) => { storeOverridden.current = true; storeIdRef.current = id; setStoreId(id); setPreferenceNotice(null); }} onCreate={() => routeToChoices('store', 'create')} onManage={() => routeToChoices('store', 'manage')} />
       {!existingItem && (initialUnitId || currentCatalogItem.preferred_store_id) ? <ThemedText themeColor="textSecondary">Prefilled from Catalog. Change it for this shopping trip.</ThemedText> : null}
       {preferenceNotice ? <ThemedText accessibilityRole="alert" themeColor="textSecondary">{preferenceNotice}</ThemedText> : null}
-      {existingItem ? <View style={[styles.meals, { backgroundColor: theme.surface }]}><ThemedText style={styles.sectionTitle}>Used in meals</ThemedText>{loading ? <ActivityIndicator accessibilityLabel="Loading meal details" color={theme.activity} /> : detail?.used_in_meals?.length ? detail.used_in_meals.map((meal, index) => <ThemedText key={`${meal.planned_for}-${index}`} themeColor="textSecondary">{new Date(`${meal.planned_for}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · {meal.recipe_name}</ThemedText>) : <ThemedText themeColor="textSecondary">No planned meals use this item this week.</ThemedText>}</View> : null}
+      {existingItem ? <View style={[styles.meals, { backgroundColor: theme.surface }]}><ThemedText style={visualStyles.sectionTitle}>Used in meals</ThemedText>{loading ? <ActivityIndicator accessibilityLabel="Loading meal details" color={theme.activity} /> : detail?.used_in_meals?.length ? detail.used_in_meals.map((meal, index) => <ThemedText key={`${meal.planned_for}-${index}`} themeColor="textSecondary">{new Date(`${meal.planned_for}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · {meal.recipe_name}</ThemedText>) : <ThemedText themeColor="textSecondary">No planned meals use this item this week.</ThemedText>}</View> : null}
       {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
       {loadError ? <PrimaryButton disabled={loading} onPress={() => setRetryCount((count) => count + 1)} title={loading ? 'Retrying…' : 'Retry loading details'} /> : null}
       <View style={styles.saveAction}><PrimaryButton disabled={saving || removing || loading || loadError || Boolean(amountValidationError) || Boolean(existingItem && !detail)} onPress={() => void save()} title={saving ? 'Saving…' : existingItem ? 'Save changes' : 'Add to Shopping'} /></View>
@@ -392,14 +393,14 @@ const styles = StyleSheet.create({
   headerAction: { alignItems: 'flex-end', justifyContent: 'center', minHeight: 44, minWidth: 68 },
   headerActions: { alignItems: 'center', flexDirection: 'row', gap: 8 },
   headerIconAction: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44 },
-  headerTitle: { flex: 1, fontSize: 22, fontWeight: '700', lineHeight: 28 },
+  headerTitle: { flex: 1 },
   catalogCard: { borderRadius: 16, overflow: 'hidden' },
-  catalogRow: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, minHeight: 72, paddingHorizontal: 14, paddingVertical: 8 },
+  catalogRow: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 72, paddingHorizontal: 16, paddingVertical: 8 },
   rowCopy: { flex: 1, gap: 3, minWidth: 0 },
   rowTitle: { fontSize: 16, fontWeight: '600', lineHeight: 22 },
   createCatalog: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 60, paddingHorizontal: 8 },
   itemHero: { alignItems: 'center', flexDirection: 'row', gap: 14, paddingVertical: 10 },
-  editCatalogAction: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 6, minHeight: 36, paddingHorizontal: 2 },
+  editCatalogAction: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 6, minHeight: 44, paddingHorizontal: 2 },
   itemGlyph: { alignItems: 'center', borderRadius: 12, height: 56, justifyContent: 'center', width: 56 },
   glyphText: { fontSize: 23, fontWeight: '700', lineHeight: 29 },
   heroName: { fontSize: 19, fontWeight: '700', lineHeight: 26 },
@@ -407,8 +408,7 @@ const styles = StyleSheet.create({
   amountField: { flex: 1, gap: 8, minWidth: 0 },
   unitField: { flex: 1, minWidth: 0 },
   fieldLabel: { fontWeight: '600' },
-  sectionTitle: { fontSize: 17, fontWeight: '700' },
-  meals: { borderRadius: 14, gap: 12, padding: 16 },
+  meals: { borderRadius: 16, gap: 12, padding: 16 },
   saveAction: { marginTop: 'auto', paddingTop: 12 },
   removeAction: { alignItems: 'center', minHeight: 44, justifyContent: 'center' },
   message: { gap: 10 },

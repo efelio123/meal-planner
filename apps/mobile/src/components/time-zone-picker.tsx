@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
-import { Button, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { filteredTimeZones, timeZoneLabel } from '@/lib/time-zones';
 import { useTheme } from '@/hooks/use-theme';
 import { ThemedInput } from '@/components/themed-controls';
+import { ThemedText } from '@/components/themed-text';
+import { visualStyles } from '@/components/visual-roles';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 
 type Props = {
@@ -30,8 +32,8 @@ function TimeZoneSheet({ value, onChange }: Props) {
   return <KeyboardAvoidingView testID="time-zone-keyboard-area" behavior="padding" style={styles.keyboardArea}>
     <View testID="time-zone-sheet" style={timeZoneSheetStyle(theme.elevatedSurface)}>
       <View style={styles.header}>
-        <Text accessibilityRole="header" style={[styles.title, { color: theme.text }]}>Choose time zone</Text>
-        <Button onPress={() => router.back()} title="Done" />
+        <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Choose time zone</ThemedText>
+        <Pressable accessibilityRole="button" accessibilityLabel="Done choosing time zone" onPress={() => router.back()} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Done</ThemedText></Pressable>
       </View>
       <ThemedInput
         accessibilityLabel="Search time zones"
@@ -90,7 +92,6 @@ const styles = StyleSheet.create({
   identifier: { fontSize: 13 },
   sheet: { flex: 1, gap: 16, padding: 24, paddingTop: 18 },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  title: { fontSize: 22, fontWeight: '700' },
   option: { borderBottomWidth: 1, gap: 2, paddingVertical: 14 },
   optionLabel: { fontSize: 16 },
 });

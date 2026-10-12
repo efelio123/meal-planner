@@ -7,6 +7,7 @@ import { ActivityIndicator, Keyboard, Platform, Pressable, StyleSheet, View } fr
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, api, type CatalogUnits, type GetToken, type Recipe, type RecipeInput, type RecipeUpdateInput } from '@/lib/api';
@@ -429,7 +430,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
             </View>
 
             <View style={styles.section}>
-              <ThemedText accessibilityRole="header" style={styles.sectionTitle}>Ingredients <ThemedText themeColor="error">*</ThemedText></ThemedText>
+              <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Ingredients <ThemedText themeColor="error">*</ThemedText></ThemedText>
               {ingredients.length > 0 ? <View style={[styles.ingredientList, { backgroundColor: theme.surface }]}>
                 {ingredients.map((ingredient, index) => <View key={`${ingredient.catalogItemId}-${index}`} style={[styles.ingredientRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
                   <View style={styles.ingredientSummary}>
@@ -455,7 +456,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
             </View>
 
             <View style={styles.section}>
-              <View style={styles.sectionTitleRow}><ThemedText accessibilityRole="header" style={styles.sectionTitle}>Directions</ThemedText><ThemedText themeColor="textSecondary">Optional</ThemedText></View>
+              <View style={styles.sectionTitleRow}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Directions</ThemedText><ThemedText themeColor="textSecondary">Optional</ThemedText></View>
               {steps.map((step, index) => <View key={step.key} style={[styles.stepCard, { backgroundColor: theme.surface }]}>
                 <View style={styles.stepHeader}>
                   <View style={[styles.stepNumber, { backgroundColor: theme.surfaceSelected }]}><ThemedText themeColor="link" style={styles.stepNumberText}>{index + 1}</ThemedText></View>
@@ -517,7 +518,6 @@ const styles = StyleSheet.create({
   field: { gap: 8 },
   fieldLabel: { fontWeight: '600' },
   section: { gap: 12 },
-  sectionTitle: { fontSize: 22, fontWeight: '700' },
   sectionTitleRow: { alignItems: 'baseline', flexDirection: 'row', gap: 8 },
   ingredientList: { borderRadius: 16, overflow: 'hidden' },
   ingredientRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 8, minHeight: 72, paddingHorizontal: 14, paddingVertical: 12 },

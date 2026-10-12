@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { AppBackButton } from '@/components/app-back-button';
 import { ThemedText } from '@/components/themed-text';
+import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { ChoicePicker, type ChoiceOption } from '@/features/catalog/choice-picker';
 import { categoryEmojiValidationError } from '@/features/catalog/catalog-emoji-validation';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
@@ -64,7 +65,7 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
   };
 
   return <ScrollView testID="recipe-ingredient-search-sheet" contentContainerStyle={styles.nativeContent} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={[styles.nativeScroll, { backgroundColor: theme.elevatedSurface }]}>
-      <View style={styles.header}><ThemedText accessibilityRole="header" style={styles.title}>Add ingredient</ThemedText><Pressable accessibilityRole="button" onPress={() => { Keyboard.dismiss(); router.back(); }}><ThemedText themeColor="link">Done</ThemedText></Pressable></View>
+      <View style={styles.header}><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Add ingredient</ThemedText><Pressable accessibilityRole="button" onPress={() => { Keyboard.dismiss(); router.back(); }} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Done</ThemedText></Pressable></View>
       <ThemedInput accessibilityLabel="Search Food Catalog" onChangeText={setQuery} placeholder="Search Food Catalog" returnKeyType="search" value={query} />
       {loading ? <ActivityIndicator accessibilityLabel="Loading Food Catalog" color={theme.activity} /> : null}
       {error ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText><PrimaryButton disabled={loading} onPress={retry} title="Retry" /></View> : null}
@@ -76,7 +77,7 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
           {!loading && filtered.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.emptyFood}>{query.trim() ? 'No Food items match your search.' : 'No Food items in this household yet.'}</ThemedText> : null}
         </View>
       </View> : null}
-      <Pressable accessibilityRole="button" onPress={() => { Keyboard.dismiss(); router.back(); requestAnimationFrame(onCreate); }} style={[styles.createAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link">Create Food item in Catalog</ThemedText><ThemedText themeColor="link">›</ThemedText></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => { Keyboard.dismiss(); router.back(); requestAnimationFrame(onCreate); }} style={[styles.createAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link">Create Food item in Catalog</ThemedText><DisclosureChevron variant="action" /></Pressable>
   </ScrollView>;
 }
 
@@ -133,8 +134,8 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingIndex
   return <ScrollView testID="recipe-ingredient-details-scroll" contentContainerStyle={styles.nativeContent} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={[styles.nativeScroll, { backgroundColor: theme.elevatedSurface }]}>
       <View style={styles.header}>
         <AppBackButton accessibilityLabel={returnToSearch ? 'Back to Food Catalog' : 'Back to recipe'} onPress={() => { Keyboard.dismiss(); router.back(); }} />
-        <ThemedText accessibilityRole="header" style={styles.title}>Ingredient details</ThemedText>
-        <Pressable accessibilityRole="button" onPress={cancel}><ThemedText themeColor="link">Cancel</ThemedText></Pressable>
+        <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Ingredient details</ThemedText>
+        <Pressable accessibilityRole="button" onPress={cancel} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Cancel</ThemedText></Pressable>
       </View>
         <View style={[styles.selectedFoodCard, { backgroundColor: theme.screen }]}><View style={[styles.foodInitial, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{food.name.slice(0, 1).toUpperCase()}</ThemedText></View><View style={styles.foodSummary}><ThemedText style={styles.foodName}>{food.name}</ThemedText><ThemedText themeColor="textSecondary">Food Catalog item</ThemedText></View></View>
         <View style={styles.splitFields}>
@@ -157,7 +158,7 @@ export function RecipeCoverSheet({ draft, onChooseInitials, onChooseEmoji }: {
   const theme = useTheme();
   const router = useRouter();
   return <View style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
-    <View style={styles.header}><ThemedText accessibilityRole="header" style={styles.title}>Recipe cover</ThemedText><Pressable accessibilityLabel="Done choosing recipe cover" accessibilityRole="button" onPress={() => router.back()}><ThemedText themeColor="link">Done</ThemedText></Pressable></View>
+    <View style={styles.header}><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Recipe cover</ThemedText><Pressable accessibilityLabel="Done choosing recipe cover" accessibilityRole="button" onPress={() => router.back()} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Done</ThemedText></Pressable></View>
     <View style={styles.coverPreview}><RecipeCover recipe={{ name: draft.name || 'Recipe', cover_kind: draft.coverKind, cover_emoji: draft.coverEmoji || null }} size="row" /><View style={styles.foodSummary}><ThemedText style={styles.foodName}>{draft.name || 'Recipe name'}</ThemedText><ThemedText themeColor="textSecondary">Cover preview</ThemedText></View></View>
     <View style={[styles.choiceGroup, { backgroundColor: theme.screen }]}>
       <Pressable accessibilityRole="button" accessibilityState={{ selected: draft.coverKind === 'initials' }} onPress={() => { onChooseInitials(); router.back(); }} style={[styles.choiceRow, { borderBottomColor: theme.border }]}><ThemedText themeColor="link" style={styles.choiceIcon}>T</ThemedText><View style={styles.foodSummary}><ThemedText style={styles.foodName}>Use initials</ThemedText><ThemedText themeColor="textSecondary">Default · follows the recipe name</ThemedText></View>{draft.coverKind === 'initials' ? <ThemedText themeColor="link">✓</ThemedText> : null}</Pressable>
@@ -174,12 +175,12 @@ export function RecipeEmojiSheet({ value, onUse, onClear }: { value: string; onU
   const clear = () => { onClear(); router.dismiss(2); };
   return <RecipeKeyboardSafeSheet testID="recipe-emoji-keyboard-area">
     <View style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
-      <View style={styles.header}><Pressable accessibilityLabel="Back to recipe cover choices" accessibilityRole="button" onPress={() => router.back()}><ThemedText themeColor="link">‹</ThemedText></Pressable><ThemedText accessibilityRole="header" style={styles.title}>Recipe emoji</ThemedText><Pressable accessibilityRole="button" onPress={() => router.back()}><ThemedText themeColor="link">Cancel</ThemedText></Pressable></View>
+      <View style={styles.header}><AppBackButton accessibilityLabel="Back to recipe cover choices" onPress={() => router.back()} /><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Recipe emoji</ThemedText><Pressable accessibilityRole="button" onPress={() => router.back()} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Cancel</ThemedText></Pressable></View>
       <View style={[styles.emojiPreview, { backgroundColor: theme.surfaceSelected }]}><ThemedText style={styles.emojiPreviewText}>{emoji || '🙂'}</ThemedText></View>
       <View style={styles.field}><ThemedText themeColor="textSecondary">Emoji</ThemedText><ThemedInput accessibilityLabel="Recipe emoji" autoCapitalize="none" autoCorrect={false} onChangeText={setEmoji} placeholder="Enter or paste one emoji" value={emoji} /></View>
       <ThemedText themeColor="textSecondary">Enter or paste one emoji.</ThemedText>
       {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
-      <View style={styles.actions}><Pressable accessibilityRole="button" onPress={clear}><ThemedText themeColor="link">Clear</ThemedText></Pressable><Pressable accessibilityRole="button" onPress={() => router.back()}><ThemedText themeColor="link">Cancel</ThemedText></Pressable><PrimaryButton disabled={!emoji.trim() || Boolean(error)} onPress={() => { onUse(emoji.trim()); router.dismiss(2); }} title="Use emoji" /></View>
+      <View style={styles.actions}><Pressable accessibilityRole="button" onPress={clear} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Clear</ThemedText></Pressable><Pressable accessibilityRole="button" onPress={() => router.back()} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Cancel</ThemedText></Pressable><PrimaryButton disabled={!emoji.trim() || Boolean(error)} onPress={() => { onUse(emoji.trim()); router.dismiss(2); }} title="Use emoji" /></View>
     </View>
   </RecipeKeyboardSafeSheet>;
 }
@@ -188,10 +189,9 @@ const styles = StyleSheet.create({
   nativeScroll: { flex: 1 },
   nativeContent: { gap: 16, paddingBottom: 32, paddingHorizontal: 22, paddingTop: 28 },
   sheet: { flex: 1, gap: 12, paddingHorizontal: 22, paddingTop: 12, paddingBottom: 12 },
-  header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 44 },
-  title: { fontSize: 21, fontWeight: '700' },
+  header: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'space-between', minHeight: 44 },
   foodList: { borderRadius: 16, overflow: 'hidden' },
-  foodRow: { minHeight: 58, paddingHorizontal: 14, paddingVertical: 12 },
+  foodRow: { minHeight: 58, paddingHorizontal: 16, paddingVertical: 12 },
   foodName: { fontSize: 16, fontWeight: '700' },
   emptyFood: { padding: 16 },
   createAction: { alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, minHeight: 58, paddingTop: 8 },
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   field: { flex: 1, gap: 8 },
   coverPreview: { alignItems: 'center', flexDirection: 'row', gap: 14, paddingVertical: 4 },
   choiceGroup: { borderRadius: 16, overflow: 'hidden' },
-  choiceRow: { alignItems: 'center', flexDirection: 'row', gap: 14, minHeight: 74, paddingHorizontal: 14 },
+  choiceRow: { alignItems: 'center', flexDirection: 'row', gap: 14, minHeight: 74, paddingHorizontal: 16 },
   choiceIcon: { fontSize: 26, width: 36 },
   emojiPreview: { alignItems: 'center', alignSelf: 'center', borderRadius: 20, height: 96, justifyContent: 'center', width: 96 },
   emojiPreviewText: { fontSize: 52 },

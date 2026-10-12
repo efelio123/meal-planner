@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { ThemedText } from '@/components/themed-text';
+import { visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import { categoryEmojiValidationError } from './catalog-emoji-validation';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
@@ -57,7 +58,7 @@ function CatalogEmojiInputContent({ initialValue, onChangeText, onClear, onCance
       maxHeight: Math.min(320, height * 0.65),
       paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom, 18),
     }]}>
-      <ThemedText accessibilityRole="header" style={styles.title}>Category emoji</ThemedText>
+      <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Category emoji</ThemedText>
       <ThemedText themeColor="textSecondary">Enter or paste one emoji, or leave it empty.</ThemedText>
       <ThemedInput
         accessibilityLabel="Category emoji value"
@@ -77,8 +78,8 @@ function CatalogEmojiInputContent({ initialValue, onChangeText, onClear, onCance
       />
       {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
       <View style={styles.actions}>
-        <Pressable accessibilityRole="button" onPress={() => { setValue(''); onClear(); }} style={styles.textAction}><ThemedText themeColor="link">Clear</ThemedText></Pressable>
-        <Pressable accessibilityRole="button" onPress={() => close('cancel')} style={styles.textAction}><ThemedText themeColor="link">Cancel</ThemedText></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => { setValue(''); onClear(); }} style={styles.textAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Clear</ThemedText></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => close('cancel')} style={styles.textAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Cancel</ThemedText></Pressable>
         <View style={styles.doneButton}><PrimaryButton disabled={Boolean(error)} onPress={() => close('done')} title="Done" /></View>
       </View>
     </View>
@@ -131,7 +132,6 @@ export function CatalogEmojiInputSheet(props: Props) {
 const styles = StyleSheet.create({
   keyboardArea: { flex: 1, justifyContent: 'flex-end' },
   sheet: { flex: 1, gap: 14, paddingHorizontal: 20, paddingTop: 16 },
-  title: { fontSize: 20, fontWeight: '700' },
   actions: { alignItems: 'center', flexDirection: 'row', gap: 16, justifyContent: 'space-between', marginTop: 4 },
   textAction: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44 },
   doneButton: { minWidth: 96 },
