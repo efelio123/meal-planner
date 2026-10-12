@@ -469,10 +469,28 @@ add a duplicate Catalog item or silently combine unlike quantities. Clear
 list requires confirmation and removes both to-buy and purchased rows across
 all stores without altering Catalog, recipes, or meal plans. The design and
 implementation boundary are in `docs/plans/household-shopping-redesign.md`.
-The implementation is on `codex/household-shopping-redesign`; automated
-mobile normal/cold runs passed 46 suites / 298 tests each, and 87 non-database
-API tests passed. The identity-verified
-disposable-PostgreSQL run and iPhone/Android visual acceptance remain pending.
+The approved Add/Edit Shopping follow-up reuses the Catalog editor and
+household unit/store forms inside the Shopping flow, and accepts mixed-fraction
+amounts such as `2 2/3`. Its scope and remaining device checks are in
+`docs/plans/shopping-add-details-catalog-actions.md`.
+The implemented Shopping quick-add flow removes the intermediate Add details
+step: selecting an existing Catalog item adds quantity `1` with its Catalog
+unit and store defaults. The picker stays open for consecutive additions,
+marks added items On list, briefly confirms each addition, and closes with
+Done. A listed item opens Edit, where amount, unit, and store remain
+adjustable. The picker and Shopping choice sheets use taller native opening
+heights and keyboard-safe Create actions. A Shopping row supports a short
+left-swipe trash reveal and a deliberate 65%-width full-swipe removal. See
+`docs/plans/shopping-quick-add-flow.md` for this intentional change to the
+earlier Add-details reference.
+Shopping v1 is feature-complete for Felipe's current iPhone review on
+`codex/household-shopping-redesign`; the branch's follow-ups remain uncommitted
+and unpushed. The identity-verified disposable-PostgreSQL run passed 145 tests
+with no failures or skips, and the dev migration is complete. Felipe accepted
+the current iPhone picker/keyboard, repeat-add, rapid checkoff, and swipe
+behavior. The full manual regression checklist, Android, and two-device
+acceptance remain open; see `docs/qa/shopping-manual-regression.md`. Later
+mobile validation is recorded in the Shopping plans.
 
 ### Household invitation delivery
 

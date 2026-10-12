@@ -1,24 +1,109 @@
 # Catalog-backed household Shopping list
 
-Status: Felipe approved the screen and flow direction on October 8, 2026.
-Implementation and non-database validation are complete on the feature branch.
+Status: Shopping v1 is feature-complete for Felipe's current iPhone review as
+of October 12, 2026. The implementation and phone follow-ups remain on the
+feature branch, uncommitted and unpushed. The Codex chat agent's post-fix
+disposable-database run passed. The manual regression checklist is not fully
+signed off; Android and two-device acceptance remain unverified.
+
+Closeout validation (October 12, 2026): After the final phone-driven changes,
+the full mobile run passed **50 suites / 327 tests** serially. The first
+parallel closeout attempt failed 3 suites / 19 tests: one router assertion
+still expected the picker to close after quick add, and two route suites
+loaded Shopping's native swipe module even though they do not test swipes.
+Those test setups were corrected; all three affected suites passed together
+before the full rerun. TypeScript, mobile lint, API Ruff, and whitespace
+checks passed. The successful serial Jest run used `--silent`; earlier runs
+emitted non-failing React `act()` warnings in asynchronous sheet tests. The
+verified 145-test disposable PostgreSQL pass below remains the latest database
+validation; no new database run or dev-database contact occurred at closeout.
 For unmatched legacy free-text rows, use the safe manual-review policy below;
 do not auto-classify or delete them. The disposable PostgreSQL migration/API
-run remains with the Codex chat agent.
+run was owned by the Codex chat agent.
 
 Branch: `codex/household-shopping-redesign`, based on `main`. The plan,
 roadmap edits, and seven design references were already uncommitted before
 implementation and have been preserved. The VS Code coding agent owns the
 implementation; the Codex chat agent owns the identity-verified database run.
 
-Validation record (October 8, 2026): mobile normal and cache-cold runs each
-passed 46 suites / 298 tests; TypeScript, mobile lint, API Ruff, and 87
-non-database API tests passed. The PostgreSQL migration/integration suite was
-not run in this session, and no database was contacted. Legacy migration rows
-therefore have not been inspected; the migration preflight stops with a report
-if any row lacks exactly one active same-household Catalog match or if rows
-collide. No runtime visual comparison was possible because `adb` is not
-available in this environment; iPhone and Android acceptance remain open.
+Validation record (October 8, 2026): an earlier mobile run passed 46 suites /
+298 tests. The Codex chat agent later ran the full API suite against the
+identity-verified `meal_planner_disposable_test` database after applying
+`household_shopping_catalog_items`: **143 passed, 2 failed, 0 skipped**. That
+was a failing pre-fix run, not current passing database validation. The
+failures prompted this review patch: it updates the old Shopping `add_item`
+contract in the archive race, observes transitive PostgreSQL lock waits in the
+archive/add race, and validates inherited unit and store preferences
+independently from explicit overrides.
+
+The coding agent’s final mobile normal and cache-cold runs each passed **46 suites /
+299 tests**. TypeScript, mobile lint, API Ruff, 87 selected non-database API
+tests, and `git diff --check` passed. The deferred household-switch picker test
+now mounts with the input visible, starts a delayed household-A refresh, then
+switches to B and verifies search clearing and rejection of A’s late result;
+it passes on its own without an `act()` warning. The Shopping sheet suite still
+prints non-failing `act()` warnings from its separate delayed stale-preference
+details-sheet test. The VS Code coding-agent session did not run PostgreSQL
+tests or contact any database. In the subsequent Codex chat-agent run, both
+the configured URL and live `current_database()` were verified as
+`meal_planner_disposable_test`; the full API suite passed **145 tests, 0
+failed, 0 skipped**. Alembic reported `household_shopping_catalog_items
+(head)`. No dev database was contacted.
+
+Dev migration (October 8, 2026): after Felipe approved deleting the current
+Shopping entries, the Codex chat agent verified `meal_planner_dev`, found 30
+rows in ten duplicate Catalog groups, backed up those rows, removed them from
+the live Shopping list, and upgraded the database to
+`household_shopping_catalog_items (head)`. The live Shopping list has zero
+rows. Felipe subsequently explicitly approved permanent removal of the
+temporary 30-row recovery copy, and the Codex chat agent dropped only
+`public.shopping_list_items_backup_20261008` after verifying the dev database,
+revision, and exact row count. The old Shopping entries are no longer
+recoverable from that backup. Catalog items, recipes, and meal plans were not
+changed by this cleanup.
+
+Legacy migration rows have been inspected only to the extent covered by the
+disposable suite; the migration preflight stops with a report if any row
+lacks exactly one active same-household Catalog match or if rows collide. No
+runtime visual comparison was possible because `adb` is not available in this
+environment; iPhone and Android acceptance remain open.
+
+Later phone closeout: Felipe accepted the current iPhone picker layout,
+keyboard-safe Create action, repeat-add behavior, rapid checkoffs, and
+two-stage swipe-to-delete feel. The earlier no-device statement above records
+the initial implementation review, not the final phone result. This does not
+claim that every scenario in `docs/qa/shopping-manual-regression.md` was run.
+
+Physical iPhone follow-up (October 8, 2026): tapping Shopping `+` exposed a
+render error because the shared native-sheet route was a sibling of the tab
+navigator, outside the tab-local `ShoppingProvider`. The provider now wraps the
+root stack, so the Shopping tab, Catalog picker sheet, and nested item-details
+sheet share one context. A real-router regression opens both sheets. The full
+mobile run passed **46 suites / 300 tests**, and TypeScript, mobile lint, and
+`git diff --check` passed. The Shopping sheet suite still emits non-failing
+`act()` warnings. The iPhone needs a fresh reload and a direct Shopping `+`
+check; a passing automated router test does not establish physical-device acceptance.
+
+Further iPhone follow-up (October 9, 2026): the picker and details sheets were
+rendering their rows and fields over their headers. Shopping now has dedicated
+picker/details form-sheet routes in its own stack, and each sheet uses one
+root scroll surface like the accepted Recipes prototype. Their content follows
+the approved Shopping picker and add/edit references: an in-sheet title and
+Cancel action, Catalog rows grouped in a card with initials, a compact item
+hero, side-by-side Amount and Unit fields, and a bottom Add/Save action. New
+items start with amount `1`; editing preserves the existing amount. The
+actual-router regression also verifies Details returns to the picker with
+search intact. Focused mobile checks passed **3 suites / 71 tests**; the full
+mobile run passed **46 suites / 300 tests**; TypeScript and mobile lint passed.
+Physical iPhone layout and drag acceptance remain pending.
+
+The same iPhone check exposed an add failure independent of the UI: the running
+local API at the mobile-configured host still advertises a Shopping POST
+request requiring `name`, while the current source and migrated database use
+`catalog_item_id`. The running API must be restarted from the current branch
+in Felipe's terminal, then its advertised request contract and an actual Add
+must be checked. The Codex chat agent did not stop or restart that process,
+contact a database, or change server code for this follow-up.
 
 ## Goal and approved experience
 

@@ -12,7 +12,13 @@ and safe areas.
 - `shopping-sort.png`: available sort choices.
 - `shopping-clear-confirm.png`: explicit destructive confirmation.
 - `shopping-catalog-picker.png`: choose an existing Catalog item or create one.
-- `shopping-add-details.png`: amount, unit, and optional store for a new row.
+  The later approved quick-add flow adds a fixed Create action and header `+`;
+  choosing an item adds it immediately with Catalog defaults. The subsequently
+  approved repeat-add flow keeps this sheet, search, and keyboard in place after
+  each success, briefly confirms the addition, marks the row “On list,” and uses
+  Done to return to Shopping.
+- `shopping-add-details.png`: historical initial flow. New rows no longer open
+  this intermediate sheet; amount, unit, and store are adjusted in Edit.
 - `shopping-edit-details.png`: edit amount, unit, and store; show meals using it.
 
 The mockups illustrate layout and copy, not pixel-identical system status bars,
