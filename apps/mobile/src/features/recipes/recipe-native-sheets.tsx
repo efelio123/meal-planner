@@ -4,6 +4,7 @@ import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
 
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
+import { AppBackButton } from '@/components/app-back-button';
 import { ThemedText } from '@/components/themed-text';
 import { ChoicePicker, type ChoiceOption } from '@/features/catalog/choice-picker';
 import { categoryEmojiValidationError } from '@/features/catalog/catalog-emoji-validation';
@@ -131,7 +132,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingIndex
 
   return <ScrollView testID="recipe-ingredient-details-scroll" contentContainerStyle={styles.nativeContent} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={[styles.nativeScroll, { backgroundColor: theme.elevatedSurface }]}>
       <View style={styles.header}>
-        <Pressable accessibilityLabel={returnToSearch ? 'Back to Food Catalog' : 'Back to recipe'} accessibilityRole="button" onPress={() => { Keyboard.dismiss(); router.back(); }} style={styles.backAction}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'chevron.left', android: 'arrow_back', web: 'arrow_back' }} size={24} tintColor={theme.link} /></Pressable>
+        <AppBackButton accessibilityLabel={returnToSearch ? 'Back to Food Catalog' : 'Back to recipe'} onPress={() => { Keyboard.dismiss(); router.back(); }} />
         <ThemedText accessibilityRole="header" style={styles.title}>Ingredient details</ThemedText>
         <Pressable accessibilityRole="button" onPress={cancel}><ThemedText themeColor="link">Cancel</ThemedText></Pressable>
       </View>
@@ -200,7 +201,6 @@ const styles = StyleSheet.create({
   foodSummary: { flex: 1, gap: 3 },
   splitFields: { flexDirection: 'row', gap: 12 },
   field: { flex: 1, gap: 8 },
-  backAction: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44 },
   coverPreview: { alignItems: 'center', flexDirection: 'row', gap: 14, paddingVertical: 4 },
   choiceGroup: { borderRadius: 16, overflow: 'hidden' },
   choiceRow: { alignItems: 'center', flexDirection: 'row', gap: 14, minHeight: 74, paddingHorizontal: 14 },

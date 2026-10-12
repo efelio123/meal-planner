@@ -20,6 +20,7 @@ export function useShoppingList() {
   const visible = stored.scope === scope ? stored : emptyState(scope, householdId, Boolean(householdId));
   const [pendingByScope, setPendingByScope] = useState<Map<string, Set<string>>>(new Map());
   const pendingMutations = useRef(new Set<string>());
+  const pendingRemovals = useRef(new Set<string>());
   const latestToken = useRef(getToken);
   const previousScope = useRef(scope);
   const scopeVersion = useRef(0);
@@ -43,7 +44,7 @@ export function useShoppingList() {
     try {
       const result = await api.shoppingList(() => latestToken.current(), householdId);
       if (version === loadVersion.current && previousScope.current === startedScope) {
-        setStored({ scope: startedScope, householdId, items: orderItems(result.shopping_list.items), loading: false, error: null });
+        setStored({ scope: startedScope, householdId, items: orderItems(result.shopping_list.items.filter((item) => !pendingRemovals.current.has(JSON.stringify([startedScope, item.id])))), loading: false, error: null });
       }
     } catch {
       if (version === loadVersion.current && previousScope.current === startedScope) {
@@ -79,10 +80,19 @@ export function useShoppingList() {
 
   const add = useCallback(async (catalogItemId: string, values: ShoppingListItemInput = {}) => {
     const startedVersion = scopeVersion.current;
+    const startedScope = scope;
     if (!householdId) return;
-    await api.addShoppingListItem(() => latestToken.current(), householdId, catalogItemId, values);
-    if (startedVersion === scopeVersion.current) await refresh();
-  }, [householdId, refresh]);
+    const result = await api.addShoppingListItem(() => latestToken.current(), householdId, catalogItemId, values);
+    if (startedVersion === scopeVersion.current && previousScope.current === startedScope) {
+      // The response already contains the canonical row and inherited Catalog
+      // preferences. Insert only that row; do not reload the whole list.
+      loadVersion.current += 1;
+      setStored((current) => current.scope === startedScope
+        ? { ...current, items: orderItems([...current.items.filter((item) => item.catalog_item_id !== catalogItemId), result.item]), loading: false, error: null }
+        : current);
+    }
+    return result.item;
+  }, [householdId, scope]);
 
   const toggle = useCallback(async (item: ShoppingListItem) => {
     const startedScope = scope; const startedVersion = scopeVersion.current;
@@ -113,15 +123,30 @@ export function useShoppingList() {
   const remove = useCallback(async (item: ShoppingListItem) => {
     const startedScope = scope; const startedVersion = scopeVersion.current;
     if (!householdId || !begin(startedScope, item.id)) return;
+    const mutationKey = JSON.stringify([startedScope, item.id]);
+    pendingRemovals.current.add(mutationKey);
+    // Keep deletion row-local and invalidate any list load that began before
+    // this mutation, so an older response cannot resurrect the removed row.
+    loadVersion.current += 1;
+    setStored((current) => current.scope === startedScope
+      ? { ...current, items: current.items.filter((candidate) => candidate.id !== item.id), loading: false }
+      : current);
     try {
       await api.deleteShoppingListItem(() => latestToken.current(), householdId, item.id);
-      if (startedVersion === scopeVersion.current) {
+      if (startedVersion === scopeVersion.current && previousScope.current === startedScope) {
         loadVersion.current += 1;
-        setStored((current) => current.scope === startedScope ? { ...current, items: current.items.filter((candidate) => candidate.id !== item.id) } : current);
-        await refresh();
+        setStored((current) => current.scope === startedScope ? { ...current, loading: false } : current);
       }
-    } finally { finish(startedScope, item.id); }
-  }, [begin, finish, householdId, refresh, scope]);
+    } catch {
+      if (startedVersion === scopeVersion.current && previousScope.current === startedScope) {
+        loadVersion.current += 1;
+        setStored((current) => current.scope === startedScope
+          ? { ...current, items: orderItems([...current.items.filter((candidate) => candidate.id !== item.id), item]), loading: false }
+          : current);
+      }
+      throw new Error('We couldn’t remove that item. Please try again.');
+    } finally { pendingRemovals.current.delete(mutationKey); finish(startedScope, item.id); }
+  }, [begin, finish, householdId, scope]);
 
   const clear = useCallback(async () => {
     const startedVersion = scopeVersion.current;

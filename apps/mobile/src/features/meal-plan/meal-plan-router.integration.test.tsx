@@ -6,6 +6,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import { ApiError, api, type CatalogItem, type MealPlanEntry, type MealPlanWeek, type Recipe } from '@/lib/api';
 
+// Route coverage does not exercise Shopping's native swipe animation.
+jest.mock('@/features/shopping-list/shopping-swipe-row', () => ({ ShoppingSwipeRow: ({ children }: PropsWithChildren) => children }));
+
 const mockGetToken = jest.fn().mockResolvedValue('session-token');
 const household = { id: 'household-a', name: 'Home', time_zone: 'America/Phoenix', role: 'owner' as const };
 const user = { id: 'user-a', email: 'owner@example.com', display_name: 'Household Owner' };

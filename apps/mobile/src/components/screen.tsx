@@ -1,5 +1,5 @@
 import type { PropsWithChildren, ReactNode } from 'react';
-import { Platform, RefreshControl, ScrollView, StyleSheet } from 'react-native';
+import { Platform, RefreshControl, ScrollView, StyleSheet, type ScrollViewProps } from 'react-native';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { SafeAreaView as NativeTabSafeAreaView } from 'react-native-screens/experimental';
 import { useTheme } from '@/hooks/use-theme';
@@ -15,6 +15,8 @@ type ScreenProps = PropsWithChildren<{
   nativeTabBottomInset?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void | Promise<void>;
+  onScrollBeginDrag?: ScrollViewProps['onScrollBeginDrag'];
+  onScroll?: ScrollViewProps['onScroll'];
   /** Optional content anchored beneath the scrollable page body. */
   footer?: ReactNode;
   testID?: string;
@@ -22,7 +24,7 @@ type ScreenProps = PropsWithChildren<{
 
 const defaultSafeAreaEdges: Edge[] = ['top', 'right', 'bottom', 'left'];
 
-export function Screen({ children, contentAlignment = 'center', safeAreaEdges = defaultSafeAreaEdges, nativeTabScreen = false, manualNativeTabInsets = false, nativeTabBottomInset = false, refreshing = false, onRefresh, footer, testID = 'screen' }: ScreenProps) {
+export function Screen({ children, contentAlignment = 'center', safeAreaEdges = defaultSafeAreaEdges, nativeTabScreen = false, manualNativeTabInsets = false, nativeTabBottomInset = false, refreshing = false, onRefresh, onScrollBeginDrag, onScroll, footer, testID = 'screen' }: ScreenProps) {
   const theme = useTheme();
   const nativeIosInsets = nativeTabScreen && Platform.OS === 'ios';
   const manualIosInsets = nativeIosInsets && manualNativeTabInsets;
@@ -39,6 +41,9 @@ export function Screen({ children, contentAlignment = 'center', safeAreaEdges = 
         automaticallyAdjustKeyboardInsets={Platform.OS === 'ios' && !nativeTabScreen}
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
+        onScrollBeginDrag={onScrollBeginDrag}
+        onScroll={onScroll}
+        scrollEventThrottle={onScroll ? 16 : undefined}
         refreshControl={onRefresh && Platform.OS !== 'web' ? (
           <RefreshControl
             colors={[theme.primary]}

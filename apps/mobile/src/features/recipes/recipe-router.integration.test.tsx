@@ -7,6 +7,8 @@ import { Platform, StyleSheet } from 'react-native';
 
 import { api, type CatalogItem, type CatalogUnits, type Me, type Recipe } from '@/lib/api';
 
+jest.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: (...args: unknown[]) => void, ...args: unknown[]) => callback(...args) }));
+
 const mockGetToken = jest.fn().mockResolvedValue('session-token');
 const household = { id: 'household-a', name: 'Home', time_zone: 'UTC', role: 'owner' as const };
 const signedInMe: Me = {

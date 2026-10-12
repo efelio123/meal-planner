@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ClerkProvider, useAuth } from '@clerk/expo';
 import { tokenCache } from '@clerk/expo/token-cache';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { clerkPublishableKey } from '@/auth-config';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
@@ -15,6 +16,7 @@ import { useTheme, useThemeMode } from '@/hooks/use-theme';
 import { getStartupDiagnostics } from '@/lib/startup-diagnostics';
 import { NativeSheetProvider, useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { nativeSheetRouteOptions } from '@/features/native-sheets/native-sheet-route-options';
+import { ShoppingProvider } from '@/features/shopping-list/shopping-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -72,7 +74,9 @@ function RootNavigator() {
   if (!isLoaded || destination === 'loading') return <View style={{ alignItems: 'center', backgroundColor: theme.screen, flex: 1, justifyContent: 'center' }}><ActivityIndicator color={theme.activity} /></View>;
   return (
     <NativeSheetProvider scope={`${isSignedIn ? 'signed-in' : 'signed-out'}:${userId ?? ''}:${sessionId ?? ''}:${selectedHousehold?.id ?? ''}`}>
-      <RootStack destination={destination} isSignedIn={isSignedIn} />
+      <ShoppingProvider>
+        <RootStack destination={destination} isSignedIn={isSignedIn} />
+      </ShoppingProvider>
     </NativeSheetProvider>
   );
 }
@@ -85,16 +89,18 @@ export default function RootLayout() {
     void SystemUI.setBackgroundColorAsync(colors.screen);
   }, [colors.screen]);
   return (
-    <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
-      <SafeAreaProvider>
-        <HouseholdStateProvider>
-          <ThemeProvider value={navigationTheme}>
-            <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
-            <AnimatedSplashOverlay />
-            <RootNavigator />
-          </ThemeProvider>
-        </HouseholdStateProvider>
-      </SafeAreaProvider>
-    </ClerkProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ClerkProvider publishableKey={clerkPublishableKey} tokenCache={tokenCache}>
+        <SafeAreaProvider>
+          <HouseholdStateProvider>
+            <ThemeProvider value={navigationTheme}>
+              <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+              <AnimatedSplashOverlay />
+              <RootNavigator />
+            </ThemeProvider>
+          </HouseholdStateProvider>
+        </SafeAreaProvider>
+      </ClerkProvider>
+    </GestureHandlerRootView>
   );
 }

@@ -77,7 +77,7 @@ function ChoiceSheet({ label, choices, selectedId, emptyChoiceLabel, searchable,
   </KeyboardAvoidingView>;
 }
 
-export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCreate, onManage, onOpen, onCustomSelect, emptyChoiceLabel, searchable: searchableOverride, createLabel, manageLabel, sheetRoute, disabled = false, compact = false }: {
+export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCreate, onManage, onOpen, onCustomSelect, emptyChoiceLabel, searchable: searchableOverride, createLabel, manageLabel, sheetRoute, sheetDetents, sheetInitialDetentIndex, disabled = false, compact = false }: {
   label: string;
   value: string;
   selectedId?: string;
@@ -94,6 +94,10 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
   manageLabel?: string;
   /** Use the owning stack for a sheet that must sit above another sheet. */
   sheetRoute?: string;
+  /** Override the opening height when an owning flow needs a compact picker. */
+  sheetDetents?: number[];
+  /** Start at a taller detent while preserving the native drag range. */
+  sheetInitialDetentIndex?: number;
   disabled?: boolean;
   compact?: boolean;
 }) {
@@ -121,7 +125,7 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
         onManage={onManage}
         onCustomSelect={onCustomSelect}
       />,
-      { detents: choices.length <= 3 ? [0.38, 0.76] : [0.58, 0.94] },
+      { detents: sheetDetents ?? (choices.length <= 3 ? [0.38, 0.76] : [0.58, 0.94]), ...(sheetInitialDetentIndex === undefined ? {} : { initialDetent: sheetInitialDetentIndex }) },
     );
     router.push({ pathname: sheetRoute ?? '/native-sheet/[sheetId]', params: { sheetId } } as never);
   };

@@ -100,20 +100,20 @@ describe('useShoppingList', () => {
     expect(mockedApi.shoppingList).toHaveBeenCalledTimes(3);
   });
 
-  it('adds and reloads authoritative list data, then removes an item', async () => {
-    mockedApi.shoppingList
-      .mockResolvedValueOnce(listResponse('household-a', []))
-      .mockResolvedValueOnce(listResponse('household-a', [item('milk', 'Milk')]))
-      .mockResolvedValueOnce(listResponse('household-a', []));
+  it('adds the authoritative response row without reloading the whole list, then removes it', async () => {
+    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', []));
+    mockedApi.addShoppingListItem.mockResolvedValueOnce({ item: item('milk', 'Milk') });
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
     await act(async () => result.current.add('catalog-milk'));
     expect(mockedApi.addShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'catalog-milk', {});
     expect(result.current.items.map(({ name }) => name)).toEqual(['Milk']);
+    expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1);
     await act(async () => result.current.remove(result.current.items[0]));
     expect(result.current.items).toEqual([]);
     expect(mockedApi.deleteShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'milk');
+    expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1);
   });
 
   it('keeps a successful add when an older same-household refresh resolves afterward', async () => {
@@ -128,7 +128,7 @@ describe('useShoppingList', () => {
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    let addPromise!: Promise<void>;
+    let addPromise!: ReturnType<ReturnType<typeof useShoppingList>['add']>;
     await act(async () => { addPromise = result.current.add('catalog-bread'); });
     let refreshPromise!: Promise<void>;
     await act(async () => { refreshPromise = result.current.refresh(); });
@@ -158,6 +158,7 @@ describe('useShoppingList', () => {
 
     let removePromise!: Promise<void>;
     await act(async () => { removePromise = result.current.remove(milk); });
+    expect(result.current.items).toEqual([]);
     let refreshPromise!: Promise<void>;
     await act(async () => { refreshPromise = result.current.refresh(); });
     await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2));
@@ -170,6 +171,30 @@ describe('useShoppingList', () => {
     await act(async () => staleRefresh.resolve(listResponse('household-a', [milk])));
     await act(async () => refreshPromise);
     expect(result.current.items).toEqual([]);
+  });
+
+  it('keeps a pending removal out of a concurrent refresh, then restores only that row if deletion fails', async () => {
+    const milk = item('milk', 'Milk');
+    const bread = item('bread', 'Bread');
+    mockedApi.shoppingList
+      .mockResolvedValueOnce(listResponse('household-a', [milk, bread]))
+      .mockResolvedValueOnce(listResponse('household-a', [milk, bread]));
+    const deletion = deferred<void>();
+    mockedApi.deleteShoppingListItem.mockReturnValue(deletion.promise);
+    const { result } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+
+    let removal!: Promise<void>;
+    await act(async () => { removal = result.current.remove(milk); });
+    expect(result.current.items.map(({ id }) => id)).toEqual(['bread']);
+    expect(result.current.loading).toBe(false);
+    await act(async () => result.current.refresh());
+    expect(result.current.items.map(({ id }) => id)).toEqual(['bread']);
+
+    const outcome = removal.then(() => null, (error: Error) => error);
+    await act(async () => deletion.reject(new Error('private server details')));
+    await expect(outcome).resolves.toMatchObject({ message: 'We couldn’t remove that item. Please try again.' });
+    expect(result.current.items.map(({ id }) => id)).toEqual(['bread', 'milk']);
   });
 
   it('updates a checked item optimistically and retains it after the server confirms', async () => {

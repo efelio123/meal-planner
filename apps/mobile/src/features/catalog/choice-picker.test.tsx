@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, within } from '@testing-library/react-native';
 import { Platform, StyleSheet } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { ChoicePicker } from './choice-picker';
@@ -100,5 +100,20 @@ describe('Catalog choice native sheet', () => {
     expect(view.onOpen).toHaveBeenCalledTimes(1);
     expect(mockPush).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/native-sheet/[sheetId]' }));
     expect(view.getByTestId('catalog-choice-sheet')).toBeTruthy();
+  });
+
+  it('keeps the Add unit action outside the scroll list and opens at the tall native detent', async () => {
+    const field = await render(<ChoicePicker
+      label="Unit" choices={[{ id: 'pound', label: 'Pound' }]} value="" selectedId=""
+      searchable sheetRoute="/shopping/sheet/choice" sheetDetents={[0.58, 0.94]}
+      sheetInitialDetentIndex={1} createLabel="Add unit" onSelect={jest.fn()} onCreate={jest.fn()}
+    />);
+    fireEvent.press(field.getByTestId('choice-picker-field'));
+    const [content, options] = mockPresent.mock.calls.at(-1)!;
+    expect(options).toEqual({ detents: [0.58, 0.94], initialDetent: 1 });
+    const sheet = await render(content as React.ReactElement);
+    expect(sheet.getByRole('button', { name: 'Add unit' })).toBeTruthy();
+    expect(within(sheet.getByTestId('catalog-choice-scroll')).queryByRole('button', { name: 'Add unit' })).toBeNull();
+    expect(sheet.getByTestId('catalog-choice-keyboard-area')).toBeTruthy();
   });
 });

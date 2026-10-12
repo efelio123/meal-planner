@@ -170,7 +170,8 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
   const routeToChoices = (kind: CatalogChoiceKind, mode: 'create' | 'manage') => {
     const params = kind === 'category' ? `?itemType=${form.itemType}` : '';
     const suffix = mode === 'create' ? '/create' : '';
-    const base = recipeIngredientMode ? '/(app)/(tabs)/recipes/catalog-choices' : '/(app)/(tabs)/catalog/choices';
+    const base = recipeIngredientMode ? '/(app)/(tabs)/recipes/catalog-choices'
+      : shoppingOriginMode ? '/(app)/(tabs)/shopping/choices' : '/(app)/(tabs)/catalog/choices';
     router.push(`${base}/${kind}${suffix}${params}` as never);
   };
 
@@ -234,7 +235,7 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
   return (
     <View style={styles.routeRoot}>
     <Stack.Screen options={{ title: itemId ? 'Edit item' : recipeIngredientMode ? 'Create Food item' : 'Add item' }} />
-    <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+    <Screen contentAlignment="top" nativeTabBottomInset safeAreaEdges={['left', 'right']}>
       <View style={styles.content}>
         <ThemedText themeColor="textSecondary">Save an item once for everyone in your household to use in the catalog.</ThemedText>
         {initialLoading ? <ActivityIndicator accessibilityLabel="Loading item" /> : null}
@@ -250,10 +251,10 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
           ))}
         </View> : <ThemedText themeColor="textSecondary">Food</ThemedText>}
         {selectionMessage ? <ThemedText themeColor="textSecondary">{selectionMessage}</ThemedText> : null}
-        <ChoicePicker compact label="Category" choices={categoryChoices} selectedId={form.categoryId} value={selectedCategory} emptyChoiceLabel="No category" createLabel="Create category" manageLabel="Manage categories" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(categoryId) => { updateForm((current) => ({ ...current, categoryId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('category', 'create')} onManage={() => routeToChoices('category', 'manage')} />
-        <ChoicePicker compact label="Typical shopping unit (optional)" choices={shoppingChoices} searchable selectedId={form.shoppingUnitId} value={selectedUnit} createLabel="Create shopping unit" manageLabel="Manage shopping units" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(shoppingUnitId) => { updateForm((current) => ({ ...current, shoppingUnitId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('shopping-unit', 'create')} onManage={() => routeToChoices('shopping-unit', 'manage')} />
+        <ChoicePicker compact label="Category" choices={categoryChoices} selectedId={form.categoryId} value={selectedCategory} emptyChoiceLabel="No category" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create category" manageLabel="Manage categories" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(categoryId) => { updateForm((current) => ({ ...current, categoryId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('category', 'create')} onManage={() => routeToChoices('category', 'manage')} />
+        <ChoicePicker compact label="Typical shopping unit (optional)" choices={shoppingChoices} searchable selectedId={form.shoppingUnitId} value={selectedUnit} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create shopping unit" manageLabel="Manage shopping units" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(shoppingUnitId) => { updateForm((current) => ({ ...current, shoppingUnitId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('shopping-unit', 'create')} onManage={() => routeToChoices('shopping-unit', 'manage')} />
         <ThemedText themeColor="textSecondary">A typical shopping unit only; the catalog does not track quantities on hand.</ThemedText>
-        <ChoicePicker compact label="Preferred store (optional)" choices={storeChoices} selectedId={form.storeId} value={selectedStore} emptyChoiceLabel="No preferred store" createLabel="Create store" manageLabel="Manage stores" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(storeId) => { updateForm((current) => ({ ...current, storeId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('store', 'create')} onManage={() => routeToChoices('store', 'manage')} />
+        <ChoicePicker compact label="Preferred store (optional)" choices={storeChoices} selectedId={form.storeId} value={selectedStore} emptyChoiceLabel="No preferred store" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={0} createLabel="Create store" manageLabel="Manage stores" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(storeId) => { updateForm((current) => ({ ...current, storeId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('store', 'create')} onManage={() => routeToChoices('store', 'manage')} />
         <>
           <Pressable accessibilityLabel="More details" accessibilityRole="button" accessibilityState={{ expanded: moreDetails }} onPress={() => setMoreDetails((value) => !value)} style={styles.moreButton}>
             <ThemedText style={styles.label}>More details (optional)</ThemedText><ThemedText>⌄</ThemedText>

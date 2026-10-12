@@ -13,6 +13,7 @@ import type { CatalogChoiceKind } from './catalog-context';
 import { useCatalogContext } from './catalog-context';
 import { CatalogEmojiInputSheet } from './catalog-emoji-input-sheet';
 import { categoryEmojiValidationError } from './catalog-emoji-validation';
+import { useShoppingContextOptional } from '@/features/shopping-list/shopping-context';
 
 function isKind(value: string | undefined): value is CatalogChoiceKind {
   return value === 'category' || value === 'store' || value === 'shopping-unit';
@@ -28,8 +29,8 @@ async function loadChoices(getToken: GetToken, householdId: string, kind: Catalo
   return (await api.catalogUnits(getToken, householdId)).shopping_units.household.map((unit) => ({ id: unit.id!, name: unit.label, created_at: '', updated_at: '' }));
 }
 
-export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?: 'catalog' | 'recipes' } = {}) {
-  const params = useLocalSearchParams<{ kind: string; itemType?: string }>();
+export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?: 'catalog' | 'recipes' | 'shopping' } = {}) {
+  const params = useLocalSearchParams<{ kind: string; itemType?: string; shoppingTarget?: string; shoppingCatalogItemId?: string }>();
   const kind = isKind(params.kind) ? params.kind : null;
   const itemType = params.itemType === 'food' || params.itemType === 'household' ? params.itemType : undefined;
   const router = useRouter();
@@ -39,7 +40,7 @@ export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?:
   const { sessionId, userId } = useAuth();
   const { revision } = useCatalogContext();
   const householdId = selectedHousehold?.id ?? null;
-  const scope = `${userId ?? ''}:${sessionId ?? ''}:${householdId ?? ''}:${kind ?? ''}:${itemType ?? ''}`;
+  const scope = `${userId ?? ''}:${sessionId ?? ''}:${householdId ?? ''}:${kind ?? ''}:${itemType ?? ''}:${params.shoppingTarget ?? ''}:${params.shoppingCatalogItemId ?? ''}`;
   const latestGetToken = useRef<GetToken>(getToken);
   const generation = useRef(0);
   const scopeRef = useRef(scope);
@@ -76,11 +77,16 @@ export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?:
   }, [refreshChoices, revision]);
 
   const title = kind === 'category' ? 'Categories' : kind === 'store' ? 'Stores' : 'Shopping units';
+  const base = routeBase === 'recipes' ? 'recipes/catalog-choices' : routeBase === 'shopping' ? 'shopping/choices' : 'catalog/choices';
+  const routeQuery = [
+    itemType ? `itemType=${encodeURIComponent(itemType)}` : null,
+    params.shoppingTarget === 'details' ? 'shoppingTarget=details' : null,
+    params.shoppingTarget === 'details' && params.shoppingCatalogItemId ? `shoppingCatalogItemId=${encodeURIComponent(params.shoppingCatalogItemId)}` : null,
+  ].filter(Boolean).join('&');
   const routeToCreate = useCallback(() => {
     if (!kind) return;
-    const base = routeBase === 'recipes' ? 'recipes/catalog-choices' : 'catalog/choices';
-    router.push(`/(app)/(tabs)/${base}/${kind}/create${itemType ? `?itemType=${itemType}` : ''}` as never);
-  }, [itemType, kind, routeBase, router]);
+    router.push(`/(app)/(tabs)/${base}/${kind}/create${routeQuery ? `?${routeQuery}` : ''}` as never);
+  }, [base, kind, routeQuery, router]);
   const createAction = useCallback(() => (
     <Pressable accessibilityLabel={`Create ${kind === 'shopping-unit' ? 'shopping unit' : kind ?? 'choice'}`} accessibilityRole="button" onPress={routeToCreate} style={styles.headerAction}>
       <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus', android: 'add', web: 'add' }} size={22} tintColor={theme.link} />
@@ -116,7 +122,7 @@ export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?:
               {filterGroup(group.choices).map((choice, index) => {
                 const choiceType = (choice as ManagedChoice).item_type ?? itemType;
                 return (
-                  <Link key={choice.id} href={`/(app)/(tabs)/${routeBase === 'recipes' ? 'recipes/catalog-choices' : 'catalog/choices'}/${kind ?? 'category'}/${choice.id}${choiceType ? `?itemType=${choiceType}` : ''}` as never} asChild>
+                  <Link key={choice.id} href={`/(app)/(tabs)/${base}/${kind ?? 'category'}/${choice.id}${routeQuery || choiceType ? `?${[choiceType ? `itemType=${choiceType}` : null, params.shoppingTarget === 'details' ? 'shoppingTarget=details' : null, params.shoppingTarget === 'details' && params.shoppingCatalogItemId ? `shoppingCatalogItemId=${encodeURIComponent(params.shoppingCatalogItemId)}` : null].filter(Boolean).join('&')}` : ''}` as never} asChild>
                     <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.row, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }])}>
                       {(choice as ManagedChoice).emoji ? <ThemedText style={styles.choiceEmoji}>{(choice as ManagedChoice).emoji}</ThemedText> : null}
                       <ThemedText style={styles.choiceName}>{choice.name}</ThemedText>
@@ -142,7 +148,7 @@ export function CatalogChoiceForm(props: { editing?: boolean }) {
 }
 
 function CatalogChoiceFormInternal({ editing = false }: { editing?: boolean }) {
-  const params = useLocalSearchParams<{ kind: string; choiceId?: string; itemType?: string }>();
+  const params = useLocalSearchParams<{ kind: string; choiceId?: string; itemType?: string; shoppingTarget?: string; shoppingCatalogItemId?: string }>();
   const kind = isKind(params.kind) ? params.kind : null;
   const itemType = params.itemType === 'food' || params.itemType === 'household' ? params.itemType : undefined;
   const choiceId = typeof params.choiceId === 'string' ? params.choiceId : null;
@@ -152,6 +158,7 @@ function CatalogChoiceFormInternal({ editing = false }: { editing?: boolean }) {
   const navigation = useNavigation();
   const theme = useTheme();
   const { markChanged, setChoiceResult } = useCatalogContext();
+  const shoppingContext = useShoppingContextOptional();
   const householdId = selectedHousehold?.id ?? null;
   const [name, setName] = useState('');
   const [categoryType, setCategoryType] = useState<CatalogItemType | ''>(itemType ?? '');
@@ -160,7 +167,7 @@ function CatalogChoiceFormInternal({ editing = false }: { editing?: boolean }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const latestGetToken = useRef<GetToken>(getToken);
-  const scope = `${userId ?? ''}:${sessionId ?? ''}:${householdId ?? ''}:${kind ?? ''}:${choiceId ?? ''}:${itemType ?? ''}`;
+  const scope = `${userId ?? ''}:${sessionId ?? ''}:${householdId ?? ''}:${kind ?? ''}:${choiceId ?? ''}:${itemType ?? ''}:${params.shoppingTarget ?? ''}:${params.shoppingCatalogItemId ?? ''}`;
   const scopeRef = useRef(scope);
   const previousScope = useRef(scope);
   const loadGeneration = useRef(0);
@@ -243,7 +250,11 @@ function CatalogChoiceFormInternal({ editing = false }: { editing?: boolean }) {
         : api.createCatalogShoppingUnit(() => latestGetToken.current(), householdId, name.trim()))).unit;
       if (!mounted.current || scopeRef.current !== startedScope) return;
       markChanged(editing ? 'all' : 'choices');
-      if (!editing) setChoiceResult({ kind, id: saved.id, label: saved.name, itemType: kind === 'category' ? categoryType as CatalogItemType : undefined });
+      if (!editing) {
+        if (params.shoppingTarget === 'details' && params.shoppingCatalogItemId && shoppingContext) {
+          shoppingContext.setCreatedChoice({ scope: shoppingContext.scope, catalogItemId: params.shoppingCatalogItemId, kind, id: saved.id });
+        } else setChoiceResult({ kind, id: saved.id, label: saved.name, itemType: kind === 'category' ? categoryType as CatalogItemType : undefined });
+      }
       router.back();
     } catch (reason) {
       if (mounted.current && scopeRef.current === startedScope) setError(reason instanceof ApiError ? reason.message : 'We couldn’t save this choice. Please try again.');
@@ -273,7 +284,7 @@ function CatalogChoiceFormInternal({ editing = false }: { editing?: boolean }) {
   return (
     <View style={styles.routeRoot}>
       <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}><View style={styles.content}>
-      <ThemedText themeColor="textSecondary">{editing ? kind === 'store' ? 'Update this shared household store.' : kind === 'shopping-unit' ? 'Update this household shopping-unit label.' : 'Update this shared household category.' : kind === 'category' ? 'Organize reusable catalog items by type.' : `Add a household ${title} for catalog items.`}</ThemedText>
+      <ThemedText themeColor="textSecondary">{editing ? kind === 'store' ? 'Update this shared household store.' : kind === 'shopping-unit' ? 'Update this household shopping-unit label.' : 'Update this shared household category.' : kind === 'category' ? 'Organize reusable catalog items by type.' : params.shoppingTarget === 'details' ? `Save this ${title} for the household. This item’s Catalog default will not change.` : `Add a household ${title} for catalog items.`}</ThemedText>
       {editing && householdId && kind && choiceId && loading ? <ActivityIndicator accessibilityLabel={`Loading ${title}`} /> : null}
       {editing && error && !loading && loadedChoiceScope !== scope ? <PrimaryButton onPress={() => void loadExistingChoice()} title={`Retry loading ${title}`} /> : null}
       {kind === 'category' ? <>
