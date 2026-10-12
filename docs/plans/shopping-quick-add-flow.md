@@ -1,10 +1,8 @@
 # Shopping quick add and tall sheets
 
-Status: approved by Felipe in the October 9, 2026 request and implemented
-locally. Felipe accepted the current iPhone picker layout and repeat-add flow;
-the full manual regression checklist remains open. This follow-up remains on
-`codex/household-shopping-redesign`; preserve the existing uncommitted Shopping
-work and do not commit or push without a separate request.
+Status: approved by Felipe in the October 9, 2026 request, implemented, and
+merged into `main` with Shopping v1. Felipe accepted the current iPhone picker
+layout and repeat-add flow; the full manual regression checklist remains open.
 
 ## Goal
 

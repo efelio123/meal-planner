@@ -1,10 +1,11 @@
 # Catalog-backed household Shopping list
 
 Status: Shopping v1 is feature-complete for Felipe's current iPhone review as
-of October 12, 2026. The implementation and phone follow-ups remain on the
-feature branch, uncommitted and unpushed. The Codex chat agent's post-fix
-disposable-database run passed. The manual regression checklist is not fully
-signed off; Android and two-device acceptance remain unverified.
+of October 12, 2026. The implementation and phone follow-ups were committed
+on `codex/household-shopping-redesign`, fast-forwarded to `main`, and pushed.
+The Codex chat agent's post-fix disposable-database run passed. The manual
+regression checklist is not fully signed off; Android and two-device
+acceptance remain unverified.
 
 Closeout validation (October 12, 2026): After the final phone-driven changes,
 the full mobile run passed **50 suites / 327 tests** serially. The first

@@ -483,13 +483,13 @@ heights and keyboard-safe Create actions. A Shopping row supports a short
 left-swipe trash reveal and a deliberate 65%-width full-swipe removal. See
 `docs/plans/shopping-quick-add-flow.md` for this intentional change to the
 earlier Add-details reference.
-Shopping v1 is feature-complete for Felipe's current iPhone review on
-`codex/household-shopping-redesign`; the branch's follow-ups remain uncommitted
-and unpushed. The identity-verified disposable-PostgreSQL run passed 145 tests
-with no failures or skips, and the dev migration is complete. Felipe accepted
-the current iPhone picker/keyboard, repeat-add, rapid checkoff, and swipe
-behavior. The full manual regression checklist, Android, and two-device
-acceptance remain open; see `docs/qa/shopping-manual-regression.md`. Later
+Shopping v1 is feature-complete for Felipe's current iPhone review, merged
+and pushed to `main`. The identity-verified disposable-PostgreSQL run passed
+145 tests with no failures or skips, and the dev migration is complete.
+Felipe accepted the current iPhone picker/keyboard, repeat-add, rapid
+checkoff, and swipe behavior. The full manual regression checklist, Android,
+and two-device acceptance remain open; see
+`docs/qa/shopping-manual-regression.md`. Later
 mobile validation is recorded in the Shopping plans.
 
 ### Household invitation delivery

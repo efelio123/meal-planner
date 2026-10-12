@@ -1,8 +1,9 @@
 # Shopping picker, return navigation, and swipe removal
 
-Status: implemented locally after Felipe's approval. Felipe accepted the
-current iPhone swipe interaction; broader manual regression remains open.
-Work on `codex/household-shopping-redesign`; preserve all existing uncommitted Shopping work and the separate app-wide consistency plan. Do not commit or push without a separate request.
+Status: implemented after Felipe's approval and merged into `main` with
+Shopping v1. Felipe accepted the current iPhone swipe interaction; broader
+manual regression remains open. The app-wide consistency plan is a separate
+future slice and was not implemented in this merge.
 
 ## Goal
 

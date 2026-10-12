@@ -1,11 +1,12 @@
 # Shopping Add Details: Catalog edit and choice shortcuts
 
-Status: approved by Felipe and implemented locally on October 9, 2026.
-The work remains uncommitted and unpushed; physical-device acceptance is pending.
+Status: approved by Felipe, implemented on October 9, 2026, and merged into
+`main` with Shopping v1. The later quick-add flow supersedes the intermediate
+Add Details step; Catalog editing and choice shortcuts remain in Edit.
+The complete physical-device regression checklist remains open.
 
-Branch: `codex/household-shopping-redesign`. Preserve all existing uncommitted
-Shopping work. This is a follow-up to `household-shopping-redesign.md`, not a
-new Shopping API or database migration.
+This was a follow-up to `household-shopping-redesign.md`, not a new Shopping
+API or database migration.
 
 ## Goal
 
