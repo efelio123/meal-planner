@@ -154,7 +154,7 @@ The October 4 snapshot above and the original execution schedule below are
 historical records. This section supersedes their statements about which core
 slices are still pending.
 
-- `main` at `9600ffe` includes household authentication/onboarding and
+- `main` at `2955089` includes household authentication/onboarding and
   management, the inventory-free Catalog, household Recipes, the weekly Plan
   and explicit consolidated-ingredient Shopping review, and the Catalog-backed
   shared Shopping v1. The core recipe → plan → review/select → Shopping →
@@ -162,11 +162,10 @@ slices are still pending.
   sorting, clear-list confirmation, and swipe removal are included. One recipe
   per day/meal slot and manually shared invitation codes remain intentional v1
   choices.
-- The app-wide visual-consistency pass and seven-day Plan-strip correction are
-  pushed on `codex/app-wide-visual-consistency` at `67b9c23`, but are not yet
-  merged into `main`. After the final week-strip correction, the full mobile
-  suite passed 51 suites / 336 tests; TypeScript and lint also passed. The
-  latest recorded
+- The app-wide visual-consistency pass and seven-day Plan-strip correction
+  were merged and pushed to `main` at `2955089`. After the final week-strip
+  correction, the full mobile suite passed 51 suites / 336 tests; TypeScript
+  and lint also passed. The latest recorded
   identity-verified disposable-PostgreSQL suite passed 145 tests after
   Shopping's backend changes; this visual branch has no backend changes.
 - Felipe accepted selected iPhone Recipes, Plan, Shopping, native-sheet, and
@@ -192,7 +191,8 @@ slices are still pending.
 
 ### Current next milestone: M3 core-loop acceptance
 
-1. Review and merge the pushed visual-consistency branch into `main`.
+1. Completed October 13: review and fast-forward merge the visual-consistency
+   branch into `main` at `2955089`.
 2. Read-only verify staging's deployed API revision and database migration
    head. If either is behind, plan migration/deployment with identity, data,
    and rollback safeguards before changing staging. Keep test data only and
