@@ -1,6 +1,6 @@
 # Expo SDK 57 patch alignment
 
-Status: Felipe approved the seven patch updates; candidate implementation committed on `codex/expo-patch-alignment` October 13, 2026. Hosted CI passed on the exact candidate commit. Awaiting review/merge; no deployment setting has changed.
+Status: Felipe approved the seven patch updates and a narrow follow-up for the critical `shell-quote` advisory. The branch is awaiting review/merge; hosted CI passed on the original patch candidate, but has not yet validated the security follow-up. No deployment setting has changed.
 
 ## Goal
 
@@ -49,9 +49,10 @@ Use Expo's version guidance and npm's lockfile, then inspect the complete manife
 - The first clean-install full Jest run passed 338/340; two tests timed out at Jest's five-second limit. Both affected suites then passed directly (14/14), and a subsequent complete warm run passed 51 suites / 340 tests. The explicit no-cache full run did **not** pass: 46 suites / 318 tests passed and 22 tests in five suites failed, primarily due to timeout/cascading render-test errors. This is recorded as an unresolved cold-run failure, not a pass. Hosted CI against the exact branch commit is required before merge.
 - `npm ci` warned about `react-reconciler@0.34.0` preferring React 19.3 while the project uses 19.2.3. The old and new lockfiles both contain the same `test-renderer@1.3.0`, nested reconciler, and React versions, so this warning predates the patch alignment. It is not hidden or treated as a new direct dependency choice.
 - [Hosted CI run `38472785278`](https://github.com/efelio123/meal-planner/actions/runs/38472785278) on exact commit `265e4178b549e9d1c0f26f68974724883cd8359e` passed: mobile normal and cold/no-cache runs each 51 suites / 340 tests; Expo dependency check and Doctor (21/21), TypeScript, and lint passed; API/PostgreSQL passed 145 tests with zero skipped. This resolves the hosted CI gate for the candidate, while the separate local isolated-copy cold-run failure remains part of the record. No application code, API, schema, staging service, or live Expo server was changed.
+- Felipe's local `npm ci` subsequently reported one critical npm advisory. The follow-up lockfile change updates only transitive `shell-quote` from 1.10.0 to 1.12.0 (through React Native DevTools); the direct manifest and application code remain unchanged. A fresh `npm ci` resolved 1.12.0, `npm audit` reported 0 critical / 52 high / 29 moderate, and Expo's dependency check, TypeScript, and `git diff --check` passed. The first local full mobile run passed 337/340 with three five-second timeouts; the three affected suites passed directly (23/23), then a full warm run passed 51 suites / 340 tests. Existing non-failing React `act()` warnings remain. Hosted CI has not yet run on this follow-up commit, so the earlier hosted pass must not be treated as validating it.
 
 ## Open questions / approval gate
 
 - Felipe approved these seven patch-level direct dependency changes. If npm or Expo requires an additional direct package change, pause for a plan revision and approval.
-- Hosted cold CI passed on the exact candidate commit. Felipe's review/merge decision and the subsequent phone smoke remain open.
+- Hosted cold CI passed on the original patch candidate. The security follow-up needs a new exact-commit CI run before Felipe's review/merge decision; phone smoke remains open.
 - Enabling Render Auto-Deploy is not part of this plan; migrations, API-only build filters, and the Free-plan cost guard need their own design before that switch.
