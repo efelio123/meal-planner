@@ -174,23 +174,24 @@ slices are still pending.
   cross-feature weekly loop on two devices, Android acceptance, and an
   installable native-build smoke test are not yet recorded as complete.
 - Render/Neon Free staging previously proved an invitation and shared-list
-  flow on two physical devices. A read-only Render dashboard check on October
-  13 found the staging API still live at `a640747` (PR #11), behind `main` at
-  `228e165`; manual deployment is configured and Auto-Deploy is off. Catalog,
-  Recipes, Plan, and Catalog-backed Shopping API changes are not yet deployed.
-  The named Neon staging database `meal_planner_staging` is also at
-  `household_management_profiles`, six migrations behind repository head
-  `household_shopping_catalog_items`. Render's configured endpoint and
-  database match that Neon project. A counts-only read found two households
-  and two legacy Shopping rows; the final migration will need those rows
-  mapped to Catalog items or explicitly removed after a recovery safeguard.
-  Felipe chose to treat the two staging rows as disposable, pending approval
-  of the separate staging deployment plan. Hosted CI for `228e165` passed its
-  API/PostgreSQL job and mobile tests/type-check/lint but failed the Expo SDK
-  dependency patch check; it is not a fully green release candidate.
-  Resolve code/database parity with data and rollback safeguards before the
-  new full-loop acceptance test; do not infer parity from passing local or
-  disposable-database tests. Keep test data only and the $0/month ceiling.
+  flow on two physical devices. On October 13, Felipe approved a staging
+  parity rollout and confirmed a quiet test window. A no-expiry Neon snapshot
+  was created, exactly two disposable legacy Shopping rows were removed, and
+  the dedicated `meal_planner_staging` database was advanced six revisions to
+  `household_shopping_catalog_items (head)`. Both households remain. Render
+  manually deployed exact `main` commit `228e165` and reports Live; health
+  and the four core feature routes responded, and Auto-Deploy remains Off.
+  Felipe subsequently reported that the app opened all main pages and a
+  single-phone full flow including Plan and Shopping worked on staging. New
+  Recipe had a bottom tab-bar overlap; a focused fix awaits phone retest.
+  Two-device full-loop and Android acceptance still need recording; public
+  health and route discovery are not substitutes. Hosted CI for
+  `228e165` passed its API/PostgreSQL job and mobile tests/type-check/lint but
+  failed the Expo SDK dependency patch check; Felipe accepted that known
+  failure for this staging-only deployment, not as a green release check.
+  Keep test data only and the $0/month ceiling. See the
+  [staging parity result](plans/staging-core-loop-parity.md) and
+  [device checklist](qa/core-loop-acceptance.md).
 - The product is at a **core-loop build complete, acceptance pending** point:
   roughly the code portion of milestone M3, not yet private-beta or store
   readiness. No repeated-use evidence from outside households is recorded
@@ -204,10 +205,10 @@ slices are still pending.
 
 1. Completed October 13: review and fast-forward merge the visual-consistency
    branch into `main` at `2955089`.
-2. Read-only verify staging's deployed API revision and database migration
-   head. If either is behind, plan migration/deployment with identity, data,
-   and rollback safeguards before changing staging. Keep test data only and
-   the $0/month ceiling.
+2. Completed October 13: verify staging identities, snapshot and clear the two
+   disposable legacy Shopping rows, migrate Neon to head, and manually deploy
+   exact `main` to Render Free. Single-phone smoke passed for main pages and a
+   reported full flow; the New Recipe bottom-inset fix awaits phone retest.
 3. Record a full recipe → Plan → week-wide review → Shopping → check-off
    cycle with two members, including an Android device. Check second-device
    refresh, household separation, sheets and keyboard, slow/failing requests,

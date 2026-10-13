@@ -1,7 +1,8 @@
 # Core-loop acceptance and staging parity
 
-Status: planning and read-only audit in progress (October 13, 2026). The
-visual-consistency branch is merged and pushed to `main` at `2955089`.
+Status: staging parity and a single-phone smoke completed October 13, 2026;
+two-device and native-build acceptance remain open. The visual-consistency
+branch is merged and pushed to `main` at `2955089`.
 
 ## Goal
 
@@ -26,7 +27,7 @@ shared-list test for full-loop acceptance.
    Plan row were reviewed, tested, fast-forwarded, and pushed to `main` at
    `2955089`. The final full mobile run passed 51 suites / 336 tests;
    TypeScript and lint passed.
-2. **Read-only staging audit.** Establish the exact Render service, deployed
+2. **Read-only staging audit — complete.** Establish the exact Render service, deployed
    commit, dedicated Neon project/database, and live Alembic revision.
    Compare them with `main` and repo head
    `household_shopping_catalog_items`. Confirm both configured and live
@@ -34,7 +35,7 @@ shared-list test for full-loop acceptance.
    `meal_planner_dev` connection for staging. If access is unavailable,
    record the gap rather than inferring parity from `/v1/health` (which only
    returns `{"status":"ok"}`).
-3. **If staging is behind, stop for a separate deployment decision.** First
+3. **If staging is behind, stop for a separate deployment decision — complete.** First
    inspect QA data and migration preflight, choose a recoverable snapshot or
    rollback approach, and verify the exact release commit's test results and
    any known CI failures. Present the migration/deployment sequence and risks
@@ -70,17 +71,21 @@ shared-list test for full-loop acceptance.
 
 ## Open questions
 
-- Felipe chose to treat the two existing staging Shopping rows as disposable;
-  their removal awaits approval of the separate staging deployment plan and
-  a verified recovery point. The current workspace API configuration targets
-  `meal_planner_dev`, and the mobile configuration is not a verified staging
-  target.
+- The approved staging rollout removed exactly the two disposable Shopping
+  rows after a verified Neon snapshot, migrated to repository head, and
+  manually deployed current `main`. The current workspace API configuration
+  targets `meal_planner_dev`; the ignored local mobile API URL was temporarily
+  set to staging for the phone smoke and then restored to its LAN development
+  target. The running Expo app needs a reload for that restoration.
 - Which Android device or emulator and iPhone can run the two-member test?
 - Is a no-cost installable build path available under the current project
   accounts? Do not enroll in a paid Apple/Google program or use billable EAS
   capacity without Felipe's explicit approval.
 
 ## Read-only preflight (October 13, 2026)
+
+The observations below are the historical state before the approved rollout;
+see the rollout result that follows for the current staging state.
 
 - Repository migration head is `household_shopping_catalog_items`.
   `/v1/health` returns only `{"status":"ok"}`, so it cannot establish a
@@ -129,3 +134,29 @@ shared-list test for full-loop acceptance.
   [Expo's local EAS guidance](https://docs.expo.dev/build-reference/local-builds/)
   does not officially support Windows outside WSL. A build path and any
   account or cost prerequisites need review before configuration changes.
+
+## Staging rollout result (October 13, 2026)
+
+- Felipe approved the separate [staging parity plan](staging-core-loop-parity.md)
+  and confirmed no one else was testing during the transition. Neon Free
+  accepted a manual snapshot named `pre-core-loop-migration-2026-10-13` with
+  no expiry shown. A guarded transaction deleted exactly two legacy Shopping
+  rows from `meal_planner_staging`; zero remained. Both households were
+  preserved.
+- All six pending Alembic revisions applied successfully. Independent
+  read-only checks verified `household_shopping_catalog_items (head)`, the
+  Catalog, household Recipes, and Plan tables, and the non-null canonical
+  Catalog reference on Shopping rows. An initial supplemental check used an
+  incorrect `recipes` table name; the corrected check for
+  `household_recipes` passed without another data change.
+- Render Free manually deployed exact `main` commit
+  `228e1651ad0074c014222043892b07932b0a703a` as
+  [deployment `dep-db77bdcs728c73fcppc0`](https://dashboard.render.com/web/srv-daup95gjo6nc73e2d1p0/deploys/dep-db77bdcs728c73fcppc0).
+  It reports Live, Auto-Deploy remains Off, direct `/v1/health` returned
+  `ok`, and OpenAPI exposed the Catalog, Recipes, Plan, and Shopping routes.
+  The known Expo patch-check CI failure was accepted for this staging-only
+  deployment; CI was not green. Felipe subsequently reported that the app
+  opened all main pages and a full single-phone flow including Plan and
+  Shopping worked on staging. New Recipe had a bottom tab-bar overlap; a
+  focused fix is on the acceptance branch, awaiting a phone retest. The
+  two-device and Android behavior remains unverified in the QA checklist.

@@ -1,7 +1,8 @@
 # Bring staging to the core-loop release
 
-Status: draft for Felipe's approval (October 13, 2026). No staging change is
-authorized by this document alone.
+Status: staging rollout and single-phone smoke complete on October 13, 2026;
+two-device acceptance remains pending. Felipe confirmed no one else was
+testing staging during the transition.
 
 ## Goal and scope
 
@@ -81,8 +82,31 @@ CI, production resources, or the local `meal_planner_dev` database.
 
 ## Approval gate
 
-Felipe must approve this plan, including removal of the two verified staging
-Shopping rows and proceeding with the known Expo-check failure, before any
-snapshot, deletion, migration, or deploy. The migration runner must be chosen
-so the staging credential stays private; if that cannot be arranged safely,
-stop and ask for a new execution path.
+Felipe approved this plan, including removal of the two verified staging
+Shopping rows and proceeding with the known Expo-check failure. On October 13,
+the existing Free Neon project accepted one manual snapshot named
+`pre-core-loop-migration-2026-10-13` (captured at 18:06:06 UTC, with no expiry
+shown). A private read-only connection independently reconfirmed the named
+database, old revision, and two rows; the credential was not written to disk
+or logs and was cleared from the clipboard. Felipe confirmed the quiet window
+before deletion, migration, or deployment.
+The guarded transaction then removed exactly the two disposable legacy
+Shopping rows and verified zero remained. Alembic applied all six pending
+revisions and reported `household_shopping_catalog_items (head)`; an
+independent read confirmed the same revision, both households, zero Shopping
+rows, the Catalog/Recipes/Plan tables, and the canonical Shopping item
+constraint. A first supplemental check incorrectly asked for a table named
+`recipes`; the actual table is `household_recipes`, and the corrected check
+passed without another migration or data change. Render manually deployed
+commit `228e1651ad0074c014222043892b07932b0a703a` from `main` as
+[deployment `dep-db77bdcs728c73fcppc0`](https://dashboard.render.com/web/srv-daup95gjo6nc73e2d1p0/deploys/dep-db77bdcs728c73fcppc0).
+The service reports Live on the Free plan with Auto-Deploy Off. Direct
+`/v1/health` returned `ok`, and the public OpenAPI document exposes the
+Catalog, Recipes, Plan, and Shopping routes. The ignored local Expo `.env` was
+temporarily pointed at staging for a phone check, with Felipe's approval, and
+then restored to the LAN development API. After manually restarting Expo,
+Felipe could open all main pages and reported a full single-phone flow,
+including meal planning and adding to Shopping, worked. New Recipe had a
+bottom tab-bar overlap; a focused fix is awaiting phone retest. This is not
+the two-device or Android acceptance result. Do not count route discovery
+alone as an authenticated smoke test.
