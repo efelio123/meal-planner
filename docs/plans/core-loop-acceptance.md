@@ -85,9 +85,22 @@ shared-list test for full-loop acceptance.
   deployed commit or live migration revision. The workspace API `.env`
   targets `meal_planner_dev`; no staging database credential is set in this
   shell. The configured mobile API target is not confirmed as staging.
-- No staging Render URL or Neon read-only access is recorded in the repo.
-  GitHub CLI's saved authentication is invalid. No staging endpoint was
-  contacted, and no database query, migration, or deployment was attempted.
+- Felipe supplied the [Render staging service](https://dashboard.render.com/web/srv-daup95gjo6nc73e2d1p0).
+  Its dashboard shows `meal-planner-api-staging` on the Free plan, building
+  `services/api/` from `main`, with Auto-Deploy **Off** and no pre-deploy
+  command. The live deployment is commit `a640747` (PR #11), while current
+  `main`/`origin/main` is `228e165`. That deployed commit predates Catalog,
+  Recipes, Plan, and Catalog-backed Shopping; staging API code is therefore
+  not at parity. The service is grouped under a Render environment named
+  `Production` despite its staging service name; verify its database identity
+  independently. No Render deployment or settings change was made.
+- The deployed commit contains migrations only through
+  `household_management_profiles`; the repository now contains six later
+  migration files and has head `household_shopping_catalog_items`. This does
+  **not** establish the live Neon database revision. Neon project/database
+  identity, live Alembic revision, QA data, and a recoverable rollback route
+  remain unverified. GitHub CLI's saved authentication is invalid. No database
+  query, migration, or deployment was attempted.
 - On this Windows host, `adb`, the Android SDK environment variables, the
   Android emulator command, EAS CLI, and `EXPO_TOKEN` are unavailable. Java
   is present. No installable build was attempted. [Expo's local debug-build

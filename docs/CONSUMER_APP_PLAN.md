@@ -174,12 +174,14 @@ slices are still pending.
   cross-feature weekly loop on two devices, Android acceptance, and an
   installable native-build smoke test are not yet recorded as complete.
 - Render/Neon Free staging previously proved an invitation and shared-list
-  flow on two physical devices. The recorded deployment status does not
-  establish that the later Recipes, Plan, and Shopping API revisions and
-  migrations are live there. Verify the deployed code and database revision
-  before using staging for the new full-loop acceptance test; do not infer
-  staging parity from passing local or disposable-database tests. Keep test
-  data only and the existing $0/month ceiling.
+  flow on two physical devices. A read-only Render dashboard check on October
+  13 found the staging API still live at `a640747` (PR #11), behind `main` at
+  `228e165`; manual deployment is configured and Auto-Deploy is off. Catalog,
+  Recipes, Plan, and Catalog-backed Shopping API changes are not yet deployed.
+  The live Neon database identity and Alembic revision remain unverified.
+  Resolve code/database parity with data and rollback safeguards before the
+  new full-loop acceptance test; do not infer parity from passing local or
+  disposable-database tests. Keep test data only and the $0/month ceiling.
 - The product is at a **core-loop build complete, acceptance pending** point:
   roughly the code portion of milestone M3, not yet private-beta or store
   readiness. No repeated-use evidence from outside households is recorded
