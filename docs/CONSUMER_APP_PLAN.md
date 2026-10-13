@@ -189,12 +189,16 @@ slices are still pending.
   `228e165` passed its API/PostgreSQL job and mobile tests/type-check/lint but
   failed the Expo SDK dependency patch check; Felipe accepted that known
   failure for this staging-only deployment, not as a green release check. A
-  seven-package SDK 57 patch-alignment candidate on
-  `codex/expo-patch-alignment` has since passed hosted mobile normal/cold
-  checks (340/340 each), Expo compatibility/Doctor, and API/PostgreSQL
-  (145 tests, none skipped) on exact commit `265e417`; it is not yet merged
-  into `main` or deployed. See the
-  [patch-alignment plan](plans/expo-sdk-57-patch-alignment.md).
+  seven-package SDK 57 patch alignment and critical `shell-quote` fix later
+  fast-forwarded into `main` at `ab83bb8`. Hosted mobile and API/PostgreSQL
+  jobs passed on that exact commit, and Felipe reported the app looked good on
+  his iPhone after reloading. This mobile-only merge did not change Render.
+  A separate approved dependency-security follow-up on
+  `codex/mobile-dependency-security-triage` removes optional Expo tunneling
+  and updates vulnerable transitive `brace-expansion` versions; its local
+  normal and cold mobile suites each passed 340/340, while hosted CI and phone
+  smoke are pending. See the [patch-alignment plan](plans/expo-sdk-57-patch-alignment.md)
+  and [security triage plan](plans/mobile-dependency-security-triage.md).
   Keep test data only and the $0/month ceiling. See the
   [staging parity result](plans/staging-core-loop-parity.md) and
   [device checklist](qa/core-loop-acceptance.md).

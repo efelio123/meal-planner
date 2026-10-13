@@ -1,6 +1,6 @@
 # Mobile dependency security triage
 
-Status: proposal for Felipe's review, October 13, 2026. No dependency changes have been made. Planning branch: `codex/mobile-dependency-security-triage` from current `main` (`ab83bb8`).
+Status: Felipe approved the focused plan, including removal of optional tunnel support, on October 13, 2026. Implemented locally on `codex/mobile-dependency-security-triage` from `main` (`ab83bb8`); awaiting hosted CI, review, and merge. No deployment setting has changed.
 
 ## Goal and scope
 
@@ -32,6 +32,13 @@ Many named high packages (`expo`, React Native, Jest, Clerk, Metro, Solana adapt
 - Run `npx expo install --check`, Expo Doctor, TypeScript, mobile lint, the full normal and cold/no-cache mobile suites, a web export, and `git diff --check`. Report timeouts, warnings, and retries separately. No local PostgreSQL run is required for a mobile-only lockfile change; hosted CI still runs API/PostgreSQL tests.
 - Push only after review, run hosted CI on the exact candidate commit, then merge only with Felipe's approval. After merge, verify LAN startup and a brief iPhone core-loop/sheet smoke test. No Render auto-deploy or environment change.
 
-## Approval question and deferred work
+## Local implementation and validation record (October 13, 2026)
 
-Does Felipe approve dropping optional Expo tunnel support from the project for now? If tunnel access is important, keep `@expo/ngrok`, implement only the compatible `brace-expansion` updates, and document the tunnel-path advisory rather than treating an audit-count-only version bump as a confirmed fix. Revisit `braces`, `node-forge`, and moderate findings when upstream releases or an SDK upgrade provides a supported path.
+- The direct manifest change removes only `@expo/ngrok`. The lockfile removes that package and its 39 now-unused transitive package entries, including `http-cache-semantics`; no unrelated package was added. The only retained-package version changes are five `brace-expansion` copies from 1.1.18 to 1.1.21 and one from 5.0.9 to 5.0.12. The latter is one patch newer than the planned minimum 5.0.11 and remains within `minimatch`'s existing range.
+- A clean `npm ci` passed. It still emitted the pre-existing React 19.2.3 / nested `react-reconciler` 19.3 peer warning and existing deprecation notices. `npm ls` confirms the vulnerable brace versions and `@expo/ngrok`/`http-cache-semantics` path are gone. The live audit changed from 0 critical / 57 high / 27 moderate to **0 critical / 55 high / 26 moderate**. The remaining high count is not zero because package-path entries inherit the two unpatched underlying advisories, `braces` and `node-forge`.
+- Both local full mobile runs passed **51 suites / 340 tests**: one normal, one after clearing Jest's cache with `--no-cache`. Non-failing React `act()` warnings remain in existing tests. TypeScript, lint, Expo dependency check, Expo Doctor (21/21), web export, and `git diff --check` passed. The web export used placeholder public configuration and an isolated temporary output directory that was removed afterward.
+- No API, PostgreSQL, environment, app source, or staging service was touched. Hosted CI and physical-phone LAN smoke are still pending for this exact candidate.
+
+## Approved decision and deferred work
+
+Felipe approved dropping optional Expo tunnel support for now. If tunneling becomes important again, revisit it deliberately rather than treating an audit-count-only version bump as a confirmed fix. Revisit `braces`, `node-forge`, and moderate findings when upstream releases or an SDK upgrade provides a supported path.
