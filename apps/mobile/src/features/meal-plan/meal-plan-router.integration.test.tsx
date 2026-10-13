@@ -1,9 +1,9 @@
 import type { PropsWithChildren } from 'react';
-import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 import { ApiError, api, type CatalogItem, type MealPlanEntry, type MealPlanWeek, type Recipe } from '@/lib/api';
 
 // Route coverage does not exercise Shopping's native swipe animation.
@@ -106,6 +106,22 @@ describe('meal planning through the Expo Router', () => {
   });
 
   afterEach(() => { Platform.OS = originalPlatform; jest.restoreAllMocks(); });
+
+  it('fits all seven days in one week row and lets the last day be selected', async () => {
+    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await waitForLoadedPlan();
+
+    const weekStrip = screen.getByTestId('meal-plan-week-strip');
+    expect(StyleSheet.flatten(weekStrip.props.style)).toMatchObject({ flexDirection: 'row', width: '100%' });
+    const days = within(weekStrip).getAllByRole('button');
+    expect(days).toHaveLength(7);
+    days.forEach((day) => expect(StyleSheet.flatten(day.props.style)).toMatchObject({ flex: 1, minWidth: 0 }));
+
+    await fireEvent.press(days[6]);
+    expect(screen.getByText('Sunday, October 11')).toBeTruthy();
+    expect(days[6].props.accessibilityState.selected).toBe(true);
+  });
 
   it('starts at Plan, stacks a day picker, preserves the add draft, and returns from recipe creation to the same sheet', async () => {
     const withNewEntry: MealPlanWeek = { ...emptyWeek(), entries: [{

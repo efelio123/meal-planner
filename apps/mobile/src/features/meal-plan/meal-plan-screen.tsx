@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
@@ -86,7 +86,7 @@ export function MealPlanScreen() {
           <Pressable accessibilityLabel="Next week" accessibilityRole="button" onPress={() => { setDaySelection({ scope, day: null }); changeWeek(1); }} style={styles.iconButton}><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={20} tintColor={theme.text} /></Pressable>
         </View>
       </View>
-      {week ? <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRail}>
+      {week ? <View testID="meal-plan-week-strip" style={styles.dayRail}>
         {dates.map((day) => {
           const active = activeDay === day;
           return <Pressable key={day} accessibilityRole="button" accessibilityLabel={`${shortDayLabel(day)} ${dateLabel(day, { month: 'long', day: 'numeric' })}`} accessibilityState={{ selected: active }} onPress={() => setDaySelection({ scope, day })} style={[styles.day, active && { backgroundColor: theme.primary }]}>
@@ -95,7 +95,7 @@ export function MealPlanScreen() {
             <View style={[styles.dayDot, { backgroundColor: active ? theme.primaryText : daysWithEntries.has(day) ? theme.primary : 'transparent' }]} />
           </Pressable>;
         })}
-      </ScrollView> : null}
+      </View> : null}
       <Pressable accessibilityLabel="Review shopping needs" accessibilityRole="button" disabled={reviewUnavailable} onPress={openShoppingReview} style={[styles.reviewBanner, { backgroundColor: theme.surfaceSelected, borderColor: theme.border }, reviewUnavailable && styles.disabledBanner]}>
         <View style={[styles.reviewIcon, { backgroundColor: theme.primary }]}><SymbolView name={{ ios: 'cart', android: 'shopping_cart', web: 'shopping_cart' }} size={22} tintColor={theme.primaryText} /></View>
         <View style={styles.reviewCopy}><ThemedText style={styles.reviewTitle}>Review shopping needs</ThemedText><ThemedText themeColor="textSecondary">Choose ingredients to add to Shopping</ThemedText></View>
@@ -133,8 +133,8 @@ const styles = StyleSheet.create({
   weekNavigation: { alignItems: 'center', flexDirection: 'row' },
   iconButton: { alignItems: 'center', height: 40, justifyContent: 'center', width: 40 },
   weekText: { fontSize: 15, fontWeight: '600' },
-  dayRail: { gap: 8, paddingVertical: 3 },
-  day: { alignItems: 'center', borderRadius: 18, gap: 5, justifyContent: 'center', minWidth: 46, paddingHorizontal: 8, paddingVertical: 9 },
+  dayRail: { flexDirection: 'row', paddingVertical: 3, width: '100%' },
+  day: { alignItems: 'center', borderRadius: 18, flex: 1, gap: 5, justifyContent: 'center', minWidth: 0, paddingHorizontal: 2, paddingVertical: 9 },
   dayLabel: { fontSize: 12, fontWeight: '600' },
   dayNumber: { fontSize: 16, fontWeight: '700' },
   dayDot: { borderRadius: 3, height: 5, width: 5 },
