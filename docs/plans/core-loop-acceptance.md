@@ -36,8 +36,9 @@ shared-list test for full-loop acceptance.
    returns `{"status":"ok"}`).
 3. **If staging is behind, stop for a separate deployment decision.** First
    inspect QA data and migration preflight, choose a recoverable snapshot or
-   rollback approach, and verify the exact CI-validated commit. Present the
-   migration/deployment sequence and risks for Felipe's approval before any
+   rollback approach, and verify the exact release commit's test results and
+   any known CI failures. Present the migration/deployment sequence and risks
+   for Felipe's approval before any
    staging write or Render deploy. Keep Auto-Deploy Off and stay within the
    existing $0/month boundary.
 4. **Two-device full-loop acceptance.** With test-only accounts in one QA
@@ -69,8 +70,9 @@ shared-list test for full-loop acceptance.
 
 ## Open questions
 
-- Which Render service and Neon staging database are accessible for read-only
-  revision checks? The current workspace API configuration targets
+- Felipe chose to treat the two existing staging Shopping rows as disposable;
+  their removal awaits approval of the separate staging deployment plan and
+  a verified recovery point. The current workspace API configuration targets
   `meal_planner_dev`, and the mobile configuration is not a verified staging
   target.
 - Which Android device or emulator and iPhone can run the two-member test?
@@ -96,11 +98,29 @@ shared-list test for full-loop acceptance.
   independently. No Render deployment or settings change was made.
 - The deployed commit contains migrations only through
   `household_management_profiles`; the repository now contains six later
-  migration files and has head `household_shopping_catalog_items`. This does
-  **not** establish the live Neon database revision. Neon project/database
-  identity, live Alembic revision, QA data, and a recoverable rollback route
-  remain unverified. GitHub CLI's saved authentication is invalid. No database
-  query, migration, or deployment was attempted.
+  migration files and has head `household_shopping_catalog_items`. Felipe
+  supplied the [Neon staging database](https://console.neon.tech/app/projects/falling-cloud-99942700/branches/br-dark-cell-arcu0x0j/databases?database=meal_planner_staging).
+  The dashboard identifies project `meal-planner-staging`, branch
+  `production`, and database `meal_planner_staging`. Its Tables view shows
+  `alembic_version = household_management_profiles`, with only the seven
+  tables expected before Catalog. Render's configured `DATABASE_URL` was
+  compared privately with Neon connection details: the endpoint and database
+  match, and the credential was re-masked without recording its value. A
+  counts-only `SELECT` against `meal_planner_staging` confirmed the revision,
+  two households, and two legacy Shopping rows. Because Catalog does not yet
+  exist there, the final Shopping migration's mandatory Catalog mapping will
+  stop on those rows unless they are mapped or explicitly removed. Do not
+  silently discard them. Neon currently shows a six-hour restore-history
+  window and a manual snapshot option; neither a snapshot nor a restore has
+  been attempted. GitHub CLI's saved authentication is invalid. No data was
+  changed, and no migration or deployment was attempted.
+- GitHub Actions [run #23 for `main` at `228e165`](https://github.com/efelio123/meal-planner/actions/runs/38429920215)
+  failed overall at `npx expo install --check`: seven resolved Expo packages
+  lag its current SDK 57 patch recommendations. Its mobile normal/cold test,
+  TypeScript, lint, and disposable-PostgreSQL API jobs completed successfully.
+  The commit is therefore **not** a fully green CI release candidate. The
+  dependency alignment or an explicit known-failure exception must be part of
+  the separate deployment decision; no package changes were made here.
 - On this Windows host, `adb`, the Android SDK environment variables, the
   Android emulator command, EAS CLI, and `EXPO_TOKEN` are unavailable. Java
   is present. No installable build was attempted. [Expo's local debug-build

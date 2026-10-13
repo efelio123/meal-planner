@@ -178,7 +178,16 @@ slices are still pending.
   13 found the staging API still live at `a640747` (PR #11), behind `main` at
   `228e165`; manual deployment is configured and Auto-Deploy is off. Catalog,
   Recipes, Plan, and Catalog-backed Shopping API changes are not yet deployed.
-  The live Neon database identity and Alembic revision remain unverified.
+  The named Neon staging database `meal_planner_staging` is also at
+  `household_management_profiles`, six migrations behind repository head
+  `household_shopping_catalog_items`. Render's configured endpoint and
+  database match that Neon project. A counts-only read found two households
+  and two legacy Shopping rows; the final migration will need those rows
+  mapped to Catalog items or explicitly removed after a recovery safeguard.
+  Felipe chose to treat the two staging rows as disposable, pending approval
+  of the separate staging deployment plan. Hosted CI for `228e165` passed its
+  API/PostgreSQL job and mobile tests/type-check/lint but failed the Expo SDK
+  dependency patch check; it is not a fully green release candidate.
   Resolve code/database parity with data and rollback safeguards before the
   new full-loop acceptance test; do not infer parity from passing local or
   disposable-database tests. Keep test data only and the $0/month ceiling.
