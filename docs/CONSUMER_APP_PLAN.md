@@ -188,7 +188,13 @@ slices are still pending.
   health and route discovery are not substitutes. Hosted CI for
   `228e165` passed its API/PostgreSQL job and mobile tests/type-check/lint but
   failed the Expo SDK dependency patch check; Felipe accepted that known
-  failure for this staging-only deployment, not as a green release check.
+  failure for this staging-only deployment, not as a green release check. A
+  seven-package SDK 57 patch-alignment candidate on
+  `codex/expo-patch-alignment` has since passed hosted mobile normal/cold
+  checks (340/340 each), Expo compatibility/Doctor, and API/PostgreSQL
+  (145 tests, none skipped) on exact commit `265e417`; it is not yet merged
+  into `main` or deployed. See the
+  [patch-alignment plan](plans/expo-sdk-57-patch-alignment.md).
   Keep test data only and the $0/month ceiling. See the
   [staging parity result](plans/staging-core-loop-parity.md) and
   [device checklist](qa/core-loop-acceptance.md).

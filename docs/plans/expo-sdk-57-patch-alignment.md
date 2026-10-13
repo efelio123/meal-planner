@@ -1,6 +1,6 @@
 # Expo SDK 57 patch alignment
 
-Status: proposed for Felipe's approval (October 13, 2026). Planning only; no dependency or deployment setting has changed.
+Status: Felipe approved the seven patch updates; candidate implementation committed on `codex/expo-patch-alignment` October 13, 2026. Hosted CI passed on the exact candidate commit. Awaiting review/merge; no deployment setting has changed.
 
 ## Goal
 
@@ -42,7 +42,16 @@ Use Expo's version guidance and npm's lockfile, then inspect the complete manife
 3. Review the branch diff, including transitive lockfile changes. Commit on `codex/expo-patch-alignment`, push for review, and require the hosted mobile and API jobs to pass on the exact candidate commit before merging to `main`. Do not call earlier green checks validation of the changed dependency set.
 4. After merge, have Felipe reload Expo Go and smoke-check Plan, Recipes, Shopping, Catalog, native sheets, and keyboard behavior on iPhone; include Android during the subsequent two-device acceptance pass. No staging API deploy is needed for mobile-only package updates.
 
+## Implementation and validation record (October 13, 2026)
+
+- Commit `265e417` updates exactly the seven direct package ranges above and the npm lockfile. The lockfile also resolves the related Expo CLI/Router transitive tree, including nested Radix packages; no other direct dependency or application source file changed.
+- An isolated temporary copy was used because Felipe's Expo server was running. `npm ci`, `npx expo install --check`, Expo Doctor (21/21), TypeScript, lint, web export, and `git diff --check` passed. This did not refresh the running local Expo process.
+- The first clean-install full Jest run passed 338/340; two tests timed out at Jest's five-second limit. Both affected suites then passed directly (14/14), and a subsequent complete warm run passed 51 suites / 340 tests. The explicit no-cache full run did **not** pass: 46 suites / 318 tests passed and 22 tests in five suites failed, primarily due to timeout/cascading render-test errors. This is recorded as an unresolved cold-run failure, not a pass. Hosted CI against the exact branch commit is required before merge.
+- `npm ci` warned about `react-reconciler@0.34.0` preferring React 19.3 while the project uses 19.2.3. The old and new lockfiles both contain the same `test-renderer@1.3.0`, nested reconciler, and React versions, so this warning predates the patch alignment. It is not hidden or treated as a new direct dependency choice.
+- [Hosted CI run `38472785278`](https://github.com/efelio123/meal-planner/actions/runs/38472785278) on exact commit `265e4178b549e9d1c0f26f68974724883cd8359e` passed: mobile normal and cold/no-cache runs each 51 suites / 340 tests; Expo dependency check and Doctor (21/21), TypeScript, and lint passed; API/PostgreSQL passed 145 tests with zero skipped. This resolves the hosted CI gate for the candidate, while the separate local isolated-copy cold-run failure remains part of the record. No application code, API, schema, staging service, or live Expo server was changed.
+
 ## Open questions / approval gate
 
-- Felipe's approval of these seven patch-level direct dependency changes is required before implementation. If npm or Expo requires an additional direct package change, pause for a plan revision and approval.
+- Felipe approved these seven patch-level direct dependency changes. If npm or Expo requires an additional direct package change, pause for a plan revision and approval.
+- Hosted cold CI passed on the exact candidate commit. Felipe's review/merge decision and the subsequent phone smoke remain open.
 - Enabling Render Auto-Deploy is not part of this plan; migrations, API-only build filters, and the Free-plan cost guard need their own design before that switch.
