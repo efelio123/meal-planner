@@ -5,7 +5,7 @@ import { SymbolView } from 'expo-symbols';
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
-import { CircularAddButton, DisclosureChevron, TabPageHeader, visualStyles } from '@/components/visual-roles';
+import { CircularAddButton, DisclosureChevron, ExpansionChevron, TabPageHeader, visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, type CatalogItem, type ShoppingListItem } from '@/lib/api';
@@ -234,7 +234,7 @@ export default function ShoppingListScreen() {
       }} title={retryingCreatedItem ? 'Adding…' : `Retry adding ${failedCreatedItem.item.name}`} /> : null}
       {!loading && !error && toBuy.length === 0 ? <ThemedText themeColor="textSecondary">{activeStoreFilter === 'all' ? 'Nothing to buy yet. Add items from your Catalog.' : 'No items to buy for this store.'}</ThemedText> : null}
       <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(toBuy)}</View>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: purchasedExpanded }} onPress={() => { setOpenSwipeId(null); setPurchasedExpanded((value) => !value); }} style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Purchased</ThemedText><View style={styles.purchasedHeaderRight}><ThemedText themeColor="textSecondary">{purchased.length}</ThemedText><SymbolView name={{ ios: purchasedExpanded ? 'chevron.up' : 'chevron.down', android: purchasedExpanded ? 'expand_less' : 'expand_more', web: purchasedExpanded ? 'expand_less' : 'expand_more' }} size={17} tintColor={theme.textSecondary} /></View></Pressable>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: purchasedExpanded }} onPress={() => { setOpenSwipeId(null); setPurchasedExpanded((value) => !value); }} style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Purchased</ThemedText><View style={styles.purchasedHeaderRight}><ThemedText themeColor="textSecondary">{purchased.length}</ThemedText><ExpansionChevron expanded={purchasedExpanded} /></View></Pressable>
       {purchasedExpanded && purchased.length ? <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(purchased)}</View> : null}
       {purchasedExpanded && !purchased.length && items.length ? <ThemedText themeColor="textSecondary">No purchased items yet.</ThemedText> : null}
       {!loading && !error && items.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.empty}>Your shared Shopping list is ready for Catalog items.</ThemedText> : null}

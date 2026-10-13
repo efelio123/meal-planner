@@ -234,7 +234,9 @@ describe('Recipes through the actual Expo Router', () => {
     await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes/create'); });
     await screen.findByLabelText('Recipe name');
+    expect(screen.getByTestId('more-details-chevron', { includeHiddenElements: true }).props.name.ios).toBe('chevron.down');
     await fireEvent.press(screen.getByText('More details (optional)'));
+    expect(screen.getByTestId('more-details-chevron', { includeHiddenElements: true }).props.name.ios).toBe('chevron.up');
     const prepHours = screen.getByLabelText('Prep time hours');
     const cookMinutes = screen.getByLabelText('Cook time minutes');
     expect(prepHours.props.value).toBe('0');
@@ -270,7 +272,10 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.queryByRole('radio', { name: 'Household' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Typical shopping unit (optional): Not selected' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Preferred store (optional): Not selected' })).toBeTruthy();
-    await fireEvent.press(screen.getByRole('button', { name: 'More details' }));
+    const catalogMoreDetails = screen.getByRole('button', { name: 'More details' });
+    expect(within(catalogMoreDetails).getByTestId('more-details-chevron', { includeHiddenElements: true }).props.name.ios).toBe('chevron.down');
+    await fireEvent.press(catalogMoreDetails);
+    expect(within(screen.getByRole('button', { name: 'More details' })).getByTestId('more-details-chevron', { includeHiddenElements: true }).props.name.ios).toBe('chevron.up');
     expect(screen.getByRole('button', { name: 'Recipe measurement: Not selected' })).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Item name'), 'QA Celery');
     await fireEvent.press(screen.getByRole('button', { name: 'Category: Not selected' }));
@@ -336,6 +341,9 @@ describe('Recipes through the actual Expo Router', () => {
     expect(editorScroll.props.keyboardShouldPersistTaps).toBe('handled');
     expect(editorScroll.props.keyboardDismissMode).toBe(Platform.OS === 'ios' ? 'interactive' : 'on-drag');
     expect(editorScroll.props.automaticallyAdjustKeyboardInsets).toBe(Platform.OS === 'ios');
+    if (Platform.OS === 'ios') {
+      expect(editorScroll.parent?.props.edges).toEqual({ top: false, right: false, bottom: true, left: false });
+    }
     await fireEvent(screen.getByLabelText('Recipe name'), 'focus');
     await fireEvent.changeText(screen.getByLabelText('Recipe name'), 'Keyboard-safe draft');
     expect(screen.getByDisplayValue('Keyboard-safe draft')).toBeTruthy();

@@ -2,11 +2,10 @@ import { useAuth } from '@clerk/expo';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { SymbolView } from 'expo-symbols';
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
-import { visualStyles } from '@/components/visual-roles';
+import { ExpansionChevron, visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { useTheme } from '@/hooks/use-theme';
@@ -234,7 +233,7 @@ function NeedRow({ need, buyAmount, first, selected, expanded, disabled, editDis
       : <ThemedText themeColor="textSecondary" style={styles.amountSummary}>{formatAmount(null, null)}</ThemedText>}
     {need.sources.length > 1 ? <>
       <Pressable accessibilityRole="button" accessibilityLabel={`${expanded ? 'Hide' : 'Show'} ${need.name} meal sources`} accessibilityState={{ expanded, disabled }} disabled={disabled} onPress={onExpand} style={[styles.sourceAction, { borderTopColor: theme.border }]}>
-        <ThemedText themeColor="link">Used in {need.sources.length} meals</ThemedText><SymbolView name={{ ios: expanded ? 'chevron.up' : 'chevron.down', android: expanded ? 'expand_less' : 'expand_more', web: expanded ? 'expand_less' : 'expand_more' }} size={18} tintColor={theme.link} />
+        <ThemedText themeColor="link">Used in {need.sources.length} meals</ThemedText><ExpansionChevron expanded={expanded} variant="action" />
       </Pressable>
       {expanded ? <View style={styles.sourceList}>{need.sources.map((source, index) => <View key={`${source.planned_for}-${source.meal_slot}-${index}`} style={styles.sourceRow}>
         <View style={styles.sourceCopy}><ThemedText themeColor="textSecondary">{shortDayLabel(source.planned_for)} · {source.recipe_name}</ThemedText>{source.note ? <ThemedText themeColor="textSecondary">{source.note}</ThemedText> : null}</View><ThemedText style={styles.amount}>{formatAmount(source.amount, source.unit_label)}</ThemedText>

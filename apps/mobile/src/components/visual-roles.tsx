@@ -53,10 +53,39 @@ export function DisclosureChevron({ variant = 'ordinary', testID }: { variant?: 
   />;
 }
 
+export function ExpansionChevron({ expanded, variant = 'ordinary', testID }: { expanded: boolean; variant?: 'ordinary' | 'action'; testID?: string }) {
+  const theme = useTheme();
+  return <SymbolView
+    accessibilityElementsHidden
+    importantForAccessibility="no"
+    name={{ ios: expanded ? 'chevron.up' : 'chevron.down', android: expanded ? 'expand_less' : 'expand_more', web: expanded ? 'expand_less' : 'expand_more' }}
+    size={18}
+    testID={testID}
+    tintColor={variant === 'action' ? theme.link : theme.textSecondary}
+  />;
+}
+
+export function MoreDetailsToggle({ expanded, disabled = false, onPress }: { expanded: boolean; disabled?: boolean; onPress: () => void }) {
+  const theme = useTheme();
+  return <Pressable
+    accessibilityLabel="More details"
+    accessibilityRole="button"
+    accessibilityState={{ expanded, disabled }}
+    disabled={disabled}
+    onPress={onPress}
+    style={[styles.moreDetailsToggle, { borderColor: theme.border, opacity: disabled ? 0.5 : 1 }]}
+  >
+    <ThemedText style={styles.moreDetailsTitle}>More details (optional)</ThemedText>
+    <ExpansionChevron expanded={expanded} testID="more-details-chevron" />
+  </Pressable>;
+}
+
 const styles = StyleSheet.create({
   header: { gap: 3 },
   headerRow: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between', minHeight: 48 },
   headerTitle: { flexShrink: 1 },
   headerActions: { alignItems: 'center', flexDirection: 'row', gap: 16 },
   addButton: { alignItems: 'center', borderRadius: 24, height: 48, justifyContent: 'center', width: 48 },
+  moreDetailsToggle: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', minHeight: 56 },
+  moreDetailsTitle: { fontWeight: '700' },
 });

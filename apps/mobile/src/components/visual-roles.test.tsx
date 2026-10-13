@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render } from '@testing-library/react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
-import { CircularAddButton, DisclosureChevron, TabPageHeader, visualStyles } from './visual-roles';
+import { CircularAddButton, DisclosureChevron, ExpansionChevron, MoreDetailsToggle, TabPageHeader, visualStyles } from './visual-roles';
 
 let mockMode: 'light' | 'dark' = 'light';
 
@@ -41,6 +41,35 @@ describe.each(['light', 'dark'] as const)('%s shared visual roles', (mode) => {
     const view = await render(<View><DisclosureChevron testID="ordinary-chevron" /><DisclosureChevron testID="action-chevron" variant="action" /></View>);
     expect(view.getByTestId('ordinary-chevron', { includeHiddenElements: true }).props).toMatchObject({ size: 17, tintColor: Colors[mode].textSecondary });
     expect(view.getByTestId('action-chevron', { includeHiddenElements: true }).props).toMatchObject({ size: 17, tintColor: Colors[mode].link });
+  });
+
+  it('uses one More details row and equally sized chevrons for both states', async () => {
+    const onPress = jest.fn();
+    const view = await render(<MoreDetailsToggle expanded={false} onPress={onPress} />);
+    const button = view.getByRole('button', { name: 'More details' });
+    expect(button.props.accessibilityState).toMatchObject({ expanded: false, disabled: false });
+    expect(StyleSheet.flatten(button.props.style)).toMatchObject({ minHeight: 56, borderColor: Colors[mode].border });
+    expect(StyleSheet.flatten(view.getByText('More details (optional)').props.style)).toMatchObject({ fontWeight: '700' });
+    const collapsed = view.getByTestId('more-details-chevron', { includeHiddenElements: true });
+    expect(collapsed.props).toMatchObject({ size: 18, tintColor: Colors[mode].textSecondary });
+    expect(collapsed.props.name.ios).toBe('chevron.down');
+    await fireEvent.press(button);
+    expect(onPress).toHaveBeenCalledTimes(1);
+
+    await view.rerender(<MoreDetailsToggle expanded onPress={onPress} />);
+    const expanded = view.getByTestId('more-details-chevron', { includeHiddenElements: true });
+    expect(view.getByRole('button', { name: 'More details' }).props.accessibilityState.expanded).toBe(true);
+    expect(expanded.props.size).toBe(collapsed.props.size);
+    expect(expanded.props.name.ios).toBe('chevron.up');
+
+    await view.rerender(<MoreDetailsToggle disabled expanded onPress={onPress} />);
+    expect(view.getByRole('button', { name: 'More details' }).props.accessibilityState.disabled).toBe(true);
+  });
+
+  it('uses the same chevron geometry for other expandable rows', async () => {
+    const view = await render(<View><ExpansionChevron expanded={false} testID="collapsed" /><ExpansionChevron expanded variant="action" testID="expanded" /></View>);
+    expect(view.getByTestId('collapsed', { includeHiddenElements: true }).props).toMatchObject({ size: 18, tintColor: Colors[mode].textSecondary });
+    expect(view.getByTestId('expanded', { includeHiddenElements: true }).props).toMatchObject({ size: 18, tintColor: Colors[mode].link });
   });
 
   it('shares sheet and grouped-row metrics without imposing a card on every picker', () => {

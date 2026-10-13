@@ -7,7 +7,7 @@ import { ActivityIndicator, Keyboard, Platform, Pressable, StyleSheet, View } fr
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
-import { visualStyles } from '@/components/visual-roles';
+import { MoreDetailsToggle, visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, api, type CatalogUnits, type GetToken, type Recipe, type RecipeInput, type RecipeUpdateInput } from '@/lib/api';
@@ -407,7 +407,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       {Platform.OS === 'ios' ? <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button accessibilityLabel={saveLabel} disabled={saveDisabled} hidesSharedBackground onPress={() => void save()} tintColor={saveDisabled ? theme.textSecondary : theme.link} variant="plain">{saveLabel}</Stack.Toolbar.Button>
       </Stack.Toolbar> : null}
-      <Screen contentAlignment="top" safeAreaEdges={['left', 'right']} testID="recipe-editor-screen">
+      <Screen contentAlignment="top" nativeTabBottomInset safeAreaEdges={['left', 'right']} testID="recipe-editor-screen">
         <View style={styles.content}>
           {editing && loading ? <ActivityIndicator accessibilityLabel="Loading recipe for editing" color={theme.activity} /> : null}
           {editing && error && !editorLoaded ? <View style={styles.errorBlock}>
@@ -475,10 +475,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
               </Pressable>
             </View>
 
-            <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreDetails }} disabled={!editable} onPress={() => setMoreDetails((current) => !current)} style={[styles.moreDetails, { borderColor: theme.border }]}>
-              <ThemedText style={styles.moreTitle}>More details (optional)</ThemedText>
-              <ThemedText themeColor="textSecondary">{moreDetails ? '⌃' : '⌄'}</ThemedText>
-            </Pressable>
+            <MoreDetailsToggle disabled={!editable} expanded={moreDetails} onPress={() => setMoreDetails((current) => !current)} />
             {moreDetails ? <View style={styles.optionalFields}>
               <View style={styles.field}><ThemedText style={styles.fieldLabel}>Servings</ThemedText><ThemedInput accessibilityLabel="Servings" editable={editable} keyboardType="number-pad" onChangeText={(servings) => setDraft((current) => ({ ...current, servings: servings.replace(/[^0-9]/gu, '') }))} placeholder="Optional" value={draft.servings} /></View>
               <TimeFields label="Prep time" hours={draft.prepHours} minutes={draft.prepMinutes} editable={editable} onHours={(prepHours) => setDraft((current) => ({ ...current, prepHours: prepHours.replace(/[^0-9]/gu, '') }))} onMinutes={(prepMinutes) => setDraft((current) => ({ ...current, prepMinutes: prepMinutes.replace(/[^0-9]/gu, '').slice(0, 2) }))} />
@@ -533,8 +530,6 @@ const styles = StyleSheet.create({
   stepInput: { minHeight: 88, lineHeight: 24 },
   stepActions: { alignItems: 'center', flexDirection: 'row', justifyContent: 'flex-end', gap: 14 },
   stepAction: { alignItems: 'center', justifyContent: 'center', minHeight: 42, paddingHorizontal: 4 },
-  moreDetails: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', minHeight: 56 },
-  moreTitle: { fontWeight: '700' },
   optionalFields: { gap: 20 },
   timeFields: { gap: 8 },
   splitFields: { flexDirection: 'row', gap: 12 },

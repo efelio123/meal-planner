@@ -5,6 +5,7 @@ import { ActivityIndicator, Keyboard, Pressable, StyleSheet, TextInput, View } f
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { MoreDetailsToggle } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { ApiError, api, type CatalogCategory, type CatalogItem, type CatalogItemInput, type CatalogItemType, type CatalogShoppingUnit, type CatalogUnits, type GetToken, type RecipeMeasurementUnit } from '@/lib/api';
@@ -256,9 +257,7 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
         <ThemedText themeColor="textSecondary">A typical shopping unit only; the catalog does not track quantities on hand.</ThemedText>
         <ChoicePicker compact label="Preferred store (optional)" choices={storeChoices} selectedId={form.storeId} value={selectedStore} emptyChoiceLabel="No preferred store" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={0} createLabel="Create store" manageLabel="Manage stores" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(storeId) => { updateForm((current) => ({ ...current, storeId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('store', 'create')} onManage={() => routeToChoices('store', 'manage')} />
         <>
-          <Pressable accessibilityLabel="More details" accessibilityRole="button" accessibilityState={{ expanded: moreDetails }} onPress={() => setMoreDetails((value) => !value)} style={styles.moreButton}>
-            <ThemedText style={styles.label}>More details (optional)</ThemedText><ThemedText>⌄</ThemedText>
-          </Pressable>
+          <MoreDetailsToggle expanded={moreDetails} onPress={() => setMoreDetails((value) => !value)} />
           {moreDetails ? (
             <View style={styles.content}>
               {form.itemType === 'food' ? <>
@@ -298,5 +297,4 @@ const styles = StyleSheet.create({
   label: { fontWeight: '600' },
   types: { flexDirection: 'row', gap: 8 },
   typeButton: { alignItems: 'center', borderRadius: 10, borderWidth: 1, flex: 1, minHeight: 48, justifyContent: 'center' },
-  moreButton: { alignItems: 'center', borderBottomWidth: StyleSheet.hairlineWidth, borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 16 },
 });
