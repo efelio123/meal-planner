@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: October 7, 2026
+Last updated: October 13, 2026
 
 ## Purpose of this document
 
@@ -147,6 +147,64 @@ validation. Both hosted PostgreSQL checks
 on PR #14 passed; both hosted Mobile jobs failed only at Expo's patch-version
 compatibility check. Felipe approved merging with that known result and
 deferred the five approved SDK 57 patch alignments to a later follow-up.
+
+## Current delivery status (October 13, 2026)
+
+The October 4 snapshot above and the original execution schedule below are
+historical records. This section supersedes their statements about which core
+slices are still pending.
+
+- `main` at `9600ffe` includes household authentication/onboarding and
+  management, the inventory-free Catalog, household Recipes, the weekly Plan
+  and explicit consolidated-ingredient Shopping review, and the Catalog-backed
+  shared Shopping v1. The core recipe → plan → review/select → Shopping →
+  check-off loop is implemented. Shopping quick add, edit, store filtering,
+  sorting, clear-list confirmation, and swipe removal are included. One recipe
+  per day/meal slot and manually shared invitation codes remain intentional v1
+  choices.
+- The app-wide visual-consistency pass and seven-day Plan-strip correction are
+  pushed on `codex/app-wide-visual-consistency` at `67b9c23`, but are not yet
+  merged into `main`. After the final week-strip correction, the full mobile
+  suite passed 51 suites / 336 tests; TypeScript and lint also passed. The
+  latest recorded
+  identity-verified disposable-PostgreSQL suite passed 145 tests after
+  Shopping's backend changes; this visual branch has no backend changes.
+- Felipe accepted selected iPhone Recipes, Plan, Shopping, native-sheet, and
+  visual behaviors during iterative testing, including the corrected full
+  seven-day Plan strip. The complete Shopping manual checklist, full
+  cross-feature weekly loop on two devices, Android acceptance, and an
+  installable native-build smoke test are not yet recorded as complete.
+- Render/Neon Free staging previously proved an invitation and shared-list
+  flow on two physical devices. The recorded deployment status does not
+  establish that the later Recipes, Plan, and Shopping API revisions and
+  migrations are live there. Verify the deployed code and database revision
+  before using staging for the new full-loop acceptance test; do not infer
+  staging parity from passing local or disposable-database tests. Keep test
+  data only and the existing $0/month ceiling.
+- The product is at a **core-loop build complete, acceptance pending** point:
+  roughly the code portion of milestone M3, not yet private-beta or store
+  readiness. No repeated-use evidence from outside households is recorded
+  here. Account deletion and retention, backup/restore, monitoring, an
+  accessibility and slow/offline pass, and native end-to-end validation remain
+  release work. Deep-link invitations, optional sides, recipe photo upload,
+  and an on-hand aid are deferred; singular/plural unit display is a separate
+  polish item.
+
+### Current next milestone: M3 core-loop acceptance
+
+1. Review and merge the pushed visual-consistency branch into `main`.
+2. Read-only verify staging's deployed API revision and database migration
+   head. If either is behind, plan migration/deployment with identity, data,
+   and rollback safeguards before changing staging. Keep test data only and
+   the $0/month ceiling.
+3. Record a full recipe → Plan → week-wide review → Shopping → check-off
+   cycle with two members, including an Android device. Check second-device
+   refresh, household separation, sheets and keyboard, slow/failing requests,
+   and the remaining Shopping manual regression cases.
+4. Smoke-test installable native builds; record platform, build, and result.
+
+Then begin the release-readiness work and repeated-use product validation
+before adding deferred convenience features.
 
 ## Product decision
 
@@ -863,7 +921,7 @@ This milestone validates authentication, multitenancy, mobile networking, shared
 - **M5 - Store ready:** Security, reliability, privacy, account deletion, support, and store assets are complete.
 - **M6 - Public release:** iOS and Android versions are available through staged rollout.
 
-## Immediate next milestone
+## Historical immediate milestone (October 7, 2026)
 
 The cloud-backed, household-isolated shared-shopping-list foundation is in place. Catalog merged through PR #13 and Recipes through PR #14 as `ac5dcf0`; the Recipes migration is not deployed to staging. On a separately verified `meal_planner_disposable_test` container, migrations reached `household_recipes (head)` and the full API suite passed 120 tests with no skips. The separate native-sheet slice has since replaced the rejected custom Ingredient Details drag; Felipe considers Recipes v1 and the sheet UI finished for now, while broader device/reference acceptance remains pending. Its local mobile normal and no-cache runs each passed 41 suites / 263 tests, plus TypeScript, lint, web export, and whitespace checks. Hosted Mobile CI for PR #14 failed the five Expo patch-alignment recommendations; Felipe explicitly approved merging with that known result and deferred those updates. Catalog remains inventory-free. The household-scoped weekly Plan and explicit shopping-review slice is implemented in focused commits on `codex/household-meal-planning`; it has not been pushed or deployed. Details and exact validation limitations are recorded in `docs/plans/household-scoped-meal-planning.md`. In this session, the normal mobile run passed 44 suites / 281 tests, API Ruff and non-database validation passed, while the cache-cleared cold run had five 5-second test timeouts in other suites. API pytest reported 85 passed and 50 PostgreSQL-backed tests skipped because `DATABASE_URL` was absent. Migration/head verification and all database integration tests are pending a verified `meal_planner_disposable_test` connection. The four visual references were reviewed before coding, but side-by-side running-device and native sheet behavior acceptance remain outstanding; no Android emulator was available and no iPhone check was performed. The optional-side image remains deferred and outside v1 scope.
 
