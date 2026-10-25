@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: October 13, 2026
+Last updated: October 25, 2026
 
 ## Purpose of this document
 
@@ -55,6 +55,19 @@ Current limitations that make the private system unsuitable for public consumers
 The Mac Mini deployment should remain the functioning family dashboard and a development laboratory. It should not become the public consumer production server.
 
 ## Current consumer-app progress (October 4, 2026)
+
+Post-trial improvement planning (October 25): Felipe and his wife completed more
+than a week of use and supplied the 29-item inventory in
+`docs/plans/family-trial-improvements.md`. A local Mac database backup was
+restore-tested before new work (19 tables, 70 Catalog items, 9 recipes; matching
+table counts, live data unchanged). B11's blank Catalog editor is currently
+unreproduced on retest. Members should default to Shopping additions and
+check/uncheck access, with owner-configurable per-member permissions in a
+separate future plan. Each user's Plan window is personal; Review shopping
+needs should default to its seven days but allow an arbitrary start/end range.
+Felipe approved B05 first and assigned bug-fix implementation to the chat agent
+on focused branches from main. See `docs/plans/recipe-choice-navigation-repair.md`.
+Other features and live deployment are not approved by this first repair.
 
 - The separate `meal-planner` repository has an Expo/React Native mobile app and a FastAPI `/v1` API. Clerk passwordless email-code authentication, household onboarding, and the global light/dark theme are implemented.
 - Local PostgreSQL 17, Alembic migrations, and the identity/household schema are in place. The existing invitation-code acceptance contract enforces verified-email matching, expiry, and single use.
