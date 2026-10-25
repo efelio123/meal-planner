@@ -101,6 +101,51 @@ taps and reject selector callbacks from a changed household/session scope.
 Actual native visibility remains an iPhone acceptance check, not a source-only
 claim of reproduction.
 
+## Implementation and validation result (October 25)
+
+Implemented on the main-based repair branch:
+
+- Catalog form pickers now use a locally registered native choice-sheet route
+  in Recipes, Catalog, or Shopping. Detents are resolved by the owning layout
+  before presentation; ordinary Create/Manage destinations remain full pages.
+- Create/Manage replaces that local selector in one navigation action. Recipe
+  Food-search -> Create Food uses the same replacement contract. Removed the
+  Back/frame-scheduled Push pair in these paths, retaining the initiating form
+  or recipe editor beneath the replacement.
+- Selector actions reject repeated taps and old household/session scope. Food
+  creation also checks the originating editor and sheet scope before routing.
+- Existing result/choice refresh handling and database/API contracts are retained.
+
+Validation: all 8 targeted suites / 103 tests passed across the final relevant
+runs, including actual Expo Router recipe creation with Category/Store/Unit
+round trips, failed Store save/retry, draft retention, Catalog and Shopping form
+origins, owning-layout presentation options, duplicate actions, scope rejection,
+shared picker/choice management, and startup routing. The first cold run hit
+the existing startup test's five-second timeout; it passed on rerun without a
+timeout increase. A new scope test initially reused the same React element,
+skipping the intended rerender; correcting that test made it exercise and pass
+the scope rejection. Existing Shopping tests emitted act warnings; no production
+change was made to suppress them. TypeScript and lint passed after restoring
+the fresh checkout's standard ignored Expo type-reference file and naming a
+test helper. Dependencies were reused from an identical lockfile, not upgraded.
+
+Official Expo SDK 57 Router docs and the installed Router 57.0.26 dispatch code
+were consulted: replace targets the navigator where the current and destination
+routes diverge. Co-locating selector/destination makes that the owner stack.
+
+Still unrun: actual iPhone/Android presentation, keyboard and gesture acceptance,
+web export, full mobile suite, PostgreSQL tests (no backend/data changes), native
+builds, and deployment. No live trial data or installed phone was changed.
+The earlier trial/signing/scene commits remain on their preserved branches;
+integrate the navigation fix into the verified trial baseline before rebuilding
+for family testing rather than discarding those native settings.
+
+Felipe's next device check: in a recipe draft, Add ingredient -> Create Food,
+then Create and Manage both Store and Shopping Unit with the keyboard open.
+Verify visible destinations, Save/Back returns to the same Food draft, a new
+choice is selected, and Create & use ingredient returns to the same recipe.
+Also repeat a Cancel/native dismissal and direct Catalog/Shopping round trip.
+
 ## Validation and acceptance
 
 After intended edits are complete, run relevant route/context/recipe/shared

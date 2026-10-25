@@ -1,9 +1,13 @@
 import { Stack } from 'expo-router';
+import { Platform } from 'react-native';
+import { nativeSheetRouteOptions } from '@/features/native-sheets/native-sheet-route-options';
+import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { profileNativeStackOptions } from '@/features/profile/profile-navigation-options';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function CatalogLayout() {
   const theme = useTheme();
+  const { get } = useNativeSheetFlow();
   return (
     <Stack screenOptions={{
         headerStyle: { backgroundColor: theme.surface },
@@ -20,6 +24,10 @@ export default function CatalogLayout() {
         <Stack.Screen name="choices/[kind]/index" options={{ title: 'Catalog choices' }} />
         <Stack.Screen name="choices/[kind]/create" options={{ title: 'Create choice' }} />
         <Stack.Screen name="choices/[kind]/[choiceId]" options={{ title: 'Edit choice' }} />
+        <Stack.Screen name="sheet/choice" options={({ route }) => {
+          const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
+          return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);
+        }} />
     </Stack>
   );
 }

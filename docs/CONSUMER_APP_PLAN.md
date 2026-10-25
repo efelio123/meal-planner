@@ -68,6 +68,13 @@ needs should default to its seven days but allow an arbitrary start/end range.
 Felipe approved B05 first and assigned bug-fix implementation to the chat agent
 on focused branches from main. See `docs/plans/recipe-choice-navigation-repair.md`.
 Other features and live deployment are not approved by this first repair.
+The B05 repair is implemented on `codex/recipe-choice-navigation-fix`: selectors
+and Create/Manage destinations share their owner stack and use one replacement
+action rather than Back plus a scheduled Push. Targeted navigation/shared-flow
+checks passed (8 suites / 103 tests across final relevant runs), with TypeScript
+and lint passing. Native iPhone/Android acceptance and deployment remain pending;
+the existing trial native configuration is preserved separately from this
+main-based branch. See the repair plan for exact validation limitations.
 
 - The separate `meal-planner` repository has an Expo/React Native mobile app and a FastAPI `/v1` API. Clerk passwordless email-code authentication, household onboarding, and the global light/dark theme are implemented.
 - Local PostgreSQL 17, Alembic migrations, and the identity/household schema are in place. The existing invitation-code acceptance contract enforces verified-email matching, expiry, and single use.

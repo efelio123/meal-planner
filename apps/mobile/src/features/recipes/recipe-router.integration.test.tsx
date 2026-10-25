@@ -69,6 +69,7 @@ jest.mock('@/lib/api', () => {
       recipes: jest.fn(), recipe: jest.fn(), createRecipe: jest.fn(), updateRecipe: jest.fn(),
       archiveRecipe: jest.fn(), restoreRecipe: jest.fn(), catalogItems: jest.fn(), catalogUnits: jest.fn(),
       catalogCategories: jest.fn(), catalogStores: jest.fn(), createCatalogCategory: jest.fn(), createCatalogItem: jest.fn(),
+      createCatalogStore: jest.fn(), createCatalogShoppingUnit: jest.fn(),
     },
   };
 });
@@ -279,6 +280,7 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.getByRole('button', { name: 'Recipe measurement: Not selected' })).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Item name'), 'QA Celery');
     await fireEvent.press(screen.getByRole('button', { name: 'Category: Not selected' }));
+    expect(rendered.getPathname()).toBe('/recipes/sheet/choice');
     await fireEvent.press(screen.getByRole('button', { name: 'Create category' }));
     await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/catalog-choices/category/create'));
     const category = { id: 'category-celery', name: 'Vegetables', item_type: 'food' as const, emoji: null, active_item_count: 0, created_at: '', updated_at: '' };
@@ -290,22 +292,84 @@ describe('Recipes through the actual Expo Router', () => {
     expect(await screen.findByDisplayValue('QA Celery')).toBeTruthy();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Category: Vegetables' })).toBeTruthy());
     await fireEvent.press(screen.getByRole('button', { name: 'Preferred store (optional): Not selected' }));
+    expect(rendered.getPathname()).toBe('/recipes/sheet/choice');
     await fireEvent.press(screen.getByRole('button', { name: 'Manage stores' }));
     await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/catalog-choices/store'));
     await act(async () => { router.back(); });
     expect(rendered.getPathname()).toBe('/recipes/catalog-food');
+    expect(screen.getByDisplayValue('QA Celery')).toBeTruthy();
+    const store = { id: 'store-new', name: 'Test store', created_at: '', updated_at: '' };
+    mockedApi.createCatalogStore.mockRejectedValueOnce(new Error('Offline')).mockResolvedValueOnce({ store });
+    await fireEvent.press(screen.getByRole('button', { name: 'Preferred store (optional): Not selected' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Create store' }));
+    expect(rendered.getPathname()).toBe('/recipes/catalog-choices/store/create');
+    await fireEvent.changeText(await screen.findByLabelText('store name'), store.name);
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    expect(await screen.findByText('We couldn’t save this choice. Please try again.')).toBeTruthy();
+    expect(rendered.getPathname()).toBe('/recipes/catalog-choices/store/create');
+    expect(screen.getByDisplayValue(store.name)).toBeTruthy();
+    mockedApi.catalogStores.mockResolvedValue({ stores: [store] });
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/catalog-food'));
+    expect(await screen.findByRole('button', { name: `Preferred store (optional): ${store.name}` })).toBeTruthy();
+
+    const unit = { id: 'unit-new', name: 'Test package', created_at: '', updated_at: '' };
+    mockedApi.createCatalogShoppingUnit.mockResolvedValueOnce({ unit });
+    await fireEvent.press(screen.getByRole('button', { name: 'Typical shopping unit (optional): Not selected' }));
+    expect(rendered.getPathname()).toBe('/recipes/sheet/choice');
+    await fireEvent.press(screen.getByRole('button', { name: 'Manage shopping units' }));
+    expect(rendered.getPathname()).toBe('/recipes/catalog-choices/shopping-unit');
+    await act(async () => { router.back(); });
+    expect(rendered.getPathname()).toBe('/recipes/catalog-food');
+    await fireEvent.press(screen.getByRole('button', { name: 'Typical shopping unit (optional): Not selected' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Create shopping unit' }));
+    expect(rendered.getPathname()).toBe('/recipes/catalog-choices/shopping-unit/create');
+    await fireEvent.changeText(await screen.findByLabelText('shopping unit name'), unit.name);
+    mockedApi.catalogUnits.mockResolvedValue({ ...units, shopping_units: { built_in: [], household: [{ id: unit.id, label: unit.name }] } });
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/catalog-food'));
+    expect(await screen.findByRole('button', { name: `Typical shopping unit (optional): Household · ${unit.name}` })).toBeTruthy();
     expect(screen.getByDisplayValue('QA Celery')).toBeTruthy();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create & use ingredient' }).props.accessibilityState?.disabled).toBe(false));
     await fireEvent.press(screen.getByRole('button', { name: 'Create & use ingredient' }));
     await waitFor(() => expect(mockedApi.createCatalogItem).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('Ingredient details')).toBeTruthy();
     expect(await screen.findByTestId('recipe-ingredient-details-scroll')).toBeTruthy();
-    expect(mockedApi.createCatalogItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({ name: 'QA Celery', item_type: 'food', category_id: category.id }));
+    expect(mockedApi.createCatalogItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({ name: 'QA Celery', item_type: 'food', category_id: category.id, preferred_store_id: store.id, custom_shopping_unit_id: unit.id }));
     expect(screen.getByText('QA Celery')).toBeTruthy();
     await waitFor(() => expect(screen.queryByLabelText('Search Food Catalog')).toBeNull());
     await fireEvent.press(screen.getByText('Cancel'));
     await waitFor(() => expect(screen.queryByText('Ingredient details')).toBeNull());
     expect(screen.getByDisplayValue('Celery Soup')).toBeTruthy();
+  });
+
+  it.each([
+    { origin: 'catalog', formRoute: '/catalog/add', choiceBase: '/catalog/choices' },
+    { origin: 'shopping', formRoute: '/shopping/catalog-item', choiceBase: '/shopping/choices' },
+  ])('keeps the $origin Catalog draft beneath its own selector and manager', async ({ origin, formRoute, choiceBase }) => {
+    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Plan');
+    await act(async () => { router.navigate(formRoute as never); });
+    await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Unsaved Food');
+    await screen.findByRole('button', { name: 'Preferred store (optional): Not selected' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Preferred store (optional): Not selected' }));
+    expect(rendered.getPathname()).toBe(`/${origin}/sheet/choice`);
+    // The root navigator must not own this selector above the tab stack.
+    expect(rendered.getRouterState()?.routes.some((route) => route.name === 'native-sheet/[sheetId]')).toBe(false);
+    await fireEvent.press(screen.getByRole('button', { name: 'Manage stores' }));
+    expect(rendered.getPathname()).toBe(`${choiceBase}/store`);
+    await act(async () => { router.back(); });
+    expect(rendered.getPathname()).toBe(formRoute);
+    expect(screen.getByDisplayValue('Unsaved Food')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Typical shopping unit (optional): Not selected' }));
+    expect(rendered.getPathname()).toBe(`/${origin}/sheet/choice`);
+    await fireEvent.press(screen.getByRole('button', { name: 'Create shopping unit' }));
+    expect(rendered.getPathname()).toBe(`${choiceBase}/shopping-unit/create`);
+    await act(async () => { router.back(); });
+    expect(rendered.getPathname()).toBe(formRoute);
+    expect(screen.getByDisplayValue('Unsaved Food')).toBeTruthy();
+    expect(mockedApi.createCatalogItem).not.toHaveBeenCalled();
   });
 
   it('keeps the emoji-entry fields and actions reachable in its scrollable keyboard-safe sheet', async () => {

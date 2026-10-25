@@ -12,6 +12,7 @@ import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-contex
 export type ChoiceOption = { id: string; label: string; group?: string; emoji?: string | null };
 
 type ChoiceSheetProps = {
+  expectedScope: string;
   label: string;
   choices: ChoiceOption[];
   selectedId?: string;
@@ -26,20 +27,29 @@ type ChoiceSheetProps = {
   onCustomSelect?: (value: string) => void;
 };
 
-function ChoiceSheet({ label, choices, selectedId, emptyChoiceLabel, searchable, createActionLabel, manageActionLabel, customValue, onSelect, onCreate, onManage, onCustomSelect }: ChoiceSheetProps) {
+function ChoiceSheet({ expectedScope, label, choices, selectedId, emptyChoiceLabel, searchable, createActionLabel, manageActionLabel, customValue, onSelect, onCreate, onManage, onCustomSelect }: ChoiceSheetProps) {
   const theme = useTheme();
   const router = useRouter();
+  const flow = useNativeSheetFlow();
+  const leaving = useRef(false);
   const [search, setSearch] = useState('');
   const [customMode, setCustomMode] = useState(false);
   const [customText, setCustomText] = useState(customValue ?? '');
   const searchInput = useRef<TextInput>(null);
   const filtered = choices.filter((choice) => choice.label.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
-  const close = () => { Keyboard.dismiss(); router.back(); };
-  const choose = (id: string) => { searchInput.current?.blur(); Keyboard.dismiss(); onSelect(id); router.back(); };
-  const runRouteAction = (action?: () => void) => {
+  const canLeave = () => {
+    if (leaving.current || flow.scope !== expectedScope) return false;
+    leaving.current = true;
+    searchInput.current?.blur();
     Keyboard.dismiss();
-    router.back();
-    if (action) requestAnimationFrame(action);
+    return true;
+  };
+  const close = () => { if (canLeave()) router.back(); };
+  const choose = (id: string) => { if (canLeave()) { onSelect(id); router.back(); } };
+  const runRouteAction = (action?: () => void) => {
+    // The destination replaces this sheet in its owning stack. Splitting this
+    // into Back + a frame-scheduled Push can navigate beneath a dismissing modal.
+    if (action && canLeave()) action();
   };
 
   return <KeyboardAvoidingView testID="catalog-choice-keyboard-area" behavior="padding" style={styles.keyboardArea}>
@@ -51,7 +61,7 @@ function ChoiceSheet({ label, choices, selectedId, emptyChoiceLabel, searchable,
     {customMode ? <View style={styles.customEntry}>
       <ThemedText themeColor="textSecondary">For this ingredient only</ThemedText>
       <ThemedInput accessibilityLabel="Custom recipe unit" autoFocus maxLength={40} onChangeText={setCustomText} placeholder="e.g. pinch" value={customText} />
-      <PrimaryButton disabled={!customText.trim()} onPress={() => { onCustomSelect?.(customText.trim()); router.back(); }} title="Use custom unit" />
+      <PrimaryButton disabled={!customText.trim()} onPress={() => { if (canLeave()) { onCustomSelect?.(customText.trim()); router.back(); } }} title="Use custom unit" />
     </View> : <>
       {searchable ? <ThemedInput ref={searchInput} accessibilityLabel={`Search ${label}`} onChangeText={setSearch} placeholder={`Search ${label.toLocaleLowerCase()}`} value={search} returnKeyType="search" /> : null}
       <ScrollView testID="catalog-choice-scroll" contentContainerStyle={styles.list} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={styles.choices}>
@@ -84,7 +94,9 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
   selectedId?: string;
   choices: ChoiceOption[];
   onSelect: (id: string) => void;
+  /** Replace the active picker route with a destination in the same stack. */
   onCreate?: () => void;
+  /** Replace the active picker route with a destination in the same stack. */
   onManage?: () => void;
   onOpen?: () => void;
   /** Optional per-field value; does not create a household Catalog choice. */
@@ -104,7 +116,7 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
 }) {
   const theme = useTheme();
   const router = useRouter();
-  const { present } = useNativeSheetFlow();
+  const { present, scope } = useNativeSheetFlow();
   const searchable = searchableOverride ?? choices.length > 6;
   const createActionLabel = createLabel ?? `Create ${label.toLocaleLowerCase().replace(/ \(optional\)/, '')}`;
   const manageActionLabel = manageLabel ?? `Manage ${label.toLocaleLowerCase().replace(/ \(optional\)/, '')}s`;
@@ -113,6 +125,7 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
     onOpen?.();
     const sheetId = present(
       <ChoiceSheet
+        expectedScope={scope}
         label={label}
         choices={choices}
         selectedId={selectedId}

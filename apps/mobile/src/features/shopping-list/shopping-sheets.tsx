@@ -306,7 +306,7 @@ function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemo
   const routeToChoices = (kind: CatalogChoiceKind, mode: 'create' | 'manage') => {
     Keyboard.dismiss();
     const suffix = mode === 'create' ? '/create' : '';
-    router.push(`/(app)/(tabs)/shopping/choices/${kind}${suffix}?shoppingTarget=details&shoppingCatalogItemId=${encodeURIComponent(catalogItem.id)}` as never);
+    router.replace(`/(app)/(tabs)/shopping/choices/${kind}${suffix}?shoppingTarget=details&shoppingCatalogItemId=${encodeURIComponent(catalogItem.id)}` as never);
   };
   const editCatalogItem = () => {
     Keyboard.dismiss();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
@@ -33,6 +33,7 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
   const theme = useTheme();
   const router = useRouter();
   const flow = useNativeSheetFlow();
+  const creatingFood = useRef(false);
   const [query, setQuery] = useState('');
   const [items, setItems] = useState<CatalogItem[]>([]);
   const [units, setUnits] = useState<CatalogUnits | null>(null);
@@ -77,7 +78,14 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
           {!loading && filtered.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.emptyFood}>{query.trim() ? 'No Food items match your search.' : 'No Food items in this household yet.'}</ThemedText> : null}
         </View>
       </View> : null}
-      <Pressable accessibilityRole="button" onPress={() => { Keyboard.dismiss(); router.back(); requestAnimationFrame(onCreate); }} style={[styles.createAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link">Create Food item in Catalog</ThemedText><DisclosureChevron variant="action" /></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => {
+        if (creatingFood.current || !isCurrent() || flow.scope !== expectedFlowScope) return;
+        creatingFood.current = true;
+        Keyboard.dismiss();
+        // The editor replaces this search sheet with its Food form, retaining
+        // the editor beneath it without a separate asynchronous dismissal.
+        onCreate();
+      }} style={[styles.createAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link">Create Food item in Catalog</ThemedText><DisclosureChevron variant="action" /></Pressable>
   </ScrollView>;
 }
 

@@ -342,7 +342,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
 
   const openFoodCreate = useCallback(() => {
     if (!householdId || !isCurrentEditorScope()) return;
-    router.push(`${editorRouteBase}/catalog-food?originScope=${encodeURIComponent(`${scope}:${createRequestId.current}`)}` as never);
+    router.replace(`${editorRouteBase}/catalog-food?originScope=${encodeURIComponent(`${scope}:${createRequestId.current}`)}` as never);
   }, [editorRouteBase, householdId, isCurrentEditorScope, router, scope]);
 
   const openIngredientSearch = () => {
