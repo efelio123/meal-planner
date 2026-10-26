@@ -26,23 +26,15 @@ export function NativeSheetScreen({ direct = false }: { direct?: boolean }) {
 
   useEffect(() => {
     if (!entry) return;
-    return navigation.addListener('beforeRemove', () => {
-      // Removing the registry entry rerenders this route before the native
-      // dismissal finishes. It is already leaving; do not issue a second Back.
+    const unsubscribe = navigation.addListener('removed', () => {
+      // SDK 58 reports completed removal after unmount. Effect cleanup alone
+      // may also mean Activity hid a retained screen, so it must not drop drafts.
       requestedFallbackBack.current = true;
       flow.remove(entry.id);
     });
+    // Keep listening through unmount so the completed-removal event arrives.
+    return () => queueMicrotask(unsubscribe);
   }, [entry, flow, navigation]);
-
-  useEffect(() => {
-    if (!entry) return;
-    return () => {
-      // Native gesture removal can bypass the JS navigation notification.
-      // Unmount is the final cleanup point for the entry and dismiss callback.
-      requestedFallbackBack.current = true;
-      flow.remove(entry.id);
-    };
-  }, [entry, flow]);
 
   if (!entry) return null;
 

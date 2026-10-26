@@ -1,3 +1,5 @@
+// SDK 58 initializes the full route tree asynchronously; cold imports on Windows
+// exceed Jest's unit-test default. This is not an app startup performance check.
 import type { PropsWithChildren } from 'react';
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
@@ -5,6 +7,8 @@ import { renderRouter } from 'expo-router/testing-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { ApiError, api, type Me } from '@/lib/api';
+
+jest.setTimeout(30000);
 
 // Route coverage does not exercise Shopping's native swipe animation.
 jest.mock('@/features/shopping-list/shopping-swipe-row', () => ({ ShoppingSwipeRow: ({ children }: PropsWithChildren) => children }));
@@ -100,7 +104,7 @@ describe('household state with the actual Expo Router provider', () => {
     mockedApi.me.mockResolvedValueOnce(signedInMe).mockRejectedValueOnce(new Error('temporary refresh failure')).mockReturnValueOnce(retryRefresh.promise);
     mockedApi.createHousehold.mockResolvedValue({ household: created });
 
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     expect(await screen.findByText('Plan')).toBeTruthy();
     await act(async () => { router.navigate('/profile/my-households/create'); });
@@ -134,7 +138,7 @@ describe('household state with the actual Expo Router provider', () => {
     };
     mockedApi.me.mockResolvedValueOnce(signedInMe).mockResolvedValueOnce(changedRoleMe);
 
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await act(async () => { router.navigate('/profile/my-households'); });
@@ -160,7 +164,7 @@ describe('household state with the actual Expo Router provider', () => {
       .mockRejectedValueOnce(new Error('temporary refresh failure'))
       .mockReturnValueOnce(refreshAfterRetry.promise);
 
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await waitFor(() => expect(mockedApi.me).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('Choose your display name')).toBeTruthy();

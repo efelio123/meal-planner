@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View, type TextInput } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View, type TextInputInstance } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
 
@@ -35,7 +35,7 @@ function ChoiceSheet({ expectedScope, label, choices, selectedId, emptyChoiceLab
   const [search, setSearch] = useState('');
   const [customMode, setCustomMode] = useState(false);
   const [customText, setCustomText] = useState(customValue ?? '');
-  const searchInput = useRef<TextInput>(null);
+  const searchInput = useRef<TextInputInstance>(null);
   const filtered = choices.filter((choice) => choice.label.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const canLeave = () => {
     if (leaving.current || flow.scope !== expectedScope) return false;

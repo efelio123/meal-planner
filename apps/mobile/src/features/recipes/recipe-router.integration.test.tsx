@@ -1,3 +1,5 @@
+// SDK 58 initializes the full route tree asynchronously; cold imports on Windows
+// exceed Jest's unit-test default. This is not an app startup performance check.
 import type { PropsWithChildren } from 'react';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
@@ -6,6 +8,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, StyleSheet } from 'react-native';
 
 import { api, type CatalogItem, type CatalogUnits, type Me, type Recipe } from '@/lib/api';
+
+jest.setTimeout(30000);
 
 jest.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: (...args: unknown[]) => void, ...args: unknown[]) => callback(...args) }));
 
@@ -117,7 +121,7 @@ describe('Recipes through the actual Expo Router', () => {
   afterEach(() => { Platform.OS = originalPlatform; });
 
   it('creates a recipe from a linked Food Catalog item and opens its detail route', async () => {
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     expect(mockedApi.recipes).not.toHaveBeenCalled();
@@ -156,7 +160,7 @@ describe('Recipes through the actual Expo Router', () => {
   it('keeps Food Catalog results selectable from the keyboard-aware sheet', async () => {
     Platform.OS = 'ios';
     mockedApi.catalogItems.mockResolvedValue({ items: [food, { ...food, id: 'food-bread', name: 'Bread' }] });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes/create'); });
@@ -230,7 +234,7 @@ describe('Recipes through the actual Expo Router', () => {
   });
 
   it('clears zero-valued time fields on focus so a user can type directly', async () => {
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes/create'); });
@@ -251,7 +255,7 @@ describe('Recipes through the actual Expo Router', () => {
   });
 
   it('keeps Done and Create Food item actions responsive in the ingredient search sheet', async () => {
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes/create'); });
@@ -347,7 +351,7 @@ describe('Recipes through the actual Expo Router', () => {
     { origin: 'catalog', formRoute: '/catalog/add', choiceBase: '/catalog/choices' },
     { origin: 'shopping', formRoute: '/shopping/catalog-item', choiceBase: '/shopping/choices' },
   ])('keeps the $origin Catalog draft beneath its own selector and manager', async ({ origin, formRoute, choiceBase }) => {
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await act(async () => { router.navigate(formRoute as never); });
@@ -373,7 +377,7 @@ describe('Recipes through the actual Expo Router', () => {
   });
 
   it('keeps the emoji-entry fields and actions reachable in its scrollable keyboard-safe sheet', async () => {
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes/create'); });
@@ -395,7 +399,7 @@ describe('Recipes through the actual Expo Router', () => {
   });
 
   it('keeps the main recipe form in the shared scrollable screen while editing fields', async () => {
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes/create'); });
@@ -420,7 +424,7 @@ describe('Recipes through the actual Expo Router', () => {
       .mockRejectedValueOnce(new Error('temporary offline'))
       .mockResolvedValueOnce({ recipe: recipe() })
       .mockResolvedValueOnce({ recipe: recipe({ name: 'Updated Tomato Soup', edit_revision: 2 }) });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes'); });
@@ -447,7 +451,7 @@ describe('Recipes through the actual Expo Router', () => {
 
   it('backs from edit to recipe detail and from detail to the Recipes library', async () => {
     mockedApi.recipes.mockResolvedValue({ recipes: [recipe()] });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes'); });
@@ -468,7 +472,7 @@ describe('Recipes through the actual Expo Router', () => {
     mockedApi.recipes.mockImplementation(async (_getToken, householdId, archived = false) => ({
       recipes: archived && householdId === 'household-a' ? [archivedRecipe] : [],
     }));
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
 
@@ -492,7 +496,7 @@ describe('Recipes through the actual Expo Router', () => {
     mockedApi.recipes.mockResolvedValue({ recipes: [fullRecipe] });
     mockedApi.recipe.mockResolvedValue({ recipe: fullRecipe });
 
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await act(async () => { router.navigate('/recipes'); });

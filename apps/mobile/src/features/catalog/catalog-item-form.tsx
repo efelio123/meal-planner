@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/expo';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, StyleSheet, View, type TextInputInstance } from 'react-native';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
@@ -48,7 +48,7 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
   const [moreDetails, setMoreDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
-  const itemNameRef = useRef<TextInput>(null);
+  const itemNameRef = useRef<TextInputInstance>(null);
   const formRef = useRef(form);
   const updateForm = useCallback((update: FormState | ((current: FormState) => FormState)) => {
     const next = typeof update === 'function' ? update(formRef.current) : update;

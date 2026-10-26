@@ -1,3 +1,5 @@
+// SDK 58 initializes the full route tree asynchronously; cold imports on Windows
+// exceed Jest's unit-test default. This is not an app startup performance check.
 import type { PropsWithChildren } from 'react';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
@@ -5,6 +7,8 @@ import { renderRouter } from 'expo-router/testing-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, StyleSheet } from 'react-native';
 import { ApiError, api, type CatalogItem, type MealPlanEntry, type MealPlanWeek, type Recipe } from '@/lib/api';
+
+jest.setTimeout(30000);
 
 // Route coverage does not exercise Shopping's native swipe animation.
 jest.mock('@/features/shopping-list/shopping-swipe-row', () => ({ ShoppingSwipeRow: ({ children }: PropsWithChildren) => children }));
@@ -108,7 +112,7 @@ describe('meal planning through the Expo Router', () => {
   afterEach(() => { Platform.OS = originalPlatform; jest.restoreAllMocks(); });
 
   it('fits all seven days in one week row and lets the last day be selected', async () => {
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await waitForLoadedPlan();
 
@@ -136,7 +140,7 @@ describe('meal planning through the Expo Router', () => {
       entryCreated = true;
       return { entry: { id: 'entry-new', planned_for: '2026-10-06', meal_slot: 'dinner', recipe_id: 'recipe-new', edit_revision: 1 } };
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     expect(await screen.findByText('Plan')).toBeTruthy();
     expect(rendered.getPathname()).toBe('/plan');
@@ -178,7 +182,7 @@ describe('meal planning through the Expo Router', () => {
   it('does not open shopping review if a pending week has no week start', async () => {
     const pendingWeek = deferred<MealPlanWeek>();
     mockedApi.mealPlan.mockReturnValueOnce(pendingWeek.promise);
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenCalledTimes(1));
 
@@ -205,7 +209,7 @@ describe('meal planning through the Expo Router', () => {
         existing_matches: [], default_selected: true,
       }],
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -238,7 +242,7 @@ describe('meal planning through the Expo Router', () => {
         existing_matches: [], default_selected: true,
       }],
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -269,7 +273,7 @@ describe('meal planning through the Expo Router', () => {
         existing_matches: [], default_selected: true,
       }],
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -307,7 +311,7 @@ describe('meal planning through the Expo Router', () => {
         existing_matches: [], default_selected: true,
       }],
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -350,7 +354,7 @@ describe('meal planning through the Expo Router', () => {
     mockedApi.mealPlanShoppingReview.mockResolvedValueOnce(review)
       .mockResolvedValueOnce({ ...review, review_token: '2'.repeat(64) })
       .mockResolvedValueOnce({ ...review, review_token: '3'.repeat(64), needs: [{ ...need, amount: '4' }] });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -384,7 +388,7 @@ describe('meal planning through the Expo Router', () => {
     mockedApi.addMealPlanNeedsToShopping.mockRejectedValueOnce(new Error('response connection lost'))
       .mockRejectedValueOnce(new Error('response connection lost again'))
       .mockResolvedValueOnce({ items: [{ id: 'generated-eggs', name: 'Eggs' }], replayed: true });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -422,7 +426,7 @@ describe('meal planning through the Expo Router', () => {
     mockedApi.mealPlanShoppingReview.mockResolvedValue(review);
     const addResponse = deferred<{ items: { id: string; name: string }[]; replayed: boolean }>();
     mockedApi.addMealPlanNeedsToShopping.mockReturnValueOnce(addResponse.promise);
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -465,7 +469,7 @@ describe('meal planning through the Expo Router', () => {
         id: 'plan-item-1', name: 'Milk', is_checked: false, checked_at: null, checked_by_user_id: null,
         created_by_user_id: user.id, created_at: '', meal_plan_source: true, amount: null, unit_label: null,
       }] } });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -484,7 +488,7 @@ describe('meal planning through the Expo Router', () => {
 
   it('shows a retryable safe error when the household week cannot load', async () => {
     mockedApi.mealPlan.mockRejectedValueOnce(new Error('private database detail')).mockResolvedValueOnce(emptyWeek());
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     expect(await screen.findByText('We couldn’t load this week. Please try again.')).toBeTruthy();
     expect(screen.queryByText('private database detail')).toBeNull();
@@ -495,7 +499,7 @@ describe('meal planning through the Expo Router', () => {
 
   it('keeps Add meal open with its selected recipe when saving fails', async () => {
     mockedApi.createMealPlanEntry.mockRejectedValueOnce(new ApiError(409, 'That day and meal already has a planned recipe.', 'MEAL_PLAN_SLOT_OCCUPIED'));
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -517,7 +521,7 @@ describe('meal planning through the Expo Router', () => {
     };
     mockedApi.mealPlan.mockResolvedValueOnce({ ...emptyWeek(), entries: [plannedEntry] });
     mockedApi.updateMealPlanEntry.mockRejectedValueOnce(new Error('private database detail'));
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await fireEvent.press(await screen.findByRole('button', { name: 'Edit Soup, Dinner' }));
     await screen.findByText('Edit meal');
@@ -540,7 +544,7 @@ describe('meal planning through the Expo Router', () => {
       .mockResolvedValueOnce(emptyWeek())
       .mockResolvedValueOnce(emptyWeek());
     mockedApi.updateMealPlanEntry.mockResolvedValue({ entry: { ...plannedEntry, recipe_id: 'recipe-stew', recipe_name: 'Stew', meal_slot: 'breakfast', edit_revision: 2 } });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await fireEvent.press(await screen.findByRole('button', { name: 'Edit Soup, Dinner' }));
     expect(await screen.findByText('Edit meal')).toBeTruthy();
@@ -579,7 +583,7 @@ describe('meal planning through the Expo Router', () => {
       .mockResolvedValueOnce({ ...emptyWeek(), entries: [refreshedEntry] })
       .mockResolvedValueOnce({ ...emptyWeek(), entries: [refreshedEntry] });
     mockedApi.updateMealPlanEntry.mockRejectedValueOnce(new ApiError(409, 'This planned meal changed on another device. Refresh before saving.', 'MEAL_PLAN_REVISION_CONFLICT'));
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await fireEvent.press(await screen.findByRole('button', { name: 'Edit Soup, Dinner' }));
     await screen.findByText('Edit meal');

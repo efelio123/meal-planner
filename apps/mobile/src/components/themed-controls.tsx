@@ -1,8 +1,8 @@
 import { forwardRef, type ComponentProps } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, TextInput, type TextInputInstance } from 'react-native';
 import { useTheme, useThemeMode } from '@/hooks/use-theme';
 
-export const ThemedInput = forwardRef<TextInput, ComponentProps<typeof TextInput>>(function ThemedInput(props, ref) {
+export const ThemedInput = forwardRef<TextInputInstance, ComponentProps<typeof TextInput>>(function ThemedInput(props, ref) {
   const theme = useTheme(); const mode = useThemeMode();
   return <TextInput ref={ref} {...props} keyboardAppearance={Platform.OS === 'ios' ? mode : undefined} placeholderTextColor={theme.inputPlaceholder} selectionColor={theme.primary} cursorColor={theme.primary} style={[styles.input, { backgroundColor: theme.inputBackground, borderColor: theme.border, color: theme.inputText }, props.style]} />;
 });

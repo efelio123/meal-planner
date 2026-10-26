@@ -1,3 +1,5 @@
+// SDK 58 initializes the full route tree asynchronously; cold imports on Windows
+// exceed Jest's unit-test default. This is not an app startup performance check.
 import type { PropsWithChildren } from 'react';
 import { createElement } from 'react';
 import { act, fireEvent } from '@testing-library/react-native';
@@ -7,6 +9,8 @@ import { Alert, Button, Keyboard, Platform, StyleSheet, Text } from 'react-nativ
 import { ApiError, api, type CatalogItem, type ShoppingList, type ShoppingListItem } from '@/lib/api';
 import { catalogEmojiSheetKeyboardBehavior } from '@/features/catalog/catalog-emoji-input-sheet';
 import { useResetToHouseholdStartup } from '@/features/profile/use-reset-to-household-startup';
+
+jest.setTimeout(30000);
 
 // These router tests cover navigation, not the row's native swipe animation.
 jest.mock('@/features/shopping-list/shopping-swipe-row', () => ({ ShoppingSwipeRow: ({ children }: PropsWithChildren) => children }));
@@ -308,7 +312,7 @@ describe('signed-in startup routing', () => {
 
   it('redirects a cold signed-in launch to the usable Plan tab', async () => {
     useActualRootStartup = true;
-    const renderResult = renderRouter(
+    const renderResult = await renderRouter(
       `${process.cwd()}/src/app`,
       { initialUrl: '/' },
     );
@@ -320,15 +324,15 @@ describe('signed-in startup routing', () => {
     expect(tabs?.routeNames).toEqual(['plan', 'recipes', 'shopping', 'catalog', 'profile']);
     expect(tabs?.index).toBe(0);
     expect(tabs?.routes?.[tabs.index ?? -1]?.name).toBe('plan');
-    expect(tabs?.routes?.map((route) => route.state?.type)).toEqual([
-      'stack', 'stack', 'stack', 'stack', 'stack',
-    ]);
+    // SDK 58 seeds lazy tab routes only as needed; the focused tab still owns
+    // its stack and all five tabs remain declared in the expected order.
+    expect(tabs?.routes?.[tabs.index ?? -1]?.state?.type).toBe('stack');
   });
 
   it('returns from household onboarding to the centralized Plan destination', async () => {
     useActualRootStartup = true;
     mockInitialDestination = 'create-or-join';
-    const renderResult = renderRouter(
+    const renderResult = await renderRouter(
       {
         appDir: `${process.cwd()}/src/app`,
         overrides: { '(onboarding)/index': CompleteOnboarding },
@@ -345,7 +349,7 @@ describe('signed-in startup routing', () => {
   it('keeps signed-out routing outside the signed-in tab navigator', async () => {
     mockInitialSignedIn = false;
     mockInitialDestination = 'signed-out';
-    const renderResult = renderRouter(
+    const renderResult = await renderRouter(
       {
         appDir: `${process.cwd()}/src/app`,
         overrides: { '(auth)/sign-in': () => createElement(Button, { title: 'Sign in' }) },
@@ -355,13 +359,17 @@ describe('signed-in startup routing', () => {
     await renderResult;
     expect(await screen.findByText('Sign in')).toBeTruthy();
     expect(screen.queryByText('Shopping')).toBeNull();
-    const state = renderResult.getRouterState() as NavigationState;
-    expect(state.routeNames).not.toContain('(app)');
+    // Protected routes remain registered in SDK 58. Test denied access rather
+    // than depending on their removal from the internal route-name list.
+    await act(async () => { router.navigate('/shopping'); });
+    expect(renderResult.getPathname()).toBe('/sign-in');
+    expect(screen.queryByText('Shopping')).toBeNull();
+    expect(api.shoppingList).not.toHaveBeenCalled();
   });
 
   it('routes an already-signed-in nameless account to profile completion without sign-out', async () => {
     mockInitialDestination = 'complete-profile';
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
 
     expect(await screen.findByText('Choose your display name')).toBeTruthy();
@@ -372,7 +380,7 @@ describe('signed-in startup routing', () => {
   });
 
   it('removes signed-in screens after Profile sign-out and starts fresh after sign-in', async () => {
-    const renderResult = renderRouter(
+    const renderResult = await renderRouter(
       {
         appDir: `${process.cwd()}/src/app`,
         overrides: { '(auth)/sign-in': SignInAgainFixture },
@@ -413,7 +421,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.shoppingList).mockResolvedValue({
       shopping_list: { id: 'list-a', household_id: 'household-a', items: [apples] },
     });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Apples');
     expect(api.shoppingList).toHaveBeenCalledTimes(1);
@@ -429,7 +437,7 @@ describe('signed-in startup routing', () => {
   it('adds from the Catalog picker in one selection with amount 1 and no preference overrides', async () => {
     jest.mocked(api.catalogItems).mockResolvedValue({ items: [catalogItem()] });
     jest.mocked(api.addShoppingListItem).mockResolvedValue({ item: shoppingRow() });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
 
@@ -452,13 +460,14 @@ describe('signed-in startup routing', () => {
   it('creates a Catalog item from the picker header and quick-adds it on return', async () => {
     jest.mocked(api.createCatalogItem).mockResolvedValue({ item: catalogItem({ name: 'Oat milk' }) });
     jest.mocked(api.addShoppingListItem).mockResolvedValue({ item: shoppingRow({ name: 'Oat milk' }) });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await fireEvent.press(screen.getByRole('button', { name: 'Add from Catalog' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Create Catalog item' }));
     expect(await screen.findByLabelText('Item name')).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Item name'), 'Oat milk');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create & add to Shopping' }).props.accessibilityState?.disabled).toBe(false));
     await fireEvent.press(screen.getByRole('button', { name: 'Create & add to Shopping' }));
     await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
     await waitFor(() => expect(api.addShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'item-1', { amount: '1' }));
@@ -478,7 +487,7 @@ describe('signed-in startup routing', () => {
       return { unit: { id: 'crate-id', name: 'Crate', created_at: '', updated_at: '' } };
     });
     jest.mocked(api.updateShoppingListItem).mockResolvedValue({ item: shoppingRow({ amount: '2.666667' }) });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk' }));
     await screen.findByRole('button', { name: 'Save changes' });
@@ -517,7 +526,7 @@ describe('signed-in startup routing', () => {
       savedCatalog = catalogItem({ name: payload.name });
       return { item: savedCatalog };
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk' }));
     await screen.findByRole('button', { name: 'Save changes' });
@@ -553,7 +562,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.shoppingListItem).mockResolvedValue({ item: shoppingRow() });
     jest.mocked(api.deleteShoppingListItem).mockResolvedValue(undefined);
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk' }));
     await screen.findByRole('button', { name: 'Remove from Shopping' });
@@ -574,7 +583,7 @@ describe('signed-in startup routing', () => {
       storeCreated = true;
       return { store: { id: 'market-id', name: 'Local Market', created_at: '', updated_at: '' } };
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk' }));
     await screen.findByRole('button', { name: 'Save changes' });
@@ -608,7 +617,7 @@ describe('signed-in startup routing', () => {
     });
     jest.mocked(api.updateShoppingListItem).mockReturnValue(pendingToggle);
 
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     const checkedControl = await screen.findByRole('checkbox', { name: 'Mark Eggs purchased' });
     await fireEvent.press(checkedControl);
@@ -631,7 +640,7 @@ describe('signed-in startup routing', () => {
   });
 
   it('follows Android tab history through several tabs using the real router', async () => {
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Shopping');
 
@@ -650,7 +659,7 @@ describe('signed-in startup routing', () => {
   });
 
   it('pushes and pops a fixture screen in the Shopping nested stack', async () => {
-    const renderResult = renderRouter(
+    const renderResult = await renderRouter(
       {
         appDir: `${process.cwd()}/src/app`,
         overrides: { '(app)/(tabs)/shopping/details': ShoppingDetailsFixture },
@@ -676,7 +685,7 @@ describe('signed-in startup routing', () => {
   });
 
   it('resets nested Profile household history before returning to the startup tab', async () => {
-    const renderResult = renderRouter(
+    const renderResult = await renderRouter(
       {
         appDir: `${process.cwd()}/src/app`,
         overrides: {
@@ -708,7 +717,7 @@ describe('signed-in startup routing', () => {
 
   it('explicitly switches from a household detail and clears its prior Invitations history', async () => {
     mockInitialHouseholdId = 'household-b';
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile');
@@ -754,7 +763,7 @@ describe('signed-in startup routing', () => {
 
   it('marks the active household and keeps opening other household details read-only', async () => {
     mockInitialHouseholdId = 'household-b';
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households');
@@ -773,7 +782,7 @@ describe('signed-in startup routing', () => {
       user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' },
       households: [...mockHouseholds, created],
     }];
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households/create');
@@ -792,7 +801,7 @@ describe('signed-in startup routing', () => {
     const pendingRefresh = deferred<MockMe | null>();
     jest.mocked(api.createHousehold).mockResolvedValue({ household: created });
     mockRefreshResults = [pendingRefresh.promise];
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households/create');
@@ -821,7 +830,7 @@ describe('signed-in startup routing', () => {
       user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' },
       households: [updated, mockHouseholds[1]],
     }];
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households/household-a/edit');
@@ -840,7 +849,7 @@ describe('signed-in startup routing', () => {
     const pendingRefresh = deferred<MockMe | null>();
     jest.mocked(api.updateHousehold).mockResolvedValue({ household: updated });
     mockRefreshResults = [pendingRefresh.promise];
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households/household-a/edit');
@@ -868,7 +877,7 @@ describe('signed-in startup routing', () => {
       user: { id: 'user-a', email: 'person@example.test', display_name: 'Person Example' },
       households: [...mockHouseholds, created],
     }];
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households/create');
@@ -886,7 +895,7 @@ describe('signed-in startup routing', () => {
   });
 
   it('keeps Profile, My households, household details, and Invitations in one working Back history', async () => {
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
 
@@ -934,7 +943,7 @@ describe('signed-in startup routing', () => {
       membership_id: 'membership-b', display_name: 'Sam Member', avatar_url: null,
       role: 'member', joined_at: '2026-09-01T00:00:00Z', is_self: false, email: 'sam@example.test',
     } });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a');
@@ -978,7 +987,7 @@ describe('signed-in startup routing', () => {
       households: mockHouseholds,
     }];
 
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a');
@@ -1030,7 +1039,7 @@ describe('signed-in startup routing', () => {
       households: mockHouseholds,
     }];
 
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a');
@@ -1064,7 +1073,7 @@ describe('signed-in startup routing', () => {
   it('does not navigate when explicit household switching fails', async () => {
     mockInitialHouseholdId = 'household-b';
     mockSelectionOverride = { status: 'failed', reason: 'storage' };
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Shopping');
     await navigateTo(renderResult, '/profile/my-households');
@@ -1081,7 +1090,7 @@ describe('signed-in startup routing', () => {
   it('preserves a household-targeted invitation across tab switches and clears it when its route closes', async () => {
     let resolveInvitation!: (value: { invitation: { id: string; expires_at: string; code: string } }) => void;
     jest.mocked(api.createInvitation).mockReturnValue(new Promise((resolve) => { resolveInvitation = resolve; }));
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a/invitations');
@@ -1120,7 +1129,7 @@ describe('signed-in startup routing', () => {
 
   it('hides owner invitation controls from a member household detail', async () => {
     mockInitialRole = 'member';
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a');
@@ -1130,7 +1139,7 @@ describe('signed-in startup routing', () => {
   });
 
   it('does not substitute the active household for an unknown invitation route target', async () => {
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Shopping');
 
@@ -1148,7 +1157,7 @@ describe('signed-in startup routing', () => {
   it('does not restore a deferred invitation after its household route is popped', async () => {
     let resolveInvitation!: (value: { invitation: { id: string; expires_at: string; code: string } }) => void;
     jest.mocked(api.createInvitation).mockReturnValue(new Promise((resolve) => { resolveInvitation = resolve; }));
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a/invitations');
@@ -1175,7 +1184,7 @@ describe('signed-in startup routing', () => {
 
   it('keeps Catalog mounted across tab switches and loads only when explicitly visited', async () => {
     jest.mocked(api.catalogItems).mockResolvedValue({ items: [catalogItem({ name: 'Apple', category_id: 'produce', category_name: 'Produce' })] });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
@@ -1202,7 +1211,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.catalogItems)
       .mockReturnValueOnce(householdA.promise)
       .mockResolvedValueOnce({ items: [row('item-b', 'household-b', 'Cabin item')] });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
@@ -1223,7 +1232,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.createCatalogCategory).mockResolvedValue({ category: {
       id: 'produce-category', item_type: 'food', name: 'Produce', emoji: null, active_item_count: 0, created_at: '', updated_at: '',
     } });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
@@ -1250,7 +1259,7 @@ describe('signed-in startup routing', () => {
       },
       recipe_measurement_units: [],
     });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
@@ -1275,7 +1284,7 @@ describe('signed-in startup routing', () => {
       { id: 'food-7', item_type: 'food', name: 'Beverages', emoji: null, active_item_count: 0, created_at: '', updated_at: '' },
     ] });
     jest.mocked(api.catalogStores).mockResolvedValue({ stores: [{ id: 'market', name: 'Market', created_at: '', updated_at: '' }] });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
@@ -1298,7 +1307,7 @@ describe('signed-in startup routing', () => {
   });
 
   it('clears the empty-name error as soon as the item name is corrected', async () => {
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
@@ -1313,7 +1322,7 @@ describe('signed-in startup routing', () => {
   it('preserves an Add Item draft when a preferred store is created from its visible field', async () => {
     jest.mocked(api.createCatalogStore).mockResolvedValue({ store: { id: 'store-1', name: 'Market', created_at: '', updated_at: '' } });
     jest.mocked(api.catalogStores).mockResolvedValue({ stores: [{ id: 'store-1', name: 'Market', created_at: '', updated_at: '' }] });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
@@ -1331,7 +1340,7 @@ describe('signed-in startup routing', () => {
   it('preserves an Add Item draft when a household shopping unit is created', async () => {
     jest.mocked(api.createCatalogShoppingUnit).mockResolvedValue({ unit: { id: 'crate-id', name: 'Crate', created_at: '', updated_at: '' } });
     jest.mocked(api.catalogUnits).mockResolvedValue({ shopping_units: { built_in: [], household: [{ id: 'crate-id', label: 'Crate' }] }, recipe_measurement_units: [] });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
@@ -1360,7 +1369,7 @@ describe('signed-in startup routing', () => {
       categoryArchived = true;
       throw new ApiError(409, 'A choice is no longer available.', 'CATALOG_REFERENCE_ARCHIVED');
     });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
@@ -1385,7 +1394,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.catalogItem)
       .mockRejectedValueOnce(new Error('temporary item load failure'))
       .mockResolvedValueOnce({ item: catalogItem({ name: 'Original milk', category_id: 'dairy', category_name: 'Dairy' }) });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/item/item-1/edit');
@@ -1408,7 +1417,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.createCatalogCategory).mockResolvedValue({ category: {
       id: 'household-category-new', item_type: 'household', name: 'Laundry', emoji: null, active_item_count: 0, created_at: '', updated_at: '',
     } });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
@@ -1430,7 +1439,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.createCatalogCategory).mockResolvedValue({ category: {
       id: 'new-household-category', item_type: 'household', name: 'Laundry', emoji: null, active_item_count: 0, created_at: '', updated_at: '',
     } });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
@@ -1447,7 +1456,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.createCatalogCategory).mockResolvedValue({ category: {
       id: 'pantry-category', item_type: 'food', name: 'Pantry', emoji: '🫙', active_item_count: 0, created_at: '', updated_at: '',
     } });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
@@ -1472,7 +1481,7 @@ describe('signed-in startup routing', () => {
     const category = { id: 'wave-category', item_type: 'food' as const, name: 'Greetings', emoji: '👋🏻', active_item_count: 0, created_at: '', updated_at: '' };
     jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
     jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/choices/category/wave-category');
@@ -1493,7 +1502,7 @@ describe('signed-in startup routing', () => {
     const category = { id: 'wave-category', item_type: 'food' as const, name: 'Greetings', emoji: '👋🏻', active_item_count: 0, created_at: '', updated_at: '' };
     jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
     jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category: { ...category, emoji: null } });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/choices/category/wave-category');
@@ -1518,7 +1527,7 @@ describe('signed-in startup routing', () => {
       categories: [householdId === 'household-a' ? categoryA : categoryB],
     }));
     jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category: categoryB });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/choices/category/shared-id');
@@ -1537,7 +1546,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.createCatalogCategory).mockResolvedValue({ category: {
       id: 'test-category', item_type: 'food', name: 'Testing', emoji: '👩‍🍳', active_item_count: 0, created_at: '', updated_at: '',
     } });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
@@ -1579,7 +1588,7 @@ describe('signed-in startup routing', () => {
     const category = { id: 'dairy', item_type: 'food' as const, name: 'Dairy', emoji: '🧀', active_item_count: 3, created_at: '', updated_at: '' };
     jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
     jest.mocked(api.deleteCatalogCategory).mockResolvedValue(undefined);
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
@@ -1595,7 +1604,7 @@ describe('signed-in startup routing', () => {
   it('aligns the category name, type, and active-item count to a shared trailing inset', async () => {
     const category = { id: 'dairy', item_type: 'food' as const, name: 'Dairy', emoji: '🧀', active_item_count: 3, created_at: '', updated_at: '' };
     jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
@@ -1615,7 +1624,7 @@ describe('signed-in startup routing', () => {
     jest.replaceProperty(Platform, 'OS', 'android');
     const category = { id: 'dairy', item_type: 'food' as const, name: 'Dairy', emoji: '🧀', active_item_count: 3, created_at: '', updated_at: '' };
     jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
@@ -1639,7 +1648,7 @@ describe('signed-in startup routing', () => {
       { id: 'market', name: 'Market', created_at: '', updated_at: '' },
       { id: 'corner', name: 'Corner Shop', created_at: '', updated_at: '' },
     ] });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/manage');
@@ -1656,7 +1665,7 @@ describe('signed-in startup routing', () => {
     const category = { id: 'household-category', item_type: 'household' as const, name: 'Cleaning', emoji: null, active_item_count: 0, created_at: '', updated_at: '' };
     jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [category] });
     jest.mocked(api.updateCatalogCategory).mockResolvedValue({ category: { ...category, name: 'Laundry' } });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
@@ -1677,7 +1686,7 @@ describe('signed-in startup routing', () => {
       .mockResolvedValueOnce({ items: [catalogItem({ name: 'Apple', category_id: 'produce', category_name: 'Produce' })] })
       .mockResolvedValueOnce({ items: [catalogItem({ id: 'item-b', household_id: 'household-b', item_type: 'household', name: 'Cabin soap' })] })
       .mockResolvedValueOnce({ items: [catalogItem({ id: 'item-c', household_id: 'household-b', name: 'Identity bread' })] });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
@@ -1708,7 +1717,7 @@ describe('signed-in startup routing', () => {
       catalogItem({ id: 'food-apple', name: 'Apple', category_id: 'food-produce', category_name: 'Produce' }),
       catalogItem({ id: 'household-soap', item_type: 'household', name: 'Soap', category_id: 'household-produce', category_name: 'Produce' }),
     ] });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
@@ -1725,7 +1734,7 @@ describe('signed-in startup routing', () => {
 
   it('shows a Retry action when item detail loading fails', async () => {
     jest.mocked(api.catalogItem).mockRejectedValueOnce(new Error('temporary detail failure')).mockResolvedValueOnce({ item: catalogItem() });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/item/item-1');
@@ -1741,7 +1750,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [
       { id: 'dairy', item_type: 'food', name: 'Dairy', emoji: '🥛', active_item_count: 1, created_at: '', updated_at: '' },
     ] });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/item/item-1');
@@ -1762,7 +1771,7 @@ describe('signed-in startup routing', () => {
     ] });
     jest.mocked(api.updateCatalogItem).mockResolvedValue({ item: updatedItem });
 
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
@@ -1806,7 +1815,7 @@ describe('signed-in startup routing', () => {
     ] });
     jest.mocked(api.updateCatalogItem).mockResolvedValue({ item: staleUpdatedItem });
 
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
@@ -1846,7 +1855,7 @@ describe('signed-in startup routing', () => {
     ] });
     jest.mocked(api.updateCatalogItem).mockResolvedValue({ item: updatedItem });
 
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog');
@@ -1873,7 +1882,7 @@ describe('signed-in startup routing', () => {
       if (itemType === 'food' && foodManagerLoads++ === 0) throw new Error('temporary categories failure');
       return { categories: [{ id: 'food-category', item_type: 'food', name: 'Produce', emoji: null, active_item_count: 0, created_at: '', updated_at: '' }] };
     });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');
@@ -1893,7 +1902,7 @@ describe('signed-in startup routing', () => {
       categories: !categoryArchived && (!itemType || itemType === 'food') ? [category] : [],
     }));
     jest.mocked(api.deleteCatalogCategory).mockImplementation(async () => { categoryArchived = true; });
-    const renderResult = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/add');

@@ -11,7 +11,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { clerkPublishableKey } from '@/auth-config';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import { HouseholdStateProvider, useHouseholdState } from '@/hooks/use-household-state';
+import { HouseholdStateProvider, useHouseholdState, type AppDestination } from '@/hooks/use-household-state';
+import { startupRouteForDestination } from '@/features/navigation/startup-route';
 import { useTheme, useThemeMode } from '@/hooks/use-theme';
 import { getStartupDiagnostics } from '@/lib/startup-diagnostics';
 import { NativeSheetProvider, useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
@@ -20,24 +21,25 @@ import { ShoppingProvider } from '@/features/shopping-list/shopping-context';
 
 SplashScreen.preventAutoHideAsync();
 
-function RootStack({ destination, isSignedIn }: { destination: string; isSignedIn: boolean | undefined }) {
+function RootStack({ destination, isSignedIn }: { destination: AppDestination; isSignedIn: boolean | undefined }) {
   const theme = useTheme();
   const { get } = useNativeSheetFlow();
+  const redirectTo = startupRouteForDestination(isSignedIn ? destination : 'signed-out');
   return <Stack>
     <Stack.Screen name="index" options={{ headerShown: false }} />
-    <Stack.Protected guard={!isSignedIn}>
+    <Stack.Protected guard={!isSignedIn} redirectTo={redirectTo}>
       <Stack.Screen name="(auth)" options={{ headerShown: false }} />
     </Stack.Protected>
-    <Stack.Protected guard={!!isSignedIn && destination === 'app'}>
+    <Stack.Protected guard={!!isSignedIn && destination === 'app'} redirectTo={redirectTo}>
       <Stack.Screen name="(app)" options={{ headerShown: false }} />
     </Stack.Protected>
-    <Stack.Protected guard={!!isSignedIn && (destination === 'create-or-join' || destination === 'select-household' || destination === 'complete-profile')}>
+    <Stack.Protected guard={!!isSignedIn && (destination === 'create-or-join' || destination === 'select-household' || destination === 'complete-profile')} redirectTo={redirectTo}>
       <Stack.Screen name="(onboarding)" options={{ headerShown: false }} />
     </Stack.Protected>
-    <Stack.Protected guard={!!isSignedIn && destination === 'api-error'}>
+    <Stack.Protected guard={!!isSignedIn && destination === 'api-error'} redirectTo={redirectTo}>
       <Stack.Screen name="(api-error)" options={{ headerShown: false }} />
     </Stack.Protected>
-    <Stack.Protected guard={!!isSignedIn && ['app', 'create-or-join', 'select-household', 'complete-profile'].includes(destination)}>
+    <Stack.Protected guard={!!isSignedIn && ['app', 'create-or-join', 'select-household', 'complete-profile'].includes(destination)} redirectTo={redirectTo}>
       <Stack.Screen name="native-sheet/[sheetId]" options={({ route }) => {
         const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
         return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);

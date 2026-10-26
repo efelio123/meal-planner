@@ -4,6 +4,7 @@ import { ApiError, api, type CatalogItem, type ShoppingListItem } from '@/lib/ap
 
 const mockBack = jest.fn();
 const mockPush = jest.fn();
+const mockReplace = jest.fn();
 const mockPresent = jest.fn((_content: unknown, _options?: unknown) => 'details-sheet');
 const mockAdd = jest.fn((_item: CatalogItem): Promise<void> => Promise.resolve());
 const mockRemove = jest.fn((_item: ShoppingListItem): Promise<void> => Promise.resolve());
@@ -12,7 +13,7 @@ let mockSessionId = 'session-1';
 let mockHouseholdId = 'household-1';
 let mockShoppingScope = '["user-1","session-1","household-1"]';
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack, push: mockPush }) }));
+jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack, push: mockPush, replace: mockReplace }) }));
 jest.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: mockUserId, sessionId: mockSessionId }) }));
 jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: () => ({ getToken: jest.fn().mockResolvedValue('token'), selectedHousehold: { id: mockHouseholdId } }) }));
 jest.mock('@/features/shopping-list/shopping-context', () => ({ useShoppingContext: () => ({ scope: mockShoppingScope, markChanged: jest.fn() }) }));
@@ -122,12 +123,12 @@ describe('Shopping Catalog picker sheet', () => {
     expect(mockPresent).toHaveBeenCalledTimes(1);
   });
 
-  it('opens the Shopping-scoped Catalog create route after dismissing the picker', async () => {
+  it('replaces the picker with the Shopping-scoped Catalog create route', async () => {
     const view = await render(<ShoppingCatalogPickerSheet items={[]} onAdd={mockAdd} onRemove={mockRemove} />);
-    fireEvent.press(within(view.getByTestId('shopping-catalog-footer')).getByRole('button', { name: 'Create item in Catalog' }));
+    await fireEvent.press(within(view.getByTestId('shopping-catalog-footer')).getByRole('button', { name: 'Create item in Catalog' }));
 
-    expect(mockBack).toHaveBeenCalledTimes(1);
-    await waitFor(() => expect(mockPush).toHaveBeenCalledWith({
+    expect(mockBack).not.toHaveBeenCalled();
+    await waitFor(() => expect(mockReplace).toHaveBeenCalledWith({
       pathname: '/(app)/(tabs)/shopping/catalog-item',
       params: { shoppingOriginScope: '["user-1","session-1","household-1"]' },
     }));

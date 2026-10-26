@@ -21,7 +21,7 @@ const fixture: Recipe[] = [
 jest.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: mockUserId, sessionId: mockSessionId }) }));
 jest.mock('expo-router', () => ({
   useRouter: () => ({ push: jest.fn() }),
-  useNavigation: () => ({ isFocused: () => true, addListener: () => () => undefined }),
+  useIsFocused: () => true,
 }));
 jest.mock('@/hooks/use-color-scheme', () => ({ useColorScheme: () => mockMode }));
 jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: () => ({ selectedHousehold: { id: mockHouseholdId } }) }));

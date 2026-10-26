@@ -48,6 +48,7 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
   const [duplicateItem, setDuplicateItem] = useState<ShoppingListItem | null>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const addingRef = useRef(false);
+  const creatingCatalog = useRef(false);
   const confirmationTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeRef = useRef(true);
   const requestScope = JSON.stringify([userId, sessionId, householdId]);
@@ -68,6 +69,7 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
     confirmationTimeout.current = null;
     setDuplicateItem(null);
     addingRef.current = false;
+    creatingCatalog.current = false;
     setAddingId(null);
     setLoading(Boolean(householdId));
   }, [householdId, requestScope]);
@@ -108,9 +110,10 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
     router.push({ pathname: '/shopping/sheet/details', params: { sheetId: id } } as never);
   };
   const createCatalogItem = () => {
+    if (creatingCatalog.current || addingRef.current || !activeRef.current || requestScopeRef.current !== requestScope) return;
+    creatingCatalog.current = true;
     Keyboard.dismiss();
-    router.back();
-    requestAnimationFrame(() => router.push({ pathname: '/(app)/(tabs)/shopping/catalog-item', params: { shoppingOriginScope: scope } } as never));
+    router.replace({ pathname: '/(app)/(tabs)/shopping/catalog-item', params: { shoppingOriginScope: scope } } as never);
   };
   const closePicker = () => {
     if (confirmationTimeout.current) clearTimeout(confirmationTimeout.current);

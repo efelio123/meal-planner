@@ -56,6 +56,24 @@ The Mac Mini deployment should remain the functioning family dashboard and a dev
 
 ## Current consumer-app progress (October 4, 2026)
 
+SDK 58 migration (October 25): Felipe's installed iPhone Expo Go rejects the
+SDK 57 project. He approved upgrading directly in a separate branch,
+`codex/expo-sdk-58-upgrade`, preserving the committed B05 repair. The approved
+plan in `docs/plans/expo-sdk-58-upgrade.md` covers React Native 0.88 / React 19.3,
+compatible Clerk 4.x, required Router/strict-type migrations, isolated local
+dependencies, and coordinated validation. This does not update installed trial
+apps, the Mac runtime/database, or the separate website/Android work. Native
+rebuilds and physical-device acceptance remain separate gates.
+The local upgrade is now implemented and validated: SDK 58.0.19 / Router
+58.0.26, React Native 0.88.0 / React 19.3.0, and Clerk 4.14.1. Normal and
+cache-disabled mobile runs each passed 53 suites / 350 tests with no skips;
+TypeScript, lint, Expo compatibility, Doctor (20/20), and web/iOS/Android JS
+exports passed. Required Router migrations include explicit protected-route
+fallbacks, completed-removal sheet cleanup, and complete-state household
+history resets. Six high upstream tooling-chain audit findings remain recorded
+in the upgrade plan; none are critical. This is local automated validation,
+not native build/device acceptance, hosted CI, or a deployment to the trial.
+
 Post-trial improvement planning (October 25): Felipe and his wife completed more
 than a week of use and supplied the 29-item inventory in
 `docs/plans/family-trial-improvements.md`. A local Mac database backup was

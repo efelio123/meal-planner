@@ -1,5 +1,18 @@
 # Meal Planner mobile
 
+## SDK and testing baseline
+
+This checkout targets Expo SDK 58, React Native 0.88, and React 19.3. Use Node
+22.13 or newer on the Node 22 line (CI uses Node 22), and Expo Go for SDK 58.
+An already installed SDK 57 standalone app needs a separate native rebuild to
+load SDK 58 bundles; it is not updated by starting Metro. Keep the Mac trial
+build and signing settings intact until that rebuild is deliberately prepared.
+
+After installing dependencies with `npm ci`, run `npx expo start --lan --clear`
+for local phone testing. Use the PC's reachable LAN API URL below. The SDK
+migration plan and outstanding native/device checks are in
+`docs/plans/expo-sdk-58-upgrade.md` at repository root.
+
 ## Local authentication setup
 
 After a Clerk development instance has been created, keep these values in an
