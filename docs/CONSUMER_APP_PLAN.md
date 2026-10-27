@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: October 25, 2026
+Last updated: October 26, 2026
 
 ## Purpose of this document
 
@@ -73,6 +73,8 @@ fallbacks, completed-removal sheet cleanup, and complete-state household
 history resets. Six high upstream tooling-chain audit findings remain recorded
 in the upgrade plan; none are critical. This is local automated validation,
 not native build/device acceptance, hosted CI, or a deployment to the trial.
+On October 26 Felipe confirmed that the SDK 58 app opens in iPhone Expo Go;
+this is launch acceptance, with broader device checks still pending.
 
 Post-trial improvement planning (October 25): Felipe and his wife completed more
 than a week of use and supplied the 29-item inventory in

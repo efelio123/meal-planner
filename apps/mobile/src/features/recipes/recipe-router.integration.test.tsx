@@ -74,6 +74,7 @@ jest.mock('@/lib/api', () => {
       archiveRecipe: jest.fn(), restoreRecipe: jest.fn(), catalogItems: jest.fn(), catalogUnits: jest.fn(),
       catalogCategories: jest.fn(), catalogStores: jest.fn(), createCatalogCategory: jest.fn(), createCatalogItem: jest.fn(),
       createCatalogStore: jest.fn(), createCatalogShoppingUnit: jest.fn(),
+      updateCatalogStore: jest.fn(), updateCatalogShoppingUnit: jest.fn(), updateCatalogCategory: jest.fn(),
     },
   };
 });
@@ -345,6 +346,66 @@ describe('Recipes through the actual Expo Router', () => {
     await fireEvent.press(screen.getByText('Cancel'));
     await waitFor(() => expect(screen.queryByText('Ingredient details')).toBeNull());
     expect(screen.getByDisplayValue('Celery Soup')).toBeTruthy();
+  });
+
+  it.each([
+    { kind: 'store', field: 'Preferred store (optional): Not selected', manage: 'Manage stores', input: 'store name', original: 'Corner Market' },
+    { kind: 'shopping-unit', field: 'Typical shopping unit (optional): Not selected', manage: 'Manage shopping units', input: 'shopping unit name', original: 'Family pack' },
+    { kind: 'category', field: 'Category: Not selected', manage: 'Manage categories', input: 'category name', original: 'Vegetables' },
+  ])('loads and updates an existing $kind through the recipe ingredient manager', async ({ kind, field, manage, input, original }) => {
+    const choice = { id: 'choice-existing', name: original, created_at: '', updated_at: '' };
+    const category = { ...choice, item_type: 'food' as const, emoji: null, active_item_count: 0 };
+    const renamed = `${original} updated`;
+    if (kind === 'store') {
+      mockedApi.catalogStores.mockResolvedValue({ stores: [choice] });
+      mockedApi.updateCatalogStore.mockImplementationOnce(async () => {
+        mockedApi.catalogStores.mockResolvedValue({ stores: [{ ...choice, name: renamed }] });
+        return { store: { ...choice, name: renamed } };
+      });
+    } else if (kind === 'shopping-unit') {
+      mockedApi.catalogUnits.mockResolvedValue({ ...units, shopping_units: { built_in: [], household: [{ id: choice.id, label: original }] } });
+      mockedApi.updateCatalogShoppingUnit.mockImplementationOnce(async () => {
+        mockedApi.catalogUnits.mockResolvedValue({ ...units, shopping_units: { built_in: [], household: [{ id: choice.id, label: renamed }] } });
+        return { unit: { ...choice, name: renamed } };
+      });
+    } else {
+      mockedApi.catalogCategories.mockResolvedValue({ categories: [category] });
+      mockedApi.updateCatalogCategory.mockImplementationOnce(async () => {
+        mockedApi.catalogCategories.mockResolvedValue({ categories: [{ ...category, name: renamed }] });
+        return { category: { ...category, name: renamed } };
+      });
+    }
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => { router.navigate('/recipes/create'); });
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Unsaved family recipe');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    await fireEvent.press(await screen.findByText('Create Food item in Catalog'));
+    await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Unsaved Food item');
+    await fireEvent.press(screen.getByRole('button', { name: field }));
+    await fireEvent.press(screen.getByRole('button', { name: manage }));
+    await fireEvent.press(await screen.findByText(original));
+    expect(rendered.getPathname()).toBe(`/recipes/catalog-choices/${kind}/${choice.id}`);
+    await waitFor(() => expect(screen.getByLabelText(input).props.value).toBe(original));
+    expect(screen.queryByRole('button', { name: 'Create' })).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText(input), renamed);
+    await fireEvent.press(screen.getByRole('button', { name: kind === 'category' ? 'Save category' : 'Save changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe(`/recipes/catalog-choices/${kind}`));
+    expect(await screen.findByText(renamed)).toBeTruthy();
+    const update = kind === 'store' ? mockedApi.updateCatalogStore
+      : kind === 'shopping-unit' ? mockedApi.updateCatalogShoppingUnit : mockedApi.updateCatalogCategory;
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0].slice(1, 4)).toEqual(['household-a', choice.id, renamed]);
+    expect(mockedApi.createCatalogStore).not.toHaveBeenCalled();
+    expect(mockedApi.createCatalogShoppingUnit).not.toHaveBeenCalled();
+    expect(mockedApi.createCatalogCategory).not.toHaveBeenCalled();
+    await act(async () => { router.back(); });
+    expect(rendered.getPathname()).toBe('/recipes/catalog-food');
+    expect(screen.getByDisplayValue('Unsaved Food item')).toBeTruthy();
+    await act(async () => { router.back(); });
+    expect(rendered.getPathname()).toBe('/recipes/create');
+    expect(screen.getByDisplayValue('Unsaved family recipe')).toBeTruthy();
+    expect(mockedApi.createRecipe).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -146,6 +146,28 @@ Verify visible destinations, Save/Back returns to the same Food draft, a new
 choice is selected, and Create & use ingredient returns to the same recipe.
 Also repeat a Cancel/native dismissal and direct Catalog/Shopping round trip.
 
+## Nested edit follow-up (October 26)
+
+Felipe's iPhone check confirms Manage stores opens visibly from the recipe
+flow, but tapping an existing store showed a blank name. Catalog-origin editing
+works. The Recipes `[kind]/[choiceId]` wrapper omitted the shared form's
+`editing` flag; Catalog and Shopping wrappers already pass it. Without that
+flag, the form skips existing-choice loading and saves through Create instead
+of Update. The same Recipes route also owns Shopping Unit and Category edits.
+
+On `codex/nested-choice-edit-fix`, pass the existing `editing` flag in that
+wrapper. Add actual-router regressions for all three kinds, asserting existing
+name loading, update rather than create, renamed manager contents, return
+navigation, and preservation of both Food and recipe drafts. No shared form,
+API, schema, or dependency changes are needed.
+
+Validation: 3 targeted suites / 21 tests passed, including the three new
+regressions; TypeScript and lint passed. The first test run found the category
+regression used the Store/Unit save label; it now invokes the existing
+accessible Save category action. The earlier full SDK migration results remain
+historical and do not cover this later edit. Physical retest, hosted CI, native
+builds, and PostgreSQL tests remain unrun for this frontend-only follow-up.
+
 ## Validation and acceptance
 
 After intended edits are complete, run relevant route/context/recipe/shared

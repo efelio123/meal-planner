@@ -153,7 +153,11 @@ requires zod ^3.25.76 while GHSA-mrhx-c7xc-m3w5's patched range starts in 4.x;
 forcing that major would violate its supported range. These remain recorded
 upstream dependencies, not claimed resolved or silently overridden.
 
-Still unrun: native builds, physical iPhone/Android checks, dedicated light/dark
+October 26 device update: Felipe confirms that the SDK 58 app opens in iPhone
+Expo Go. This accepts launch only; broader functional and native presentation
+checks remain pending, including the B05 follow-up recorded in its repair plan.
+
+Still unrun: native builds, remaining physical iPhone checks, Android checks, dedicated light/dark
 visual review, hosted CI, and PostgreSQL tests (no backend changes). No paid
 resource, database migration, Mac deployment, or phone installation occurred.
 The existing trial signing/name/scene configuration stays on its original
