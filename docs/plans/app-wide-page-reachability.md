@@ -3,7 +3,10 @@
 Status: Felipe explicitly approved the expanded plan October 27, 2026. The
 chat agent implemented it on `codex/app-wide-reachability`, based on clean
 planning commit `e42d8b2`. Approval includes B08/B09 and B04. Automated validation
-passes as recorded below; physical acceptance remains pending.
+passes as recorded below. Felipe reports the current UI, including the final
+emoji input fix at `fa3186f`, looks good on his iPhone. Batch C is accepted for
+that review; exhaustive per-route/state acceptance has not been individually
+recorded, and Android/release checks remain separate.
 
 ## Goal and baseline
 
@@ -300,3 +303,9 @@ and whitespace checks passed. Existing create/edit/emoji validation, Clear,
 Save/Cancel and return regressions remain active. No full-suite/native build or
 physical glyph review is claimed for this follow-up; earlier results remain
 historical. No API, database, dependency, or deployment change.
+
+Device outcome: after reloading/reviewing the final input change, Felipe reports
+“okay this all looks good now.” Record iPhone acceptance of the reviewed UI and
+emoji corrections. Do not convert that report into checked results for every
+row/state in the full QA matrix or for another device. No merge/push/deployment
+is implied by this acceptance. Next inventory batch is D, Shopping re-add (B12).

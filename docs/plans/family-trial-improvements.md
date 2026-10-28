@@ -70,7 +70,11 @@ cleanup, and category Create/Edit alignment. Full normal and cache-disabled
 mobile runs each passed 55 suites / 400 tests with no skips; TypeScript, lint,
 and web export passed. Root/mobile AGENTS.md records the prevention rule and
 required layout contract. Native geometry remains a physical acceptance check;
-see `docs/qa/app-wide-reachability.md`. No API, schema, or Mac changes.
+see `docs/qa/app-wide-reachability.md`. Felipe subsequently accepts the reviewed
+iPhone UI, including the final emoji-input fix at `fa3186f`. Individual matrix
+cases and Android acceptance are not inferred from that report. No API, schema,
+or Mac changes. Next batch is D (B12); its re-add semantics still need the
+focused decision recorded below.
 
 Ship a safer, more usable build for the next week of family testing. Fix the
 reported failures in coherent batches, then take on small features individually.
@@ -111,19 +115,19 @@ the three clipped pages makes it possible to verify each one independently.
 
 | ID | Report | Expected result | Proposed batch |
 | --- | --- | --- | --- |
-| B01 | Household details bottom is covered by navigation. | Last content/actions are reachable and remain visible after scrolling. | C implemented app-wide; device acceptance pending |
-| B02 | My households bottom is covered by navigation. | Same bottom-inset/scroll behavior as comparable Profile stack pages. | C implemented app-wide; device acceptance pending |
-| B03 | Manage Categories bottom is covered by navigation. | All categories/actions can scroll above navigation. | C implemented app-wide; device acceptance pending |
-| B04 | Household-type Catalog item shows an empty More details disclosure. | Hide the disclosure when there are no applicable extra fields; retain Food details. | C implemented; device acceptance pending |
+| B01 | Household details bottom is covered by navigation. | Last content/actions are reachable and remain visible after scrolling. | C iPhone review accepted; detailed matrix not individually recorded |
+| B02 | My households bottom is covered by navigation. | Same bottom-inset/scroll behavior as comparable Profile stack pages. | C iPhone review accepted; detailed matrix not individually recorded |
+| B03 | Manage Categories bottom is covered by navigation. | All categories/actions can scroll above navigation. | C iPhone review accepted; detailed matrix not individually recorded |
+| B04 | Household-type Catalog item shows an empty More details disclosure. | Hide the disclosure when there are no applicable extra fields; retain Food details. | C iPhone review accepted; detailed matrix not individually recorded |
 | B05 | Create/Manage Store or Shopping Unit from nested recipe-ingredient creation opens a hidden page and breaks return/dismiss flow. | The intended page is visibly presented; Save/Back/Cancel returns to the correct draft without stranded routes or lost input. | A implemented; targeted checks pass, native device acceptance pending |
 | B06 | Saved Catalog recipe base unit is ignored when adding an ingredient. | Initialize a new ingredient from its saved recipe unit; retain intentional edits and existing recipe-specific units. Blank amount remains To taste. | B implemented; including To taste, Felipe accepts on iPhone October 27 |
 | B07 | Ingredient amount uses a keypad that cannot enter mixed fractions. | Ordinary keyboard supports `2 2/3`, `1/2`, and decimals; existing positive-value validation remains. | B implemented; Felipe accepts on iPhone October 27 |
-| B08 | Ingredient unit selector's Use custom unit action is obscured by the keyboard. | Action remains visible and tappable while searching and entering a custom unit. | C implemented; device acceptance pending |
-| B09 | Add ingredient's Create Food item action is pushed below a long result list. | Pin the create action below the scrollable results and above the keyboard; retain a visible search/header. | C implemented; device acceptance pending |
+| B08 | Ingredient unit selector's Use custom unit action is obscured by the keyboard. | Action remains visible and tappable while searching and entering a custom unit. | C iPhone review accepted; detailed matrix not individually recorded |
+| B09 | Add ingredient's Create Food item action is pushed below a long result list. | Pin the create action below the scrollable results and above the keyboard; retain a visible search/header. | C iPhone review accepted; detailed matrix not individually recorded |
 | B10 | Recipes cannot be refreshed to see another household member's additions. | Pull-to-refresh works in both grid and list, including short/empty lists, and preserves search/view state. | B implemented; Felipe accepts on iPhone October 27 |
 | B11 | Catalog Edit item previously opened with blank fields. Felipe retested October 25 and existing values now populate correctly. | Currently unreproduced, not a confirmed fix. Retain as a regression watch; investigate if it recurs with concrete reproduction steps. | Watch; no speculative fix |
 | B12 | Re-adding a purchased Shopping entry leaves it purchased, including when its amount is unchanged. | Explicit re-add restores it to To buy even when all quantity/unit/store values stay the same. Ordinary editing must not silently change purchased state. | D |
-| B13 | Create category and its related forms are misaligned/inconsistent. | Review Food/Household category variants and all entry origins; reuse accepted field, action, header, and spacing standards. | C implemented; device acceptance pending |
+| B13 | Create category and its related forms are misaligned/inconsistent. | Review Food/Household category variants and all entry origins; reuse accepted field, action, header, and spacing standards. | C iPhone review accepted; detailed matrix not individually recorded |
 
 ## Feature inventory
 

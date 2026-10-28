@@ -79,7 +79,11 @@ Felipe then reports display clipping fixed in most places, with Category emoji
 input still clipped. Shared EmojiInput now uses padded native multiline glyph
 layout for Category and Recipe entry while retaining explicit Done semantics.
 Three targeted suites / 110 tests, TypeScript, and lint pass; the editable field
-still needs his physical retest.
+was awaiting his physical retest. Felipe subsequently reports “okay this all
+looks good now” at `fa3186f`; the reviewed UI/emoji fixes are accepted on his
+iPhone. This is not an exhaustive per-route/state matrix result or Android
+acceptance. Next agreed inventory batch is D: Shopping re-add must uncheck an
+existing purchased entry even when its amount is unchanged.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

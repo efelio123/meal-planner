@@ -5,6 +5,12 @@ Baseline: `codex/app-wide-reachability`, approved October 27, 2026. Covers all
 Automated results belong in that plan; this checklist records device evidence.
 No row is physically accepted merely because its component/router tests pass.
 
+October 27 outcome: Felipe reports the current UI looks good after the final
+emoji-input fix at `fa3186f`. This accepts the reviewed iPhone appearance and
+completes batch C at that scope. Individual matrix cases below were not each
+reported, so their pending statuses remain a detailed coverage record rather
+than a claim that batch C is unaccepted. Android remains unrun.
+
 ## Check every applicable row
 
 Use the current phone appearance. Open a long populated page, scroll to its
