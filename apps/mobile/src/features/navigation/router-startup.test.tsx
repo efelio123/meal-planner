@@ -493,6 +493,69 @@ describe('signed-in startup routing', () => {
     expect(api.shoppingList).toHaveBeenCalledTimes(1);
   });
 
+  it('re-adds a purchased item in place and keeps the multi-add picker and search open', async () => {
+    const purchased = shoppingRow({ amount: '2', shopping_unit_code: 'pound', unit_kind: 'built_in', unit_label: 'Pound', store_id: 'market', store_name: 'Market', is_checked: true, checked_at: '2026-10-28T12:00:00Z', checked_by_user_id: 'user-a' });
+    const canonical = { ...purchased, is_checked: false, checked_at: null, checked_by_user_id: null };
+    jest.mocked(api.catalogItems).mockResolvedValue({ items: [catalogItem({ shopping_unit_code: 'bag', preferred_store_id: 'new-store' })] });
+    jest.mocked(api.shoppingList).mockResolvedValue({ shopping_list: { id: 'list-a', household_id: 'household-a', items: [purchased] } });
+    jest.mocked(api.updateShoppingListItem).mockResolvedValue({ item: canonical });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByRole('button', { name: 'Edit Milk' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Add from Catalog' }));
+    await screen.findByRole('button', { name: 'Add Milk from Catalog' });
+    await fireEvent.changeText(screen.getByLabelText('Search Catalog'), 'mil');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add Milk from Catalog' }));
+    await screen.findByText('Milk added to Shopping');
+    expect(rendered.getPathname()).toBe('/shopping/sheet/picker');
+    expect(screen.getByLabelText('Search Catalog').props.value).toBe('mil');
+    expect(api.updateShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'shopping-milk', { is_checked: false });
+    expect(api.addShoppingListItem).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
+    expect(screen.getByRole('checkbox', { name: 'Mark Milk purchased' })).toBeTruthy();
+    expect(screen.getByText('2 Pound · Market')).toBeTruthy();
+    expect(api.shoppingList).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconciles a remotely deleted entry and retries from the same still-open picker', async () => {
+    jest.mocked(api.catalogItems).mockResolvedValue({ items: [catalogItem()] });
+    jest.mocked(api.shoppingList)
+      .mockResolvedValueOnce({ shopping_list: { id: 'list-a', household_id: 'household-a', items: [shoppingRow({ is_checked: true })] } })
+      .mockResolvedValue(shoppingListResponse());
+    jest.mocked(api.updateShoppingListItem).mockRejectedValueOnce(new ApiError(404, 'Missing'));
+    jest.mocked(api.addShoppingListItem).mockResolvedValueOnce({ item: shoppingRow({ id: 'replacement-milk' }) });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByRole('button', { name: 'Edit Milk' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Add from Catalog' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add Milk from Catalog' }));
+    await screen.findByText('This item changed or was removed on another device. Refresh the list and try again.');
+    expect(screen.queryByText('Milk added to Shopping')).toBeNull();
+    expect(rendered.getPathname()).toBe('/shopping/sheet/picker');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add Milk from Catalog' }));
+    await screen.findByText('Milk added to Shopping');
+    expect(api.updateShoppingListItem).toHaveBeenCalledTimes(1);
+    expect(api.addShoppingListItem).toHaveBeenCalledTimes(1);
+    expect(api.shoppingList).toHaveBeenCalledTimes(2);
+  });
+
+  it('retains purchased status when ordinarily saving Shopping details', async () => {
+    const purchased = shoppingRow({ is_checked: true });
+    jest.mocked(api.shoppingList).mockResolvedValue({ shopping_list: { id: 'list-a', household_id: 'household-a', items: [purchased] } });
+    jest.mocked(api.shoppingListItem).mockResolvedValue({ item: purchased });
+    jest.mocked(api.updateShoppingListItem).mockResolvedValue({ item: purchased });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' }).props.accessibilityState?.disabled).toBe(false));
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(api.updateShoppingListItem).toHaveBeenCalledTimes(1));
+    expect(jest.mocked(api.updateShoppingListItem).mock.calls[0][3]).not.toHaveProperty('is_checked');
+    await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
+    expect(screen.getByRole('checkbox', { name: 'Mark Milk not purchased' })).toBeTruthy();
+  });
+
   it('creates a Catalog item from the picker header and quick-adds it on return', async () => {
     jest.mocked(api.createCatalogItem).mockResolvedValue({ item: catalogItem({ name: 'Oat milk' }) });
     jest.mocked(api.addShoppingListItem).mockResolvedValue({ item: shoppingRow({ name: 'Oat milk' }) });

@@ -14,6 +14,7 @@ import { useCatalogContext, type CatalogChoiceKind } from '@/features/catalog/ca
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { useShoppingContext } from './shopping-context';
 import { shoppingAmountError } from './shopping-amount';
+import type { ShoppingAddOutcome } from './use-shopping-list';
 
 type SheetProps = { onChanged: () => void; onRemove: (item: ShoppingListItem) => Promise<void> };
 type ShoppingCatalogSummary = Pick<CatalogItem, 'id' | 'item_type' | 'name' | 'category_name' | 'shopping_unit_code' | 'custom_shopping_unit_id' | 'preferred_store_id'> & { archived?: boolean };
@@ -29,10 +30,9 @@ function Header({ title, onBack }: { title: string; onBack?: () => void }) {
   </View>;
 }
 
-export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: ShoppingListItem[]; onAdd: (item: CatalogItem) => Promise<void>; onRemove: (item: ShoppingListItem) => Promise<void> }) {
+export function ShoppingCatalogPickerSheet({ items, onAdd }: { items: ShoppingListItem[]; onAdd: (item: CatalogItem) => Promise<ShoppingAddOutcome> }) {
   const theme = useTheme();
   const router = useRouter();
-  const sheetFlow = useNativeSheetFlow();
   const { getToken, selectedHousehold } = useHouseholdState();
   const { userId, sessionId } = useAuth();
   const { scope } = useShoppingContext();
@@ -45,7 +45,6 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(() => new Set());
   const [confirmation, setConfirmation] = useState<string | null>(null);
-  const [duplicateItem, setDuplicateItem] = useState<ShoppingListItem | null>(null);
   const [keyboardInset, setKeyboardInset] = useState(0);
   const addingRef = useRef(false);
   const creatingCatalog = useRef(false);
@@ -67,7 +66,6 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
     setConfirmation(null);
     if (confirmationTimeout.current) clearTimeout(confirmationTimeout.current);
     confirmationTimeout.current = null;
-    setDuplicateItem(null);
     addingRef.current = false;
     creatingCatalog.current = false;
     setAddingId(null);
@@ -105,10 +103,6 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
     return () => clearTimeout(task);
   }, [load]);
 
-  const openDetails = (item: CatalogItem, existing?: ShoppingListItem) => {
-    const id = sheetFlow.present(<ShoppingItemDetailsSheet catalogItem={item} existingItem={existing} closeParentOnSave onChanged={() => undefined} onRemove={onRemove} />, { detents: [0.68, 0.94], initialDetent: 1 });
-    router.push({ pathname: '/shopping/sheet/details', params: { sheetId: id } } as never);
-  };
   const createCatalogItem = () => {
     if (creatingCatalog.current || addingRef.current || !activeRef.current || requestScopeRef.current !== requestScope) return;
     creatingCatalog.current = true;
@@ -124,20 +118,20 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
     <SymbolView name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={22} tintColor={theme.link} /><ThemedText themeColor="link">Create item in Catalog</ThemedText><DisclosureChevron variant="action" />
   </Pressable>;
   const filtered = catalogItems.filter((item) => item.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
-  const selectItem = async (item: CatalogItem, existing?: ShoppingListItem) => {
-    if (addingRef.current || !householdId) return;
+  const selectItem = async (item: CatalogItem) => {
+    if (addingRef.current || !householdId || !activeRef.current || requestScopeRef.current !== requestScope) return;
     if (addedIds.has(item.id)) return;
-    if (existing) { Keyboard.dismiss(); openDetails(item, existing); return; }
     const startedScope = requestScopeRef.current;
     addingRef.current = true;
     setAddingId(item.id);
     setAddError(null);
     try {
-      await onAdd(item);
+      const outcome = await onAdd(item);
       if (activeRef.current && requestScopeRef.current === startedScope) {
         setAddedIds((current) => new Set(current).add(item.id));
-        setConfirmation(`${item.name} added to Shopping`);
-        if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(`${item.name} added to Shopping`);
+        const message = outcome === 'already-needed' ? `${item.name} is already on Shopping` : `${item.name} added to Shopping`;
+        setConfirmation(message);
+        if (Platform.OS === 'ios') AccessibilityInfo.announceForAccessibility(message);
         if (confirmationTimeout.current) clearTimeout(confirmationTimeout.current);
         confirmationTimeout.current = setTimeout(() => {
           if (activeRef.current && requestScopeRef.current === startedScope) setConfirmation(null);
@@ -146,13 +140,7 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
       }
     } catch (reason) {
       if (!activeRef.current || requestScopeRef.current !== startedScope) return;
-      if (reason instanceof ApiError && reason.code === 'SHOPPING_ITEM_ALREADY_EXISTS') {
-        try {
-          const currentList = await api.shoppingList(() => latestToken.current(), householdId);
-          if (activeRef.current && requestScopeRef.current === startedScope) setDuplicateItem(currentList.shopping_list.items.find((entry) => entry.catalog_item_id === item.id) ?? null);
-        } catch { /* The error remains visible; a later search can retry. */ }
-      }
-      if (activeRef.current && requestScopeRef.current === startedScope) setAddError(reason instanceof ApiError ? reason.message : 'We couldn’t add this item. Please try again.');
+      setAddError(reason instanceof Error ? reason.message : 'We couldn’t add this item. Please try again.');
     } finally {
       if (activeRef.current && requestScopeRef.current === startedScope) { addingRef.current = false; setAddingId(null); }
     }
@@ -177,13 +165,13 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
         {!loading && !loadError && filtered.length === 0 ? <ThemedText themeColor="textSecondary">{catalogItems.length ? 'No matching items.' : 'Your Catalog is empty.'}</ThemedText> : null}
         <View style={[styles.catalogCard, { backgroundColor: theme.surface }]}>
           {filtered.map((item, index) => {
-            const existing = items.find((entry) => entry.catalog_item_id === item.id) ?? (duplicateItem?.catalog_item_id === item.id ? duplicateItem : undefined);
+            const existing = items.find((entry) => entry.catalog_item_id === item.id);
             const justAdded = addedIds.has(item.id);
             const disabled = Boolean(addingId) || justAdded;
-            return <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={justAdded ? `${item.name} on Shopping` : existing ? `Edit ${item.name} on Shopping` : `Add ${item.name} from Catalog`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => void selectItem(item, existing)} style={[styles.catalogRow, index > 0 && { borderTopColor: theme.border, ...visualStyles.groupedDivider }]}>
+            return <Pressable key={item.id} accessibilityRole="button" accessibilityLabel={justAdded ? `${item.name} on Shopping` : `Add ${item.name} from Catalog`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => void selectItem(item)} style={[styles.catalogRow, index > 0 && { borderTopColor: theme.border, ...visualStyles.groupedDivider }]}>
               <View style={[styles.itemGlyph, { backgroundColor: theme.screen }]}><ThemedText style={styles.glyphText}>{item.name.trim().slice(0, 1).toLocaleUpperCase()}</ThemedText></View>
               <View style={styles.rowCopy}><ThemedText style={styles.rowTitle}>{item.name}</ThemedText><ThemedText themeColor="textSecondary">{item.item_type === 'food' ? 'Food' : 'Household'}{item.category_name ? ` · ${item.category_name}` : ''}</ThemedText></View>
-              {addingId === item.id ? <ActivityIndicator accessibilityLabel={`Adding ${item.name}`} color={theme.activity} /> : existing || justAdded ? <ThemedText themeColor="link">On list</ThemedText> : <DisclosureChevron />}
+              {addingId === item.id ? <ActivityIndicator accessibilityLabel={`Adding ${item.name}`} color={theme.activity} /> : justAdded || (existing && !existing.is_checked) ? <ThemedText themeColor="link">On list</ThemedText> : <DisclosureChevron />}
             </Pressable>;
           })}
         </View>
@@ -200,7 +188,7 @@ export function ShoppingCatalogPickerSheet({ items, onAdd, onRemove }: { items: 
   </View>;
 }
 
-function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemove, closeParentOnSave = false }: { catalogItem: ShoppingCatalogSummary; existingItem?: ShoppingListItem; onChanged: () => void; onRemove: (item: ShoppingListItem) => Promise<void>; closeParentOnSave?: boolean }) {
+function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemove }: { catalogItem: ShoppingCatalogSummary; existingItem?: ShoppingListItem; onChanged: () => void; onRemove: (item: ShoppingListItem) => Promise<void> }) {
   const theme = useTheme();
   const router = useRouter();
   const { getToken, selectedHousehold } = useHouseholdState();
@@ -336,7 +324,6 @@ function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemo
       markChanged(householdId);
       onChanged();
       router.back();
-      if (closeParentOnSave) requestAnimationFrame(() => router.back());
     } catch (reason) {
       if (scopeRef.current === started) setError(reason instanceof ApiError ? reason.message : 'We couldn’t save this Shopping item. Please try again.');
     } finally { if (scopeRef.current === started) setSaving(false); }
@@ -350,7 +337,6 @@ function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemo
       await onRemove(existingItem);
       if (scopeRef.current !== started) return;
       router.back();
-      if (closeParentOnSave) requestAnimationFrame(() => router.back());
     } catch {
       if (scopeRef.current === started) setError('We couldn’t remove that item. Please try again.');
     } finally { if (scopeRef.current === started) setRemoving(false); }

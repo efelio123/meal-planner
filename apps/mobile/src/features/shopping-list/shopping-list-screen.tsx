@@ -8,7 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { CircularAddButton, DisclosureChevron, ExpansionChevron, TabPageHeader, visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
-import { ApiError, type CatalogItem, type ShoppingListItem } from '@/lib/api';
+import type { CatalogItem, ShoppingListItem } from '@/lib/api';
 import { ChoicePicker } from '@/features/catalog/choice-picker';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { useMealPlanContextOptional } from '@/features/meal-plan/meal-plan-context';
@@ -28,7 +28,7 @@ export default function ShoppingListScreen() {
   const { selectedHousehold } = useHouseholdState();
   const { scope, createdItem, setCreatedItem, revisionForHousehold } = useShoppingContext();
   const mealPlanContext = useMealPlanContextOptional();
-  const { add, clear, error, householdId, items, loading, pendingItemIds, refresh, remove, toggle } = useShoppingList();
+  const { addOrReadd, clear, error, householdId, items, loading, pendingItemIds, refresh, remove, toggle } = useShoppingList();
   const [storeFilter, setStoreFilter] = useState('all');
   const [sort, setSort] = useState<SortKey>('recent');
   const [purchasedExpanded, setPurchasedExpanded] = useState(true);
@@ -68,13 +68,7 @@ export default function ShoppingListScreen() {
     }
   }, [householdId, mealRevision, refresh, shoppingRevision]);
   const params = useLocalSearchParams<{ editItemId?: string }>();
-  const quickAdd = useCallback(async (item: CatalogItem) => {
-    try { await add(item.id, { amount: '1' }); }
-    catch (reason) {
-      if (reason instanceof ApiError && reason.code === 'SHOPPING_ITEM_ALREADY_EXISTS') await refresh();
-      throw reason;
-    }
-  }, [add, refresh]);
+  const quickAdd = useCallback((item: CatalogItem) => addOrReadd(item.id), [addOrReadd]);
   const openItem = useCallback(async (item: ShoppingListItem) => {
     if (!householdId || !item.catalog_item_id) return;
     setOpenSwipeId(null);
@@ -105,10 +99,6 @@ export default function ShoppingListScreen() {
     setFailedCreatedItem(null);
     void quickAdd(createdItem.item).catch((reason: unknown) => {
       if (scopeRef.current !== createdItem.scope) return;
-      if (reason instanceof ApiError && reason.code === 'SHOPPING_ITEM_ALREADY_EXISTS') {
-        setActionError(`${createdItem.item.name} is already on Shopping. Open it to edit.`);
-        return;
-      }
       setFailedCreatedItem(createdItem);
       setActionError(reason instanceof Error ? `Catalog item created, but it wasn’t added to Shopping: ${reason.message}` : 'Catalog item created, but it wasn’t added to Shopping. Please retry.');
     });
@@ -134,7 +124,7 @@ export default function ShoppingListScreen() {
   const addFromCatalog = () => {
     setOpenSwipeId(null);
     setActionError(null);
-    const sheetId = sheetFlow.present(<ShoppingCatalogPickerSheet items={items} onAdd={quickAdd} onRemove={remove} />, { detents: [0.65, 0.94], initialDetent: 1 });
+    const sheetId = sheetFlow.present(<ShoppingCatalogPickerSheet items={items} onAdd={quickAdd} />, { detents: [0.65, 0.94], initialDetent: 1 });
     router.push({ pathname: '/shopping/sheet/picker', params: { sheetId } } as never);
   };
   const clearList = () => {
@@ -226,10 +216,7 @@ export default function ShoppingListScreen() {
         setRetryingCreatedItem(true);
         void quickAdd(failedCreatedItem.item).then(() => { if (scopeRef.current === scope) { setFailedCreatedItem(null); setActionError(null); } }).catch((reason: unknown) => {
           if (scopeRef.current !== scope) return;
-          if (reason instanceof ApiError && reason.code === 'SHOPPING_ITEM_ALREADY_EXISTS') {
-            setFailedCreatedItem(null);
-            setActionError(`${failedCreatedItem.item.name} is already on Shopping. Open it to edit.`);
-          } else setActionError(reason instanceof Error ? reason.message : 'We couldn’t add this Catalog item. Please try again.');
+          setActionError(reason instanceof Error ? reason.message : 'We couldn’t add this Catalog item. Please try again.');
         }).finally(() => { if (scopeRef.current === scope) setRetryingCreatedItem(false); });
       }} title={retryingCreatedItem ? 'Adding…' : `Retry adding ${failedCreatedItem.item.name}`} /> : null}
       {!loading && !error && toBuy.length === 0 ? <ThemedText themeColor="textSecondary">{activeStoreFilter === 'all' ? 'Nothing to buy yet. Add items from your Catalog.' : 'No items to buy for this store.'}</ThemedText> : null}

@@ -1,9 +1,10 @@
 import { useAuth } from '@clerk/expo';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { api, type ShoppingListItem, type ShoppingListItemInput } from '@/lib/api';
+import { ApiError, api, type ShoppingListItem, type ShoppingListItemInput } from '@/lib/api';
 import { useHouseholdState } from '@/hooks/use-household-state';
 
 type ShoppingListState = { scope: string; householdId: string | null; items: ShoppingListItem[]; loading: boolean; error: string | null };
+export type ShoppingAddOutcome = 'added' | 'already-needed';
 const emptyState = (scope: string, householdId: string | null, loading = false): ShoppingListState => ({ scope, householdId, items: [], loading, error: null });
 const noPending: ReadonlySet<string> = new Set();
 
@@ -17,6 +18,8 @@ export function useShoppingList() {
   const householdId = selectedHousehold?.id ?? null;
   const scope = JSON.stringify([userId ?? '', sessionId ?? '', householdId ?? '']);
   const [stored, setStored] = useState(() => emptyState(scope, householdId));
+  const latestStored = useRef(stored);
+  useLayoutEffect(() => { latestStored.current = stored; }, [stored]);
   const visible = stored.scope === scope ? stored : emptyState(scope, householdId, Boolean(householdId));
   const [pendingByScope, setPendingByScope] = useState<Map<string, Set<string>>>(new Map());
   const pendingMutations = useRef(new Set<string>());
@@ -94,6 +97,73 @@ export function useShoppingList() {
     return result.item;
   }, [householdId, scope]);
 
+  const addOrReadd = useCallback(async (catalogItemId: string): Promise<ShoppingAddOutcome> => {
+    const startedScope = scope;
+    const startedVersion = scopeVersion.current;
+    const isCurrent = () => previousScope.current === startedScope && scopeVersion.current === startedVersion;
+    const assertCurrent = () => {
+      if (!householdId || !isCurrent()) throw new Error('Your household or sign-in changed. Choose the item again.');
+    };
+    assertCurrent();
+    const catalogKey = `catalog:${catalogItemId}`;
+    if (!begin(startedScope, catalogKey)) throw new Error('This item is already being added. Please wait.');
+    const getRequestToken = async () => {
+      assertCurrent();
+      const token = await latestToken.current();
+      assertCurrent();
+      return token;
+    };
+    let lockedItemId: string | null = null;
+    const retryError = new Error('This item changed or was removed on another device. Refresh the list and try again.');
+    try {
+      // The native picker retains its opening snapshot. Resolve from this
+      // state owner instead, especially after reconciling a deleted row.
+      let existing = latestStored.current.scope === startedScope
+        ? latestStored.current.items.find((item) => item.catalog_item_id === catalogItemId) : undefined;
+      let saved: ShoppingListItem | undefined;
+      if (!existing) {
+        try {
+          saved = (await api.addShoppingListItem(getRequestToken, householdId!, catalogItemId, { amount: '1' })).item;
+        } catch (reason) {
+          assertCurrent();
+          if (!(reason instanceof ApiError) || reason.code !== 'SHOPPING_ITEM_ALREADY_EXISTS') throw reason;
+          // Another phone may have added this Catalog identity after our load.
+          // Recover once, then use explicit Add intent on the canonical row.
+          const list = await api.shoppingList(getRequestToken, householdId!);
+          assertCurrent();
+          existing = list.shopping_list.items.find((item) => item.catalog_item_id === catalogItemId);
+          if (!existing) { await refresh(); throw retryError; }
+        }
+      }
+      if (existing) {
+        assertCurrent();
+        if (!begin(startedScope, existing.id)) throw new Error('This item is already being updated. Please wait.');
+        lockedItemId = existing.id;
+        // State-only PATCH preserves the server's current amount, units and
+        // store, including edits made since this picker was opened.
+        saved = (await api.updateShoppingListItem(getRequestToken, householdId!, existing.id, { is_checked: false })).item;
+      }
+      assertCurrent();
+      if (!saved) throw retryError;
+      const canonical = saved;
+      loadVersion.current += 1;
+      setStored((current) => current.scope === startedScope ? {
+        ...current,
+        items: orderItems([...current.items.filter((item) => item.catalog_item_id !== catalogItemId && item.id !== canonical.id), canonical]),
+        loading: false, error: null,
+      } : current);
+      return existing && !existing.is_checked ? 'already-needed' : 'added';
+    } catch (reason) {
+      assertCurrent();
+      if (reason instanceof ApiError && reason.status === 404) { await refresh(); throw retryError; }
+      if (reason === retryError || reason instanceof ApiError) throw reason;
+      throw new Error('We couldn’t add this item. Please try again.');
+    } finally {
+      if (lockedItemId) finish(startedScope, lockedItemId);
+      finish(startedScope, catalogKey);
+    }
+  }, [begin, finish, householdId, refresh, scope]);
+
   const toggle = useCallback(async (item: ShoppingListItem) => {
     const startedScope = scope; const startedVersion = scopeVersion.current;
     if (!householdId || !begin(startedScope, item.id)) return;
@@ -158,5 +228,5 @@ export function useShoppingList() {
     }
   }, [householdId, scope]);
 
-  return { add, clear, error: visible.error, householdId, items: visible.items, loading: visible.loading, pendingItemIds, refresh, remove, toggle, update };
+  return { add, addOrReadd, clear, error: visible.error, householdId, items: visible.items, loading: visible.loading, pendingItemIds, refresh, remove, toggle, update };
 }

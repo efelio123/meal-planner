@@ -249,11 +249,16 @@ async def test_get_item_contract_exposes_id_used_to_toggle_and_remove(disposable
 
 
 @pytest.mark.anyio
-async def test_catalog_identity_duplicate_details_update_and_clear_contract(disposable_engine: Engine) -> None:
+@pytest.mark.parametrize("unit_mode", ["built_in", "household", "recipe", "none"])
+async def test_catalog_identity_duplicate_details_update_and_clear_contract(disposable_engine: Engine, unit_mode: str) -> None:
     with disposable_engine.begin() as connection:
         user_id = insert_user(connection, f"list-details-{uuid4()}@example.test")
         household_id, list_id = insert_household(connection, user_id)
         catalog_id = insert_catalog_item(connection, household_id, user_id, "Apples")
+        custom_unit_id = connection.execute(text("""
+            INSERT INTO household_shopping_units (household_id, name, normalized_name)
+            VALUES (:household_id, 'Crate', 'crate') RETURNING id::text
+        """), {"household_id": household_id}).scalar_one()
         store_id = connection.execute(text("""
             INSERT INTO catalog_stores (household_id, name, normalized_name)
             VALUES (:household_id, 'Market', 'market') RETURNING id::text
@@ -303,6 +308,55 @@ async def test_catalog_identity_duplicate_details_update_and_clear_contract(disp
             assert updated.status_code == 200, updated.text
             assert updated.json()["item"]["amount"] == "0.5"
 
+            # Model existing shopping entries with every supported unit source,
+            # including a recipe-derived entry and a blank amount. Re-adding
+            # must retain these choices even when Catalog defaults change.
+            with disposable_engine.begin() as connection:
+                connection.execute(text("""
+                    UPDATE shopping_list_items SET
+                        amount=:amount, shopping_unit_code=:built_in,
+                        custom_shopping_unit_id=:custom, recipe_unit_code=:recipe,
+                        recipe_unit_dimension=:dimension
+                    WHERE id=:id
+                """), {
+                    "id": item_id, "amount": None if unit_mode == "none" else "0.5",
+                    "built_in": "gallon" if unit_mode == "built_in" else None,
+                    "custom": custom_unit_id if unit_mode == "household" else None,
+                    "recipe": "tablespoon" if unit_mode == "recipe" else None,
+                    "dimension": "volume" if unit_mode == "recipe" else None,
+                })
+                connection.execute(text("""
+                    UPDATE catalog_items SET shopping_unit_code='bag', preferred_store_id=NULL WHERE id=:id
+                """), {"id": catalog_id})
+            checked = await call_as(
+                user_id, "list-details@example.test", client, "PATCH",
+                f"/v1/households/{household_id}/shopping-list/items/{item_id}",
+                json={"is_checked": True},
+            )
+            assert checked.status_code == 200, checked.text
+            before = checked.json()["item"]
+            assert before["is_checked"] is True
+            assert before["checked_at"] is not None
+            assert before["checked_by_user_id"] == user_id
+            assert before["unit_kind"] == (None if unit_mode == "none" else unit_mode)
+
+            for _ in range(2):  # Repeating Add is idempotent; never a toggle.
+                readded = await call_as(
+                    user_id, "list-details@example.test", client, "PATCH",
+                    f"/v1/households/{household_id}/shopping-list/items/{item_id}",
+                    json={"is_checked": False},
+                )
+                assert readded.status_code == 200, readded.text
+                after = readded.json()["item"]
+                assert after["is_checked"] is False
+                assert after["checked_at"] is None
+                assert after["checked_by_user_id"] is None
+                for field in ("id", "catalog_item_id", "amount", "shopping_unit_code",
+                              "custom_shopping_unit_id", "recipe_unit_code", "recipe_unit_dimension",
+                              "unit_kind", "unit_label", "store_id", "store_name", "created_at"):
+                    assert after[field] == before[field], field
+                assert after["store_id"] == store_id
+
             cleared = await call_as(
                 user_id, "list-details@example.test", client, "DELETE",
                 f"/v1/households/{household_id}/shopping-list",
@@ -320,6 +374,7 @@ async def test_catalog_identity_duplicate_details_update_and_clear_contract(disp
         with disposable_engine.begin() as connection:
             connection.execute(text("DELETE FROM shopping_list_items WHERE shopping_list_id = :id"), {"id": list_id})
             connection.execute(text("DELETE FROM catalog_items WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM household_shopping_units WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM catalog_stores WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM shopping_lists WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})

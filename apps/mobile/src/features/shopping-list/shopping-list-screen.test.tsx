@@ -62,7 +62,7 @@ describe('Shopping list screen', () => {
     mockScopeValue = '["user-1","session-1","household-1"]';
     mockedHouseholdState.mockReturnValue({ selectedHousehold: { id: 'household-1', name: 'Home', time_zone: 'UTC', role: 'member' } } as unknown as ReturnType<typeof useHouseholdState>);
     mockedShoppingList.mockReturnValue({
-      add: jest.fn(), clear: jest.fn().mockResolvedValue(undefined), error: null, householdId: 'household-1', items: [item('milk', 'Milk'), item('bread', 'Bread', true)],
+      add: jest.fn(), addOrReadd: jest.fn().mockResolvedValue('added'), clear: jest.fn().mockResolvedValue(undefined), error: null, householdId: 'household-1', items: [item('milk', 'Milk'), item('bread', 'Bread', true)],
       loading: false, pendingItemIds: new Set(), refresh: mockRefresh, remove: jest.fn(), toggle: jest.fn().mockResolvedValue(undefined), update: jest.fn(),
     } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
   });
