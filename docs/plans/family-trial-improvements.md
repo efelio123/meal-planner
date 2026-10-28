@@ -31,8 +31,9 @@ and grid/list refresh from empty/short content with success, offline error,
 retry, and retained search/view. The first run's extended Catalog regression
 opened a unit picker before choices finished loading; waiting for the form's
 ready action fixed that test timing. No production loading change was made.
-Physical iPhone keyboard/pull gesture checks, Android, hosted CI, native builds,
-and PostgreSQL checks are unrun for this frontend-only batch. Earlier full SDK
+At that automated pass, physical iPhone checks were pending; Felipe's later
+acceptance is recorded below. Android, hosted CI, native builds,
+and PostgreSQL checks remain unrun for this frontend-only batch. Earlier full SDK
 suite results remain historical. No live Mac database/runtime changes occurred.
 
 Official references checked against Expo 58.0.19 / React Native 0.88.0:
@@ -48,8 +49,11 @@ amount serialized as null and retain the selected unit as metadata so entering
 an amount later still uses it; do not alter the Catalog default or existing data.
 Two targeted suites / 33 tests, TypeScript, lint, and whitespace checks passed.
 Regressions cover built-in/custom/no-unit blank and whitespace amounts, create
-and edit submissions, and saved detail/editor displays. Physical To taste
-retest remains pending; no API/schema or Mac changes were needed.
+and edit submissions, and saved detail/editor displays. Felipe subsequently
+confirmed all three fixes, including To taste, look good on his iPhone at
+`5d8d5fa`. Batch B is device-accepted at that scope; this does not imply Android,
+hosted CI, native-build, or trial-deployment acceptance. No API/schema or Mac
+changes were needed.
 
 ## Goal
 
@@ -97,7 +101,7 @@ the three clipped pages makes it possible to verify each one independently.
 | B03 | Manage Categories bottom is covered by navigation. | All categories/actions can scroll above navigation. | C |
 | B04 | Household-type Catalog item shows an empty More details disclosure. | Hide the disclosure when there are no applicable extra fields; retain Food details. | C |
 | B05 | Create/Manage Store or Shopping Unit from nested recipe-ingredient creation opens a hidden page and breaks return/dismiss flow. | The intended page is visibly presented; Save/Back/Cancel returns to the correct draft without stranded routes or lost input. | A implemented; targeted checks pass, native device acceptance pending |
-| B06 | Saved Catalog recipe base unit is ignored when adding an ingredient. | Initialize a new ingredient from its saved recipe unit; retain intentional edits and existing recipe-specific units. Blank amount remains To taste. | Default device-accepted; To taste follow-up tested, device retest pending |
+| B06 | Saved Catalog recipe base unit is ignored when adding an ingredient. | Initialize a new ingredient from its saved recipe unit; retain intentional edits and existing recipe-specific units. Blank amount remains To taste. | B implemented; including To taste, Felipe accepts on iPhone October 27 |
 | B07 | Ingredient amount uses a keypad that cannot enter mixed fractions. | Ordinary keyboard supports `2 2/3`, `1/2`, and decimals; existing positive-value validation remains. | B implemented; Felipe accepts on iPhone October 27 |
 | B08 | Ingredient unit selector's Use custom unit action is obscured by the keyboard. | Action remains visible and tappable while searching and entering a custom unit. | C |
 | B09 | Add ingredient's Create Food item action is pushed below a long result list. | Pin the create action below the scrollable results and above the keyboard; retain a visible search/header. | C |
