@@ -1,14 +1,15 @@
 # Search-to-create name prefill — F08
 
-Status: proposed October 28, 2026; awaiting Felipe's review. Planning only;
-no application, schema, dependency, configuration or deployment changes.
+Status: approved by Felipe and implemented October 28, 2026 on
+`codex/search-create-prefill`. Phone acceptance is pending. Felipe explicitly
+asked the chat agent to implement this feature directly.
 
 Planning branch: `codex/search-create-prefill-plan`, from clean `75d713b`
 after the accepted Shopping re-add fix. Preserve the accepted family-trial
 fixes, SDK 58 and unrelated website/Android work. Implement only after approval
 on a focused `codex/` branch from this baseline; no main-branch changes.
-Implementation ownership follows AGENTS.md unless Felipe explicitly assigns
-this feature to the chat agent. Do not start another agent during planning.
+Implementation followed Felipe's direct assignment to the chat agent. No
+delegation or unrelated checkout changes were made.
 
 ## Goal
 
@@ -131,9 +132,54 @@ installed versions before implementation, as required by the working agreement.
   regression and a device spot check. Record Android and any unrun checks
   explicitly. No live Mac writes/build/deployment as part of automated testing.
 
-## Review decision
+## Approved decision and implementation
 
-Approve the name-only, once-per-form prefill across the listed entry points,
-including Categories and searchable manager screens for consistency. There are
-no required product questions beyond confirming this scope. This plan does not
-approve another feature, push/merge, native rebuild or trial deployment.
+Felipe approved the name-only, once-per-form prefill across the listed entry
+points, including Categories and searchable manager screens for consistency.
+The shared catalog-name-prefill helper supplies and validates optional scoped
+route params; all three shared forms use it only in lazy state initializers.
+Existing scope-reset behavior clears the draft without replaying a consumed
+seed. Manager search now resets with its household/session scope as well.
+Create actions pass current search through structured route params, preserving
+the accepted owning-stack transitions and origin/type/return metadata. Edit,
+save validation, custom recipe units, layouts and keyboard handling are unchanged.
+
+## Validation results — October 28, 2026
+
+- Coordinated targeted mobile run: **10 suites / 219 tests passed**, no skips
+  (57.62s): name-prefill helper, ChoicePicker, choice management/navigation,
+  Catalog screen, recipe router integration, Shopping picker/screen/state and
+  actual Expo Router startup/navigation. This includes the accepted B05 nested
+  Store/Unit round trips and B12 Shopping regressions.
+- After extending the actual-router manager check to open Create from its
+  header and cancel back with search intact, that suite passed again:
+  **89 tests**, no skips (25.255s). This extends an existing test rather than
+  increasing the coordinated run's total test count.
+- TypeScript `tsc --noEmit`, Expo lint and diff checks passed. Tests cover
+  punctuation/Unicode, whitespace and partial results, edited/cleared names,
+  delayed choice loads, scope switches without replay, Edit ignoring a seed,
+  Recipes/Plan Food creation, Shopping header/footer Create and nested unit/
+  store creation, Category creation, and manager search/Create/Back.
+- No API/schema/dependencies changed; database suites were not run. Full mobile
+  suite, native builds, physical iPhone/cross-phone and Android checks are unrun
+  for this slice. Previous full-suite results remain historical. No live Mac
+  data/runtime, deployment, push or merge was performed.
+- Version guidance checked against installed Expo 58.0.19, Router 58.0.26 and
+  React 19.3: [SDK 58](https://docs.expo.dev/versions/v58.0.0/),
+  [Router navigation](https://docs.expo.dev/router/basics/navigation/), and
+  [lazy state initialization](https://react.dev/reference/react/useState).
+
+Phone acceptance after reloading local Expo:
+
+1. Search for a new ingredient and choose Create: its name is filled in. Edit
+   it, create a Store/Shopping Unit from a search inside the form, and return;
+   the edited ingredient name and parent recipe draft remain intact.
+2. Repeat from Shopping's header plus and footer Create action, and Catalog
+   Add. Clear/change the name and navigate through a nested picker: the search
+   must not overwrite that name. Verify Cancel creates nothing.
+3. Search within Manage Stores/Categories and tap Create; verify that search
+   becomes the name, while Back retains manager search. Edit an existing item
+   or store and confirm its saved name still loads.
+4. Verify fixed actions and sheet headers remain usable with keyboard open/
+   closed. Scope switches must clear old drafts/searches, not carry them to
+   another household. Record actual checks rather than assuming full coverage.

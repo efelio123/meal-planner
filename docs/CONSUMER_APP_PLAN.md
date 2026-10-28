@@ -93,12 +93,15 @@ deleted rows reconcile with retry in the same open picker. Pending operations,
 old loads and household/session changes are guarded. Felipe reports “okay this
 looks good” and accepts the reviewed fix October 28. Full cross-phone and Android
 acceptance are not inferred from that report. No live Mac runtime/data or
-deployment changed. F08 search-to-create name prefill is now planned in
-`docs/plans/search-create-name-prefill.md` for review: initialize the editable
-name once from the current search across existing creation origins, including
-Categories/managers for consistency, without overwriting drafts or crossing
-household/session scope. No F08 implementation is approved or made yet. See
-the focused Shopping plan for validation and the acceptance checklist.
+deployment changed. Felipe then approved F08 search-to-create name prefill and
+assigned implementation directly to the chat agent. It is implemented on
+`codex/search-create-prefill`: scoped current search initializes the editable
+name once across existing creation origins, including Categories/managers,
+without overwriting drafts or crossing household/session scope. Ten targeted
+mobile suites / 219 tests, TypeScript and lint pass; actual-router manager
+Create/Cancel coverage passes in a subsequent 89-test run. Phone acceptance
+remains pending. No API/schema, dependency, live Mac or deployment changes.
+See `docs/plans/search-create-name-prefill.md` for validation and phone checks.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
