@@ -34,7 +34,7 @@ export function RecipeLibraryScreen() {
   const cardWidth = Math.max(132, (width - 60) / 2);
 
   return (
-    <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']}>
+    <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets onRefresh={refresh} refreshing={refreshing} safeAreaEdges={['top', 'left', 'right']} testID="recipe-library">
       <View style={styles.content}>
         <TabPageHeader title="Recipes" actions={<CircularAddButton accessibilityLabel="Create recipe" onPress={() => router.push('/(app)/(tabs)/recipes/create' as never)} />} />
         <View style={[styles.searchField, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}>

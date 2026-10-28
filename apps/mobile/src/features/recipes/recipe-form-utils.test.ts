@@ -24,7 +24,7 @@ const recipe: Recipe = {
 
 describe('recipe form and presentation helpers', () => {
   it('accepts positive whole, decimal, fraction, and mixed-fraction amounts, but not ranges or invalid fractions', () => {
-    for (const amount of ['1', '0.25', '1/2', '1 1/2']) expect(isValidRecipeAmount(amount)).toBe(true);
+    for (const amount of ['1', '0.25', '1/2', '1 1/2', '2 2/3']) expect(isValidRecipeAmount(amount)).toBe(true);
     for (const amount of ['0', '-1', '1-2', '1/0', '0/2', 'one']) expect(isValidRecipeAmount(amount)).toBe(false);
     expect(isValidRecipeAmount('')).toBe(true);
   });

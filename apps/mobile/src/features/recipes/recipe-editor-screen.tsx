@@ -311,8 +311,8 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       catalogItemName: food.name,
       categoryEmoji: food.categoryEmoji,
       amount: '',
-      unitCode: '',
-      unitLabel: '',
+      unitCode: food.recipeUnitCode ?? '',
+      unitLabel: food.recipeUnitLabel ?? '',
       customUnitLabel: '',
       note: '',
     };
@@ -388,7 +388,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     if (!createdFood) return;
     setCreatedFood(null);
     if (createdFood.originScope !== `${scope}:${createRequestId.current}` || createdFood.item.household_id !== householdId) return;
-    startIngredient({ id: createdFood.item.id, name: createdFood.item.name, categoryEmoji: null });
+    startIngredient({ id: createdFood.item.id, name: createdFood.item.name, categoryEmoji: null, recipeUnitCode: createdFood.item.recipe_measurement_unit_code, recipeUnitLabel: createdFood.item.recipe_measurement_unit_label });
   }, [createdFood, householdId, scope, setCreatedFood, startIngredient]));
   const saveLabel = saveUnknown ? (editing ? 'Check saved version' : 'Retry save') : saving ? 'Saving…' : 'Save';
   const saveDisabled = !editorLoaded || saving;

@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: October 26, 2026
+Last updated: October 27, 2026
 
 ## Purpose of this document
 
@@ -55,6 +55,18 @@ Current limitations that make the private system unsuitable for public consumers
 The Mac Mini deployment should remain the functioning family dashboard and a development laboratory. It should not become the public consumer production server.
 
 ## Current consumer-app progress (October 4, 2026)
+
+Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
+on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
+New ingredients now inherit the Catalog recipe unit, including Food created
+within a recipe; existing recipe-specific/custom/no-unit choices are preserved.
+Ingredient amounts use the ordinary keyboard for mixed fractions. Recipes now
+connects its existing refresh state to pull-to-refresh in grid/list without
+resetting search. Four targeted suites / 34 tests, TypeScript, and lint pass;
+iPhone keyboard/gesture acceptance remains pending. No API/schema, dependency,
+live Mac, or deployment changes. See the family-trial inventory for scope and
+validation limits. Felipe accepted the nested Store edit fix on iPhone after
+`4e4cad6`; that does not imply completion of every B05 native acceptance case.
 
 SDK 58 migration (October 25): Felipe's installed iPhone Expo Go rejects the
 SDK 57 project. He approved upgrading directly in a separate branch,

@@ -16,7 +16,13 @@ import { RecipeCover } from './recipe-cover';
 import { RecipeKeyboardSafeSheet } from './recipe-keyboard-safe-sheet';
 import { isValidRecipeAmount, type RecipeIngredientDraft, type RecipeDraft } from './recipe-form-utils';
 
-export type RecipeFoodChoice = { id: string; name: string; categoryEmoji: string | null };
+export type RecipeFoodChoice = {
+  id: string;
+  name: string;
+  categoryEmoji: string | null;
+  recipeUnitCode?: string | null;
+  recipeUnitLabel?: string | null;
+};
 
 function ingredientAmountError(value: string) {
   return isValidRecipeAmount(value) ? null : 'Enter a positive number or fraction. Put a range in the note.';
@@ -72,7 +78,7 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
       {error ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText><PrimaryButton disabled={loading} onPress={retry} title="Retry" /></View> : null}
       {!error ? <View testID="recipe-food-results">
         <View style={[styles.foodList, { backgroundColor: theme.screen }]}>
-          {filtered.map((food, index) => <Pressable key={food.id} accessibilityRole="button" onPress={() => { if (units) onSelect({ id: food.id, name: food.name, categoryEmoji: null }, units); }} style={[styles.foodRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+          {filtered.map((food, index) => <Pressable key={food.id} accessibilityRole="button" onPress={() => { if (units) onSelect({ id: food.id, name: food.name, categoryEmoji: null, recipeUnitCode: food.recipe_measurement_unit_code, recipeUnitLabel: food.recipe_measurement_unit_label }, units); }} style={[styles.foodRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
             <ThemedText style={styles.foodName}>{food.name}</ThemedText><ThemedText themeColor="textSecondary">{food.category_name ?? 'Uncategorized'}</ThemedText>
           </Pressable>)}
           {!loading && filtered.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.emptyFood}>{query.trim() ? 'No Food items match your search.' : 'No Food items in this household yet.'}</ThemedText> : null}
@@ -147,7 +153,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingIndex
       </View>
         <View style={[styles.selectedFoodCard, { backgroundColor: theme.screen }]}><View style={[styles.foodInitial, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{food.name.slice(0, 1).toUpperCase()}</ThemedText></View><View style={styles.foodSummary}><ThemedText style={styles.foodName}>{food.name}</ThemedText><ThemedText themeColor="textSecondary">Food Catalog item</ThemedText></View></View>
         <View style={styles.splitFields}>
-          <View style={styles.field}><ThemedText themeColor="textSecondary">Amount</ThemedText><ThemedInput accessibilityLabel="Ingredient amount" keyboardType="decimal-pad" onChangeText={(amount) => setDraft((current) => ({ ...current, amount }))} placeholder="e.g. 2 or 1/2" value={draft.amount} /></View>
+          <View style={styles.field}><ThemedText themeColor="textSecondary">Amount</ThemedText><ThemedInput accessibilityLabel="Ingredient amount" autoCapitalize="none" autoCorrect={false} keyboardType="default" onChangeText={(amount) => setDraft((current) => ({ ...current, amount }))} placeholder="e.g. 2 or 1/2" value={draft.amount} /></View>
           <View style={styles.field}><ChoicePicker label="Unit" choices={unitChoices} searchable selectedId={draft.customUnitLabel ? '__custom__' : draft.unitCode || ''} value={draft.customUnitLabel || draft.unitLabel || 'No unit'} emptyChoiceLabel="No unit" disabled={loadingUnits || Boolean(unitError)} onOpen={Keyboard.dismiss} onSelect={(unitCode) => { const choice = units?.recipe_measurement_units.find((unit) => unit.code === unitCode); setDraft((current) => ({ ...current, unitCode, unitLabel: choice?.label ?? '', customUnitLabel: '' })); }} onCustomSelect={(customUnitLabel) => setDraft((current) => ({ ...current, customUnitLabel, unitCode: '', unitLabel: '' }))} sheetRoute={unitSheetRoute} /></View>
         </View>
         {loadingUnits ? <ActivityIndicator accessibilityLabel="Loading recipe units" color={theme.activity} /> : null}

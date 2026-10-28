@@ -6,6 +6,40 @@ dedicated repair plan is approved. Felipe subsequently assigned these bug-fix
 implementations directly to the chat agent, on focused main-based branches. This is not
 approval to implement every listed feature in one iteration or deploy changes.
 
+October 27: Felipe approved batch B (B06/B07/B10), implemented directly by the
+chat agent on `codex/recipe-entry-reliability`, based on the clean tested
+`codex/nested-choice-edit-fix` tip `4e4cad6` so local iPhone testing retains SDK
+58 and the accepted B05 follow-up. Keep a focused batch commit and regressions
+for each defect. No dependency, API/schema, or live Mac changes.
+
+Batch B implementation scope: carry Catalog recipe-unit code/label through
+both existing-Food selection and newly created-Food return, initialize only new
+ingredient drafts, and preserve existing unit overrides (including custom/no
+unit). Use the ordinary amount keyboard with autocorrect/capitalization off;
+retain current number/fraction validation. Connect the library's existing
+refresh state/function to the shared Screen refresh control without resetting
+search or grid/list mode. Validate actual-router default/override/save and
+refresh success/error/retry flows, plus recipe helpers, library/request-scope
+tests, TypeScript, and lint. Device keyboard/gesture acceptance remains separate.
+
+Batch B validation (October 27): all 4 targeted suites / 34 tests passed, no
+skips, plus TypeScript, lint, and whitespace checks. Actual-router checks cover
+saved/no default units independent of shopping units, new Food return with a
+saved recipe unit, existing built-in/custom/no-unit ingredients, explicit unit
+changes and clearing, mixed-fraction submission and invalid fraction rejection,
+and grid/list refresh from empty/short content with success, offline error,
+retry, and retained search/view. The first run's extended Catalog regression
+opened a unit picker before choices finished loading; waiting for the form's
+ready action fixed that test timing. No production loading change was made.
+Physical iPhone keyboard/pull gesture checks, Android, hosted CI, native builds,
+and PostgreSQL checks are unrun for this frontend-only batch. Earlier full SDK
+suite results remain historical. No live Mac database/runtime changes occurred.
+
+Official references checked against Expo 58.0.19 / React Native 0.88.0:
+[SDK 58](https://docs.expo.dev/versions/v58.0.0/),
+[RefreshControl](https://reactnative.dev/docs/refreshcontrol), and
+[TextInput keyboard](https://reactnative.dev/docs/textinput#keyboardtype).
+
 ## Goal
 
 Ship a safer, more usable build for the next week of family testing. Fix the
@@ -52,11 +86,11 @@ the three clipped pages makes it possible to verify each one independently.
 | B03 | Manage Categories bottom is covered by navigation. | All categories/actions can scroll above navigation. | C |
 | B04 | Household-type Catalog item shows an empty More details disclosure. | Hide the disclosure when there are no applicable extra fields; retain Food details. | C |
 | B05 | Create/Manage Store or Shopping Unit from nested recipe-ingredient creation opens a hidden page and breaks return/dismiss flow. | The intended page is visibly presented; Save/Back/Cancel returns to the correct draft without stranded routes or lost input. | A implemented; targeted checks pass, native device acceptance pending |
-| B06 | Saved Catalog recipe base unit is ignored when adding an ingredient. | Initialize a new ingredient from its saved recipe unit; retain intentional edits and existing recipe-specific units. | B |
-| B07 | Ingredient amount uses a keypad that cannot enter mixed fractions. | Ordinary keyboard supports `2 2/3`, `1/2`, and decimals; existing positive-value validation remains. | B |
+| B06 | Saved Catalog recipe base unit is ignored when adding an ingredient. | Initialize a new ingredient from its saved recipe unit; retain intentional edits and existing recipe-specific units. | B implemented; targeted checks pass, device acceptance pending |
+| B07 | Ingredient amount uses a keypad that cannot enter mixed fractions. | Ordinary keyboard supports `2 2/3`, `1/2`, and decimals; existing positive-value validation remains. | B implemented; targeted checks pass, device acceptance pending |
 | B08 | Ingredient unit selector's Use custom unit action is obscured by the keyboard. | Action remains visible and tappable while searching and entering a custom unit. | C |
 | B09 | Add ingredient's Create Food item action is pushed below a long result list. | Pin the create action below the scrollable results and above the keyboard; retain a visible search/header. | C |
-| B10 | Recipes cannot be refreshed to see another household member's additions. | Pull-to-refresh works in both grid and list, including short/empty lists, and preserves search/view state. | B |
+| B10 | Recipes cannot be refreshed to see another household member's additions. | Pull-to-refresh works in both grid and list, including short/empty lists, and preserves search/view state. | B implemented; targeted checks pass, device acceptance pending |
 | B11 | Catalog Edit item previously opened with blank fields. Felipe retested October 25 and existing values now populate correctly. | Currently unreproduced, not a confirmed fix. Retain as a regression watch; investigate if it recurs with concrete reproduction steps. | Watch; no speculative fix |
 | B12 | Re-adding a purchased Shopping entry leaves it purchased, including when its amount is unchanged. | Explicit re-add restores it to To buy even when all quantity/unit/store values stay the same. Ordinary editing must not silently change purchased state. | D |
 | B13 | Create category and its related forms are misaligned/inconsistent. | Review Food/Household category variants and all entry origins; reuse accepted field, action, header, and spacing standards. | C |
@@ -199,7 +233,7 @@ Resolve when the corresponding feature is scheduled:
   actual native iPhone flow, not only a mocked router. No live destructive tests.
 - Complete intended edits per approved slice before coordinated validation:
   relevant mobile route/component/state tests, TypeScript, lint, and official
-  Expo SDK 57 guidance checked against installed versions. Do not upgrade
+  Expo SDK 58 guidance checked against installed versions. Do not upgrade
   dependencies merely to try to cure navigation symptoms.
 - For data/API changes, run relevant tests against an identity-verified disposable
   PostgreSQL DB. Run the full disposable suite for substantial schema or role
