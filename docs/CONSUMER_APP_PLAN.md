@@ -84,6 +84,10 @@ looks good now” at `fa3186f`; the reviewed UI/emoji fixes are accepted on his
 iPhone. This is not an exhaustive per-route/state matrix result or Android
 acceptance. Next agreed inventory batch is D: Shopping re-add must uncheck an
 existing purchased entry even when its amount is unchanged.
+The focused proposal in `docs/plans/shopping-readd-correctness.md` preserves
+existing Shopping amount/unit/store, makes every Add-picker tap explicit Add
+intent, and keeps ordinary editing on the main list. This intentional picker
+behavior change awaits review; only the plan/source audit has been completed.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

@@ -239,6 +239,10 @@ Resolve when the corresponding feature is scheduled:
 - B12: when re-adding through the quick picker, preserve the purchased entry's
   existing amount/unit/store (proposed) versus reset to Catalog defaults. In
   Details, saving an explicit re-add must always uncheck, even with no edits.
+  The focused proposal in `shopping-readd-correctness.md` recommends preserving
+  current Shopping values and making all Add-picker taps explicit Add intent,
+  with ordinary editing on the main list. This intentional picker change and
+  the preservation decision await review; no B12 code has changed yet.
 - F03: clear purchased entries across the active household (as current Clear
   list does) versus only the currently filtered store; state the scope clearly
   and retain an explicit bulk confirmation unless Felipe chooses otherwise.
