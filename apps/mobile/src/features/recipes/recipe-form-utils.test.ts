@@ -63,6 +63,16 @@ describe('recipe form and presentation helpers', () => {
     expect(ingredientMeasure({ ...recipe.ingredients![0], amount: '2.000000' })).toBe('2 cup');
   });
 
+  it.each([null, '', '   '])('shows a blank amount (%s) as To taste regardless of selected unit', (amount) => {
+    for (const unit of [
+      { unit_label: 'Tablespoon', custom_unit_label: null },
+      { unit_label: null, custom_unit_label: 'pinch' },
+      { unit_label: null, custom_unit_label: null },
+    ]) expect(ingredientMeasure({ amount, ...unit })).toBe('To taste');
+    const draft = { ...ingredientDraftFromRecipe(recipe.ingredients![0]), amount: amount ?? '' };
+    expect(ingredientInputFromDraft(draft)).toMatchObject({ amount: null, unit_code: 'cup' });
+  });
+
   it('reorders directions without mutating the source and ignores out-of-bounds moves', () => {
     const initial = ['first', 'second', 'third'];
     expect(moveDirectionStep(initial, 1, -1)).toEqual(['second', 'first', 'third']);

@@ -67,6 +67,11 @@ iPhone keyboard/gesture acceptance remains pending. No API/schema, dependency,
 live Mac, or deployment changes. See the family-trial inventory for scope and
 validation limits. Felipe accepted the nested Store edit fix on iPhone after
 `4e4cad6`; that does not imply completion of every B05 native acceptance case.
+He subsequently accepted fraction entry and recipe refresh on iPhone and
+confirmed unit defaults populate. A small follow-up restores blank amount ->
+To taste in editor and saved recipe displays while retaining the selected unit
+and storing a null amount. Two targeted suites / 33 tests, TypeScript, and lint
+pass; this To taste follow-up still needs his physical retest.
 
 SDK 58 migration (October 25): Felipe's installed iPhone Expo Go rejects the
 SDK 57 project. He approved upgrading directly in a separate branch,

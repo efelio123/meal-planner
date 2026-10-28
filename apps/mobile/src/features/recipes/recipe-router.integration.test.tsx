@@ -121,6 +121,41 @@ describe('Recipes through the actual Expo Router', () => {
 
   afterEach(() => { Platform.OS = originalPlatform; });
 
+  it('saves blank amounts as To taste while retaining the default unit through create and edit', async () => {
+    const saved = recipe({ id: 'recipe-created', ingredients: [{ ...recipe().ingredients![0], amount: null, unit_code: 'cup', unit_label: 'Cup' }] });
+    mockedApi.catalogItems.mockResolvedValue({ items: [{ ...food, recipe_measurement_dimension: 'volume', recipe_measurement_unit_code: 'cup', recipe_measurement_unit_label: 'Cup' }] });
+    mockedApi.createRecipe.mockResolvedValue({ recipe: saved });
+    mockedApi.recipe.mockResolvedValue({ recipe: saved });
+    mockedApi.updateRecipe.mockResolvedValue({ recipe: { ...saved, edit_revision: 2 } });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => { router.navigate('/recipes/create'); });
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Tomato Soup');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    await fireEvent.press(await screen.findByText('Milk'));
+    expect(await screen.findByRole('button', { name: 'Unit: Cup' })).toBeTruthy();
+    expect(screen.getByLabelText('Ingredient amount').props.value).toBe('');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    expect(await screen.findByText('To taste')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.createRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({
+      ingredients: [expect.objectContaining({ amount: null, unit_code: 'cup' })],
+    })));
+    expect(await screen.findByText('Ingredients')).toBeTruthy();
+    expect(screen.getByText('To taste')).toBeTruthy();
+    await act(async () => { router.push('/recipes/recipe-created/edit'); });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk' }));
+    expect(await screen.findByRole('button', { name: 'Unit: Cup' })).toBeTruthy();
+    expect(screen.getByLabelText('Ingredient amount').props.value).toBe('');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save ingredient' }).props.accessibilityState?.disabled).toBe(false));
+    await fireEvent.press(screen.getByRole('button', { name: 'Save ingredient' }));
+    expect(await screen.findByText('To taste')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', saved.id, expect.objectContaining({
+      ingredients: [expect.objectContaining({ amount: null, unit_code: 'cup' })],
+    })));
+  });
+
   it.each(['grid', 'list'] as const)('refreshes an empty/short %s library and retains search and view through success and retry', async (mode) => {
     await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await screen.findByText('Plan');

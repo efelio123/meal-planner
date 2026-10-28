@@ -32,8 +32,8 @@ function amountError(value: string) {
 function formatIngredientSummary(ingredient: RecipeIngredientDraft) {
   const unit = ingredient.customUnitLabel.trim() || ingredient.unitLabel;
   const amount = formatRecipeAmount(ingredient.amount.trim());
-  if (amount && unit) return `${amount} ${unit}`;
-  return amount || unit || 'To taste';
+  if (!amount) return 'To taste';
+  return unit ? `${amount} ${unit}` : amount;
 }
 
 export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'recipes' | 'plan' }) {

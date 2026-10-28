@@ -40,6 +40,17 @@ Official references checked against Expo 58.0.19 / React Native 0.88.0:
 [RefreshControl](https://reactnative.dev/docs/refreshcontrol), and
 [TextInput keyboard](https://reactnative.dev/docs/textinput#keyboardtype).
 
+October 27 device follow-up: Felipe accepts fraction entry and recipe refresh,
+and confirms the default recipe unit populates. He requests restoration of
+blank amount -> To taste even when a unit is selected. Update both editor-row
+and saved-recipe measurement displays to prioritize a blank amount. Keep the
+amount serialized as null and retain the selected unit as metadata so entering
+an amount later still uses it; do not alter the Catalog default or existing data.
+Two targeted suites / 33 tests, TypeScript, lint, and whitespace checks passed.
+Regressions cover built-in/custom/no-unit blank and whitespace amounts, create
+and edit submissions, and saved detail/editor displays. Physical To taste
+retest remains pending; no API/schema or Mac changes were needed.
+
 ## Goal
 
 Ship a safer, more usable build for the next week of family testing. Fix the
@@ -86,11 +97,11 @@ the three clipped pages makes it possible to verify each one independently.
 | B03 | Manage Categories bottom is covered by navigation. | All categories/actions can scroll above navigation. | C |
 | B04 | Household-type Catalog item shows an empty More details disclosure. | Hide the disclosure when there are no applicable extra fields; retain Food details. | C |
 | B05 | Create/Manage Store or Shopping Unit from nested recipe-ingredient creation opens a hidden page and breaks return/dismiss flow. | The intended page is visibly presented; Save/Back/Cancel returns to the correct draft without stranded routes or lost input. | A implemented; targeted checks pass, native device acceptance pending |
-| B06 | Saved Catalog recipe base unit is ignored when adding an ingredient. | Initialize a new ingredient from its saved recipe unit; retain intentional edits and existing recipe-specific units. | B implemented; targeted checks pass, device acceptance pending |
-| B07 | Ingredient amount uses a keypad that cannot enter mixed fractions. | Ordinary keyboard supports `2 2/3`, `1/2`, and decimals; existing positive-value validation remains. | B implemented; targeted checks pass, device acceptance pending |
+| B06 | Saved Catalog recipe base unit is ignored when adding an ingredient. | Initialize a new ingredient from its saved recipe unit; retain intentional edits and existing recipe-specific units. Blank amount remains To taste. | Default device-accepted; To taste follow-up tested, device retest pending |
+| B07 | Ingredient amount uses a keypad that cannot enter mixed fractions. | Ordinary keyboard supports `2 2/3`, `1/2`, and decimals; existing positive-value validation remains. | B implemented; Felipe accepts on iPhone October 27 |
 | B08 | Ingredient unit selector's Use custom unit action is obscured by the keyboard. | Action remains visible and tappable while searching and entering a custom unit. | C |
 | B09 | Add ingredient's Create Food item action is pushed below a long result list. | Pin the create action below the scrollable results and above the keyboard; retain a visible search/header. | C |
-| B10 | Recipes cannot be refreshed to see another household member's additions. | Pull-to-refresh works in both grid and list, including short/empty lists, and preserves search/view state. | B implemented; targeted checks pass, device acceptance pending |
+| B10 | Recipes cannot be refreshed to see another household member's additions. | Pull-to-refresh works in both grid and list, including short/empty lists, and preserves search/view state. | B implemented; Felipe accepts on iPhone October 27 |
 | B11 | Catalog Edit item previously opened with blank fields. Felipe retested October 25 and existing values now populate correctly. | Currently unreproduced, not a confirmed fix. Retain as a regression watch; investigate if it recurs with concrete reproduction steps. | Watch; no speculative fix |
 | B12 | Re-adding a purchased Shopping entry leaves it purchased, including when its amount is unchanged. | Explicit re-add restores it to To buy even when all quantity/unit/store values stay the same. Ordinary editing must not silently change purchased state. | D |
 | B13 | Create category and its related forms are misaligned/inconsistent. | Review Food/Household category variants and all entry origins; reuse accepted field, action, header, and spacing standards. | C |
