@@ -3,7 +3,7 @@ import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleShee
 import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
 
-import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
+import { EmojiInput, PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { KeyboardAwareSheet } from '@/components/keyboard-aware-sheet';
 import { AppBackButton } from '@/components/app-back-button';
 import { ThemedText } from '@/components/themed-text';
@@ -200,7 +200,7 @@ export function RecipeEmojiSheet({ value, onUse, onClear }: { value: string; onU
     <View style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
       <View style={styles.header}><AppBackButton accessibilityLabel="Back to recipe cover choices" onPress={() => router.back()} /><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Recipe emoji</ThemedText><Pressable accessibilityRole="button" onPress={() => router.back()} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Cancel</ThemedText></Pressable></View>
       <View style={[styles.emojiPreview, { backgroundColor: theme.surfaceSelected }]}><EmojiText size={52}>{emoji || '🙂'}</EmojiText></View>
-      <View style={styles.field}><ThemedText themeColor="textSecondary">Emoji</ThemedText><ThemedInput accessibilityLabel="Recipe emoji" autoCapitalize="none" autoCorrect={false} onChangeText={setEmoji} placeholder="Enter or paste one emoji" value={emoji} /></View>
+      <View style={styles.field}><ThemedText themeColor="textSecondary">Emoji</ThemedText><EmojiInput accessibilityLabel="Recipe emoji" autoCapitalize="none" autoCorrect={false} onChangeText={setEmoji} placeholder="Enter or paste one emoji" returnKeyType="done" value={emoji} /></View>
       <ThemedText themeColor="textSecondary">Enter or paste one emoji.</ThemedText>
       {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
       <View style={styles.actions}><Pressable accessibilityRole="button" onPress={clear} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Clear</ThemedText></Pressable><Pressable accessibilityRole="button" onPress={() => router.back()} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Cancel</ThemedText></Pressable><PrimaryButton disabled={!emoji.trim() || Boolean(error)} onPress={() => { onUse(emoji.trim()); router.dismiss(2); }} title="Use emoji" /></View>

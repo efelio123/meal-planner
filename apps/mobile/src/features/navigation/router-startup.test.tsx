@@ -1673,6 +1673,9 @@ describe('signed-in startup routing', () => {
     expect(catalogEmojiSheetKeyboardBehavior).toBe('padding');
     expect(StyleSheet.flatten(sheet.props.style).paddingBottom).toBe(18);
     const emojiInput = screen.getByLabelText('Category emoji value');
+    expect(emojiInput.props.multiline).toBe(true);
+    expect(emojiInput.props.submitBehavior).toBe('blurAndSubmit');
+    expect(StyleSheet.flatten(emojiInput.props.style)).toMatchObject({ fontSize: 24, height: 60, lineHeight: undefined, includeFontPadding: true });
     await fireEvent(emojiInput, 'focus');
     expect(StyleSheet.flatten(screen.getByTestId('catalog-emoji-input-sheet').props.style).paddingBottom).toBe(12);
     await fireEvent(emojiInput, 'blur');

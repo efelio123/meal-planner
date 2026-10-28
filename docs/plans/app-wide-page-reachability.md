@@ -282,3 +282,21 @@ The earlier full 400-test normal/cache-disabled results precede this follow-up;
 they are historical. Full suite, exports, native builds, interactive browser,
 and physical glyph-boundary checks were not rerun for this small typography fix.
 Actual top/bottom appearance remains an iPhone retest, not proven by style tests.
+
+### Editable emoji follow-up
+
+Felipe confirms most display clipping is gone, but the Category emoji input
+still clips. The prior fix explicitly did not change inputs. Category and
+Recipe entry still used the standard single-line native TextInput. Shared
+EmojiInput now uses the native multiline engine for glyph layout, a padded
+60-point field with 24-point normal-weight emoji, and no forced line height.
+Done uses blurAndSubmit, preserving an explicit sheet Save/Done rather than
+inserting a newline or implicitly saving the category. Both emoji-entry flows
+reuse it; normal inputs and the existing validators are unchanged. Post-change
+phone confirmation is still required. Official React Native TextInput docs
+and the installed single-line native text-rectangle implementation were checked.
+Validation: 3 targeted suites / 110 tests passed, TypeScript and lint passed,
+and whitespace checks passed. Existing create/edit/emoji validation, Clear,
+Save/Cancel and return regressions remain active. No full-suite/native build or
+physical glyph review is claimed for this follow-up; earlier results remain
+historical. No API, database, dependency, or deployment change.

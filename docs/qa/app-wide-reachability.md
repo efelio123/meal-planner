@@ -79,3 +79,9 @@ visible at each icon size, including a flag or joined-family emoji; repeat with
 larger phone text to ensure fixed icon containers remain intact. These physical
 checks are pending. Current focused automation: 6 suites / 126 tests plus
 TypeScript/lint; the earlier full 400-test runs precede this follow-up.
+
+Remaining input clipping reported by Felipe: retest the actual editable Category
+emoji field after the EmojiInput change, with existing/new emoji, a flag or
+joined emoji, keyboard Done, Clear, Cancel, and sheet Done. Repeat Recipe emoji
+entry, which reuses that field. Display clipping is reported fixed in most
+places; neither remaining input retest nor complete icon acceptance is implied.

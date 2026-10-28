@@ -59,6 +59,9 @@ For this SDK migration, also follow https://docs.expo.dev/router/migrate/sdk-57-
   their intended icon size and lets the system emoji font supply natural glyph
   metrics. Do not enlarge ordinary ThemedText for emoji: its inherited line
   height can clip them. Keep adjacent readable labels in ordinary themed text.
+- Use shared EmojiInput for editable emoji. Its padded native multiline engine
+  avoids the single-line glyph rectangle, and blurAndSubmit keeps Done from
+  inserting a newline. Preserve each flow's validation and explicit save action.
 
 ## Native-sheet standard
 

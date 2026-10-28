@@ -75,6 +75,11 @@ An emoji-clipping follow-up replaces constrained text metrics with a shared
 natural-metric emoji renderer across category and recipe displays. Six targeted
 suites / 126 tests, TypeScript, and lint pass; glyph appearance still needs an
 iPhone retest. The earlier full 400-test results precede this typography edit.
+Felipe then reports display clipping fixed in most places, with Category emoji
+input still clipped. Shared EmojiInput now uses padded native multiline glyph
+layout for Category and Recipe entry while retaining explicit Done semantics.
+Three targeted suites / 110 tests, TypeScript, and lint pass; the editable field
+still needs his physical retest.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

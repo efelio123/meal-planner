@@ -1,7 +1,8 @@
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { EmojiText } from './emoji-text';
 import { ThemedText } from './themed-text';
+import { EmojiInput } from './themed-controls';
 
 describe('shared emoji glyph metrics', () => {
   it.each([
@@ -21,5 +22,17 @@ describe('shared emoji glyph metrics', () => {
     const view = await render(<ThemedText>Category name</ThemedText>);
     expect(StyleSheet.flatten(view.getByText('Category name').props.style)).toMatchObject({ fontSize: 16, lineHeight: 24 });
     expect(view.getByText('Category name').props.allowFontScaling).not.toBe(false);
+  });
+
+  it('gives editable emoji room in the native multiline engine while keeping Done as submit/blur', async () => {
+    const onChangeText = jest.fn();
+    const view = await render(<EmojiInput accessibilityLabel="Emoji entry" value="👩‍🍳" onChangeText={onChangeText} returnKeyType="done" />);
+    const input = view.getByLabelText('Emoji entry');
+    expect(input.props.multiline).toBe(true);
+    expect(input.props.submitBehavior).toBe('blurAndSubmit');
+    expect(input.props.returnKeyType).toBe('done');
+    expect(StyleSheet.flatten(input.props.style)).toMatchObject({ fontSize: 24, height: 60, lineHeight: undefined, includeFontPadding: true });
+    await fireEvent.changeText(input, '🇺🇸');
+    expect(onChangeText).toHaveBeenCalledWith('🇺🇸');
   });
 });

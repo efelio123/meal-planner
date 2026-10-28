@@ -2,7 +2,7 @@ import { Keyboard, KeyboardAvoidingView, Platform, Pressable, StyleSheet, View, 
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
+import { EmojiInput, PrimaryButton } from '@/components/themed-controls';
 import { ThemedText } from '@/components/themed-text';
 import { visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
@@ -60,7 +60,7 @@ function CatalogEmojiInputContent({ initialValue, onChangeText, onClear, onCance
     }]}>
       <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Category emoji</ThemedText>
       <ThemedText themeColor="textSecondary">Enter or paste one emoji, or leave it empty.</ThemedText>
-      <ThemedInput
+      <EmojiInput
         accessibilityLabel="Category emoji value"
         testID="category-emoji-value-input"
         autoCapitalize="none"
