@@ -24,7 +24,7 @@ type ChoiceSheetProps = {
   manageActionLabel?: string;
   customValue?: string;
   onSelect: (id: string) => void;
-  onCreate?: () => void;
+  onCreate?: (query: string) => void;
   onManage?: () => void;
   onCustomSelect?: (value: string) => void;
 };
@@ -83,7 +83,7 @@ function ChoiceSheet({ expectedScope, label, choices, selectedId, emptyChoiceLab
       </ScrollView>
       {onCustomSelect ? <Pressable accessibilityRole="button" onPress={() => { searchInput.current?.blur(); Keyboard.dismiss(); setCustomMode(true); }} style={[styles.customAction, { backgroundColor: theme.surfaceSelected }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={22} tintColor={theme.link} /><ThemedText themeColor="link">Use custom unit</ThemedText></Pressable> : null}
       {onCreate || onManage ? <View style={[styles.actions, { borderColor: theme.surfaceSelected, backgroundColor: theme.surfaceSelected }]}>
-        {onCreate ? <Pressable accessibilityLabel={createActionLabel} accessibilityRole="button" onPress={() => runRouteAction(onCreate)} style={styles.action}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={26} tintColor={theme.link} /><ThemedText themeColor="link">{createActionLabel}</ThemedText></Pressable> : null}
+        {onCreate ? <Pressable accessibilityLabel={createActionLabel} accessibilityRole="button" onPress={() => runRouteAction(() => onCreate(search.trim()))} style={styles.action}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={26} tintColor={theme.link} /><ThemedText themeColor="link">{createActionLabel}</ThemedText></Pressable> : null}
         {onManage ? <Pressable accessibilityLabel={manageActionLabel} accessibilityRole="button" onPress={() => runRouteAction(onManage)} style={[styles.action, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'gearshape', android: 'settings', web: 'settings' }} size={26} tintColor={theme.link} /><ThemedText themeColor="link">{manageActionLabel}</ThemedText></Pressable> : null}
       </View> : null}
     </>}
@@ -98,7 +98,7 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
   choices: ChoiceOption[];
   onSelect: (id: string) => void;
   /** Replace the active picker route with a destination in the same stack. */
-  onCreate?: () => void;
+  onCreate?: (query: string) => void;
   /** Replace the active picker route with a destination in the same stack. */
   onManage?: () => void;
   onOpen?: () => void;

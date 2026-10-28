@@ -377,7 +377,30 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.getByLabelText('Prep time hours').props.value).toBe('5');
   });
 
+  it.each(['recipes', 'plan'] as const)('prefills Food from the %s editor and cancels back to its unchanged recipe draft', async (origin) => {
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Plan');
+    const editor = origin === 'plan' ? '/plan/recipe-create' : '/recipes/create';
+    await act(async () => router.navigate(editor));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'My family recipe');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    await fireEvent.changeText(await screen.findByLabelText('Search Food Catalog'), '  Mi  ');
+    expect(screen.getByText('Milk')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Create Food item in Catalog'));
+    expect((await screen.findByLabelText('Item name')).props.value).toBe('Mi');
+    expect(rendered.getPathname()).toBe(`/${origin}/catalog-food`);
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'Changed ingredient');
+    await act(async () => router.back());
+    expect(rendered.getPathname()).toBe(editor);
+    expect(screen.getByLabelText('Recipe name').props.value).toBe('My family recipe');
+    expect(mockedApi.createCatalogItem).not.toHaveBeenCalled();
+    expect(mockedApi.createRecipe).not.toHaveBeenCalled();
+  });
+
   it('keeps Done and Create Food item actions responsive in the ingredient search sheet', async () => {
+    mockedApi.catalogStores.mockResolvedValue({ stores: Array.from({ length: 7 }, (_, index) => ({ id: `store-${index}`, name: `Store ${index}`, created_at: '', updated_at: '' })) });
+    mockedApi.catalogCategories.mockResolvedValue({ categories: Array.from({ length: 7 }, (_, index) => ({ id: `category-${index}`, name: `Category ${index}`, item_type: 'food' as const, emoji: null, active_item_count: 0, created_at: '', updated_at: '' })) });
     const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
@@ -394,9 +417,10 @@ describe('Recipes through the actual Expo Router', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
     await screen.findByLabelText('Search Food Catalog');
     await fireEvent(screen.getByLabelText('Search Food Catalog'), 'focus');
+    await fireEvent.changeText(screen.getByLabelText('Search Food Catalog'), '  Celery & 🥬 + stems?  ');
     await fireEvent.press(screen.getByText('Create Food item in Catalog'));
     await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/catalog-food'));
-    expect(await screen.findByLabelText('Item name')).toBeTruthy();
+    expect((await screen.findByLabelText('Item name')).props.value).toBe('Celery & 🥬 + stems?');
     await waitFor(() => expect(screen.getByRole('button', { name: 'Create & use ingredient' }).props.accessibilityState?.disabled).toBe(false));
     expect(screen.queryByRole('radio', { name: 'Household' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Typical shopping unit (optional): Not selected' })).toBeTruthy();
@@ -413,12 +437,13 @@ describe('Recipes through the actual Expo Router', () => {
     await fireEvent.changeText(screen.getByLabelText('Item name'), 'QA Celery');
     await fireEvent.press(screen.getByRole('button', { name: 'Category: Not selected' }));
     expect(rendered.getPathname()).toBe('/recipes/sheet/choice');
+    await fireEvent.changeText(screen.getByLabelText('Search Category'), '  Vegetables  ');
     await fireEvent.press(screen.getByRole('button', { name: 'Create category' }));
     await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/catalog-choices/category/create'));
     const category = { id: 'category-celery', name: 'Vegetables', item_type: 'food' as const, emoji: null, active_item_count: 0, created_at: '', updated_at: '' };
     mockedApi.createCatalogCategory.mockResolvedValue({ category });
     mockedApi.catalogCategories.mockResolvedValue({ categories: [category] });
-    await fireEvent.changeText(screen.getByLabelText('category name'), 'Vegetables');
+    expect(screen.getByLabelText('category name').props.value).toBe('Vegetables');
     await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/catalog-food'));
     expect(await screen.findByDisplayValue('QA Celery')).toBeTruthy();
@@ -433,9 +458,10 @@ describe('Recipes through the actual Expo Router', () => {
     const store = { id: 'store-new', name: 'Test store', created_at: '', updated_at: '' };
     mockedApi.createCatalogStore.mockRejectedValueOnce(new Error('Offline')).mockResolvedValueOnce({ store });
     await fireEvent.press(screen.getByRole('button', { name: 'Preferred store (optional): Not selected' }));
+    await fireEvent.changeText(screen.getByLabelText('Search Preferred store (optional)'), `  ${store.name}  `);
     await fireEvent.press(screen.getByRole('button', { name: 'Create store' }));
     expect(rendered.getPathname()).toBe('/recipes/catalog-choices/store/create');
-    await fireEvent.changeText(await screen.findByLabelText('store name'), store.name);
+    expect((await screen.findByLabelText('store name')).props.value).toBe(store.name);
     await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
     expect(await screen.findByText('We couldn’t save this choice. Please try again.')).toBeTruthy();
     expect(rendered.getPathname()).toBe('/recipes/catalog-choices/store/create');
@@ -454,9 +480,10 @@ describe('Recipes through the actual Expo Router', () => {
     await act(async () => { router.back(); });
     expect(rendered.getPathname()).toBe('/recipes/catalog-food');
     await fireEvent.press(screen.getByRole('button', { name: 'Typical shopping unit (optional): Not selected' }));
+    await fireEvent.changeText(screen.getByLabelText('Search Typical shopping unit (optional)'), `  ${unit.name}  `);
     await fireEvent.press(screen.getByRole('button', { name: 'Create shopping unit' }));
     expect(rendered.getPathname()).toBe('/recipes/catalog-choices/shopping-unit/create');
-    await fireEvent.changeText(await screen.findByLabelText('shopping unit name'), unit.name);
+    expect((await screen.findByLabelText('shopping unit name')).props.value).toBe(unit.name);
     mockedApi.catalogUnits.mockResolvedValue({ ...units, shopping_units: { built_in: [], household: [{ id: unit.id, label: unit.name }] } });
     await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
     await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/catalog-food'));

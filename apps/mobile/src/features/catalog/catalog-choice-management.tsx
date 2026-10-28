@@ -16,6 +16,7 @@ import { useCatalogContext } from './catalog-context';
 import { CatalogEmojiInputSheet } from './catalog-emoji-input-sheet';
 import { categoryEmojiValidationError } from './catalog-emoji-validation';
 import { useShoppingContextOptional } from '@/features/shopping-list/shopping-context';
+import { initialCreateName, namePrefillParams, namePrefillScope, type NamePrefillParams } from './catalog-name-prefill';
 
 function isKind(value: string | undefined): value is CatalogChoiceKind {
   return value === 'category' || value === 'store' || value === 'shopping-unit';
@@ -51,8 +52,12 @@ export function CatalogChoiceManagement({ layout, routeBase = 'catalog' }: { lay
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const searchScope = useRef(scope);
   useEffect(() => { latestGetToken.current = getToken; }, [getToken]);
-  useLayoutEffect(() => { scopeRef.current = scope; }, [scope]);
+  useLayoutEffect(() => {
+    scopeRef.current = scope;
+    if (searchScope.current !== scope) { searchScope.current = scope; setSearch(''); }
+  }, [scope]);
   const refreshChoices = useCallback(async () => {
     if (!householdId || !kind) return;
     const requestGeneration = ++generation.current;
@@ -87,8 +92,12 @@ export function CatalogChoiceManagement({ layout, routeBase = 'catalog' }: { lay
   ].filter(Boolean).join('&');
   const routeToCreate = useCallback(() => {
     if (!kind) return;
-    router.push(`/(app)/(tabs)/${base}/${kind}/create${routeQuery ? `?${routeQuery}` : ''}` as never);
-  }, [base, kind, routeQuery, router]);
+    router.push({ pathname: `/(app)/(tabs)/${base}/${kind}/create`, params: {
+      ...(itemType ? { itemType } : {}),
+      ...(params.shoppingTarget === 'details' ? { shoppingTarget: 'details', shoppingCatalogItemId: params.shoppingCatalogItemId } : {}),
+      ...namePrefillParams(kind === 'shopping-unit' ? '' : search, namePrefillScope(userId, sessionId, householdId)),
+    } } as never);
+  }, [base, householdId, itemType, kind, params.shoppingCatalogItemId, params.shoppingTarget, router, search, sessionId, userId]);
   const createAction = useCallback(() => (
     <Pressable accessibilityLabel={`Create ${kind === 'shopping-unit' ? 'shopping unit' : kind ?? 'choice'}`} accessibilityRole="button" onPress={routeToCreate} style={styles.headerAction}>
       <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus', android: 'add', web: 'add' }} size={22} tintColor={theme.link} />
@@ -152,7 +161,7 @@ export function CatalogChoiceForm(props: ChoiceFormProps) {
 }
 
 function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps) {
-  const params = useLocalSearchParams<{ kind: string; choiceId?: string; itemType?: string; shoppingTarget?: string; shoppingCatalogItemId?: string }>();
+  const params = useLocalSearchParams<NamePrefillParams & { kind: string; choiceId?: string; itemType?: string; shoppingTarget?: string; shoppingCatalogItemId?: string }>();
   const kind = isKind(params.kind) ? params.kind : null;
   const itemType = params.itemType === 'food' || params.itemType === 'household' ? params.itemType : undefined;
   const choiceId = typeof params.choiceId === 'string' ? params.choiceId : null;
@@ -164,7 +173,7 @@ function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps)
   const { markChanged, setChoiceResult } = useCatalogContext();
   const shoppingContext = useShoppingContextOptional();
   const householdId = selectedHousehold?.id ?? null;
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => initialCreateName(params, namePrefillScope(userId, sessionId, householdId), editing));
   const [categoryType, setCategoryType] = useState<CatalogItemType | ''>(itemType ?? '');
   const [loadedCategoryType, setLoadedCategoryType] = useState<CatalogItemType | null>(null);
   const [loading, setLoading] = useState(Boolean(editing));
@@ -313,7 +322,7 @@ function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps)
 }
 
 function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
-  const params = useLocalSearchParams<{ choiceId?: string; itemType?: string }>();
+  const params = useLocalSearchParams<NamePrefillParams & { choiceId?: string; itemType?: string }>();
   const itemType = params.itemType === 'food' || params.itemType === 'household' ? params.itemType : undefined;
   const choiceId = typeof params.choiceId === 'string' ? params.choiceId : null;
   const { sessionId, userId } = useAuth();
@@ -329,7 +338,7 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
   const latestGetToken = useRef<GetToken>(getToken);
   const requestGeneration = useRef(0);
   const mounted = useRef(true);
-  const [categoryName, setCategoryName] = useState('');
+  const [categoryName, setCategoryName] = useState(() => initialCreateName(params, namePrefillScope(userId, sessionId, householdId), editing));
   const [categoryType, setCategoryType] = useState<CatalogItemType | ''>(itemType ?? '');
   const [emoji, setEmoji] = useState<string | null>(null);
   const [emojiSheetVisible, setEmojiSheetVisible] = useState(false);

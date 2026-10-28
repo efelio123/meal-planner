@@ -13,6 +13,7 @@ import { ChoicePicker, type ChoiceOption } from './choice-picker';
 import { useCatalogContext, type CatalogChoiceKind } from './catalog-context';
 import { useRecipeContext } from '@/features/recipes/recipe-context';
 import { useShoppingContextOptional } from '@/features/shopping-list/shopping-context';
+import { initialCreateName, namePrefillParams, namePrefillScope, type NamePrefillParams } from './catalog-name-prefill';
 
 type FormState = {
   name: string;
@@ -33,12 +34,14 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
   const theme = useTheme();
   const { sessionId, userId } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams<{ itemId?: string; originScope?: string; shoppingOriginScope?: string }>();
+  const params = useLocalSearchParams<NamePrefillParams & { itemId?: string; originScope?: string; shoppingOriginScope?: string }>();
   const itemId = typeof params.itemId === 'string' ? params.itemId : null;
   const { changeKind, choiceResult, markChanged, revision, setChoiceResult } = useCatalogContext();
   const { setCreatedFood } = useRecipeContext();
   const shoppingContext = useShoppingContextOptional();
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const householdId = selectedHousehold?.id ?? null;
+  const prefillScope = namePrefillScope(userId, sessionId, householdId);
+  const [form, setForm] = useState<FormState>(() => ({ ...emptyForm, name: initialCreateName(params, prefillScope, Boolean(itemId)) }));
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
   const [units, setUnits] = useState<CatalogUnits | null>(null);
@@ -58,7 +61,6 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
   const latestGetToken = useRef<GetToken>(getToken);
   const loadGeneration = useRef(0);
   const mounted = useRef(true);
-  const householdId = selectedHousehold?.id ?? null;
   const scope = `${userId ?? ''}:${sessionId ?? ''}:${householdId ?? ''}:${itemId ?? ''}`;
   const scopeRef = useRef(scope);
   const previousScope = useRef(scope);
@@ -170,12 +172,14 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
   const selectedRecipeUnit = recipeChoices.find((choice) => choice.id === form.recipeUnitCode)?.label ?? '';
   const choiceSheetRoute = recipeIngredientMode ? '/recipes/sheet/choice'
     : shoppingOriginMode ? '/shopping/sheet/choice' : '/catalog/sheet/choice';
-  const routeToChoices = (kind: CatalogChoiceKind, mode: 'create' | 'manage') => {
-    const params = kind === 'category' ? `?itemType=${form.itemType}` : '';
+  const routeToChoices = (kind: CatalogChoiceKind, mode: 'create' | 'manage', query = '') => {
     const suffix = mode === 'create' ? '/create' : '';
     const base = recipeIngredientMode ? '/(app)/(tabs)/recipes/catalog-choices'
       : shoppingOriginMode ? '/(app)/(tabs)/shopping/choices' : '/(app)/(tabs)/catalog/choices';
-    router.replace(`${base}/${kind}${suffix}${params}` as never);
+    router.replace({ pathname: `${base}/${kind}${suffix}`, params: {
+      ...(kind === 'category' ? { itemType: form.itemType } : {}),
+      ...(mode === 'create' ? namePrefillParams(query, prefillScope) : {}),
+    } } as never);
   };
 
   const save = async () => {
@@ -254,10 +258,10 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
           ))}
         </View> : <ThemedText themeColor="textSecondary">Food</ThemedText>}
         {selectionMessage ? <ThemedText themeColor="textSecondary">{selectionMessage}</ThemedText> : null}
-        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Category" choices={categoryChoices} selectedId={form.categoryId} value={selectedCategory} emptyChoiceLabel="No category" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create category" manageLabel="Manage categories" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(categoryId) => { updateForm((current) => ({ ...current, categoryId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('category', 'create')} onManage={() => routeToChoices('category', 'manage')} />
-        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Typical shopping unit (optional)" choices={shoppingChoices} searchable selectedId={form.shoppingUnitId} value={selectedUnit} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create shopping unit" manageLabel="Manage shopping units" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(shoppingUnitId) => { updateForm((current) => ({ ...current, shoppingUnitId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('shopping-unit', 'create')} onManage={() => routeToChoices('shopping-unit', 'manage')} />
+        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Category" choices={categoryChoices} selectedId={form.categoryId} value={selectedCategory} emptyChoiceLabel="No category" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create category" manageLabel="Manage categories" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(categoryId) => { updateForm((current) => ({ ...current, categoryId })); setSelectionMessage(null); }} onCreate={(query) => routeToChoices('category', 'create', query)} onManage={() => routeToChoices('category', 'manage')} />
+        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Typical shopping unit (optional)" choices={shoppingChoices} searchable selectedId={form.shoppingUnitId} value={selectedUnit} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create shopping unit" manageLabel="Manage shopping units" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(shoppingUnitId) => { updateForm((current) => ({ ...current, shoppingUnitId })); setSelectionMessage(null); }} onCreate={(query) => routeToChoices('shopping-unit', 'create', query)} onManage={() => routeToChoices('shopping-unit', 'manage')} />
         <ThemedText themeColor="textSecondary">A typical shopping unit only; the catalog does not track quantities on hand.</ThemedText>
-        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Preferred store (optional)" choices={storeChoices} selectedId={form.storeId} value={selectedStore} emptyChoiceLabel="No preferred store" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={0} createLabel="Create store" manageLabel="Manage stores" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(storeId) => { updateForm((current) => ({ ...current, storeId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('store', 'create')} onManage={() => routeToChoices('store', 'manage')} />
+        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Preferred store (optional)" choices={storeChoices} selectedId={form.storeId} value={selectedStore} emptyChoiceLabel="No preferred store" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={0} createLabel="Create store" manageLabel="Manage stores" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(storeId) => { updateForm((current) => ({ ...current, storeId })); setSelectionMessage(null); }} onCreate={(query) => routeToChoices('store', 'create', query)} onManage={() => routeToChoices('store', 'manage')} />
         {form.itemType === 'food' ? <>
           <MoreDetailsToggle expanded={moreDetails} onPress={() => setMoreDetails((value) => !value)} />
           {moreDetails ? (

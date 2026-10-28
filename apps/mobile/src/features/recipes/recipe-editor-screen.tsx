@@ -12,6 +12,7 @@ import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, api, type CatalogUnits, type GetToken, type Recipe, type RecipeInput, type RecipeUpdateInput } from '@/lib/api';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
+import { namePrefillParams, namePrefillScope } from '@/features/catalog/catalog-name-prefill';
 import { formatRecipeAmount } from './recipe-presentation';
 import { useRecipeContext } from './recipe-context';
 import { RecipeCover } from './recipe-cover';
@@ -340,10 +341,13 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     openIngredientDetails(food, existing, index ?? null, false);
   }, [householdId, openIngredientDetails]);
 
-  const openFoodCreate = useCallback(() => {
+  const openFoodCreate = useCallback((query: string) => {
     if (!householdId || !isCurrentEditorScope()) return;
-    router.replace(`${editorRouteBase}/catalog-food?originScope=${encodeURIComponent(`${scope}:${createRequestId.current}`)}` as never);
-  }, [editorRouteBase, householdId, isCurrentEditorScope, router, scope]);
+    router.replace({ pathname: `${editorRouteBase}/catalog-food`, params: {
+      originScope: `${scope}:${createRequestId.current}`,
+      ...namePrefillParams(query, namePrefillScope(userId, sessionId, householdId)),
+    } } as never);
+  }, [editorRouteBase, householdId, isCurrentEditorScope, router, scope, sessionId, userId]);
 
   const openIngredientSearch = () => {
     if (!householdId || !editorLoaded || saving) return;

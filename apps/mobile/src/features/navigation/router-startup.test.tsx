@@ -600,8 +600,9 @@ describe('signed-in startup routing', () => {
     await waitFor(() => expect(screen.getByLabelText('Unit: Not selected').props.accessibilityState?.disabled).toBe(false));
     await fireEvent.press(screen.getByLabelText('Unit: Not selected'));
     expect(await screen.findByRole('button', { name: 'Add unit' })).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Search Unit'), '  Crate  ');
     await fireEvent.press(screen.getByRole('button', { name: 'Add unit' }));
-    expect(await screen.findByLabelText('shopping unit name')).toBeTruthy();
+    expect((await screen.findByLabelText('shopping unit name')).props.value).toBe('Crate');
     expect(rendered.getPathname()).toBe('/shopping/choices/shopping-unit/create');
     await fireEvent.changeText(screen.getByLabelText('shopping unit name'), 'Crate');
     await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
@@ -688,8 +689,9 @@ describe('signed-in startup routing', () => {
     await screen.findByRole('button', { name: 'Save changes' });
     await waitFor(() => expect(screen.getByLabelText('Store (optional): Not selected').props.accessibilityState?.disabled).toBe(false));
     await fireEvent.press(screen.getByLabelText('Store (optional): Not selected'));
+    await fireEvent.changeText(screen.getByLabelText('Search Store (optional)'), '  Local Market  ');
     await fireEvent.press(await screen.findByRole('button', { name: 'Create store' }));
-    expect(await screen.findByLabelText('store name')).toBeTruthy();
+    expect((await screen.findByLabelText('store name')).props.value).toBe('Local Market');
     expect(rendered.getPathname()).toBe('/shopping/choices/store/create');
     await fireEvent.changeText(screen.getByLabelText('store name'), 'Local Market');
     await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
@@ -1324,6 +1326,93 @@ describe('signed-in startup routing', () => {
     expect(api.catalogItems).toHaveBeenCalledTimes(2);
   });
 
+  it('prefills Catalog Add from the latest search and never overwrites a cleared name on a nested return', async () => {
+    const name = 'Crème & Beans + "Family" / 🥬?';
+    jest.mocked(api.catalogStores).mockResolvedValue({ stores: Array.from({ length: 7 }, (_, index) => ({ id: `store-${index}`, name: `Store ${index}`, created_at: '', updated_at: '' })) });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await navigateTo(rendered, '/catalog');
+    await fireEvent.changeText(screen.getByLabelText('Search household items'), `  ${name}  `);
+    await fireEvent.press(screen.getByRole('button', { name: 'Add catalog item' }));
+    expect((await screen.findByLabelText('Item name')).props.value).toBe(name);
+    await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
+    await fireEvent.changeText(screen.getByLabelText('Item name'), '');
+    await fireEvent.press(screen.getByLabelText('Preferred store (optional): Not selected'));
+    await fireEvent.changeText(screen.getByLabelText('Search Preferred store (optional)'), '  New & Market + 🥬  ');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create store' }));
+    expect((await screen.findByLabelText('store name')).props.value).toBe('New & Market + 🥬');
+    await act(async () => router.back());
+    expect(rendered.getPathname()).toBe('/catalog/add');
+    expect(screen.getByLabelText('Item name').props.value).toBe('');
+    expect(api.createCatalogStore).not.toHaveBeenCalled();
+    expect(api.createCatalogItem).not.toHaveBeenCalled();
+    await act(async () => router.back());
+    expect(screen.getByLabelText('Search household items').props.value).toBe(`  ${name}  `);
+    await fireEvent.changeText(screen.getByLabelText('Search household items'), 'Fresh next name');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add catalog item' }));
+    expect((await screen.findByLabelText('Item name')).props.value).toBe('Fresh next name');
+  });
+
+  it('retains a user-edited seeded name when the initial choice load finishes later', async () => {
+    let finishChoices!: (value: Awaited<ReturnType<typeof api.catalogCategories>>) => void;
+    jest.mocked(api.catalogCategories).mockReturnValueOnce(new Promise((resolve) => { finishChoices = resolve; }));
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await act(async () => router.push({ pathname: '/catalog/add', params: { initialName: 'Initial search', prefillScope: '["user-a","session-a","household-a"]' } } as Href));
+    expect((await screen.findByLabelText('Item name')).props.value).toBe('Initial search');
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'My revised name');
+    await act(async () => finishChoices({ categories: [] }));
+    await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
+    expect(screen.getByLabelText('Item name').props.value).toBe('My revised name');
+    expect(api.createCatalogItem).not.toHaveBeenCalled();
+  });
+
+  it.each(['household', 'session'])('clears a seeded Catalog draft across a %s switch without replaying it', async (change) => {
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await act(async () => router.push({ pathname: '/catalog/add', params: { initialName: 'Private search', prefillScope: '["user-a","session-a","household-a"]' } } as Href));
+    expect((await screen.findByLabelText('Item name')).props.value).toBe('Private search');
+    await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
+    await act(async () => {
+      if (change === 'household') mockSetSelectedHouseholdId?.('household-b');
+      else mockSetClerkIdentity?.('user-a', 'session-b');
+    });
+    expect(screen.getByLabelText('Item name').props.value).toBe('');
+    await act(async () => {
+      if (change === 'household') mockSetSelectedHouseholdId?.('household-a');
+      else mockSetClerkIdentity?.('user-a', 'session-a');
+    });
+    expect(screen.getByLabelText('Item name').props.value).toBe('');
+    expect(api.createCatalogItem).not.toHaveBeenCalled();
+  });
+
+  it.each(['header', 'footer'])('prefills Shopping Catalog creation from its %s action', async (action) => {
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add from Catalog' }));
+    await fireEvent.changeText(await screen.findByLabelText('Search Catalog'), '  Bread & eggs + 🥬?  ');
+    await fireEvent.press(screen.getByRole('button', { name: action === 'header' ? 'Create Catalog item' : 'Create item in Catalog' }));
+    expect((await screen.findByLabelText('Item name')).props.value).toBe('Bread & eggs + 🥬?');
+    expect(rendered.getPathname()).toBe('/shopping/catalog-item');
+    expect(screen.getByRole('button', { name: 'Create & add to Shopping' })).toBeTruthy();
+    expect(api.createCatalogItem).not.toHaveBeenCalled();
+    expect(api.addShoppingListItem).not.toHaveBeenCalled();
+  });
+
+  it('ignores a name seed when editing a saved Catalog item', async () => {
+    jest.mocked(api.catalogItem).mockResolvedValue({ item: catalogItem() });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await act(async () => router.push({ pathname: '/catalog/item/[itemId]/edit', params: { itemId: 'item-1', initialName: 'Wrong name', prefillScope: '["user-a","session-a","household-a"]' } } as Href));
+    await waitFor(() => expect(screen.getByLabelText('Item name').props.value).toBe('Milk'));
+    expect(api.updateCatalogItem).not.toHaveBeenCalled();
+  });
+
   it('preserves an Add Item draft and selects a choice created from its picker', async () => {
     jest.mocked(api.catalogCategories).mockResolvedValue({ categories: [{
       id: 'produce-category', item_type: 'food', name: 'Produce', emoji: null, active_item_count: 0, created_at: '', updated_at: '',
@@ -1761,6 +1850,12 @@ describe('signed-in startup routing', () => {
     expect(screen.getByText('Corner Shop')).toBeTruthy();
     expect(screen.queryByText('Market')).toBeNull();
     expect(renderResult.getPathname()).toBe('/catalog/choices/store');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create store' }));
+    expect((await screen.findByLabelText('store name')).props.value).toBe('corner');
+    expect(renderResult.getPathname()).toBe('/catalog/choices/store/create');
+    await act(async () => router.back());
+    expect(screen.getByLabelText('Search stores').props.value).toBe('corner');
+    expect(api.createCatalogStore).not.toHaveBeenCalled();
   });
 
   it('retains Household category type through Manage to Edit', async () => {

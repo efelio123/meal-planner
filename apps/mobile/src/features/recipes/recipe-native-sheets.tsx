@@ -36,7 +36,7 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
   getToken: GetToken;
   isCurrent: () => boolean;
   onSelect: (food: RecipeFoodChoice, units: CatalogUnits) => void;
-  onCreate: () => void;
+  onCreate: (query: string) => void;
 }) {
   const theme = useTheme();
   const router = useRouter();
@@ -98,7 +98,7 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
         Keyboard.dismiss();
         // The editor replaces this search sheet with its Food form, retaining
         // the editor beneath it without a separate asynchronous dismissal.
-        onCreate();
+        onCreate(query.trim());
       }} style={[styles.createAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link" style={styles.createLabel}>Create Food item in Catalog</ThemedText><DisclosureChevron variant="action" /></Pressable>
     </View>
   </KeyboardAwareSheet>;

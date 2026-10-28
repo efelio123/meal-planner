@@ -8,6 +8,7 @@ import { ThemedText } from '@/components/themed-text';
 import { CircularAddButton, DisclosureChevron, TabPageHeader, visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import { useCatalog } from './use-catalog';
+import { namePrefillParams, namePrefillScope } from './catalog-name-prefill';
 
 type Filter = 'all' | 'food' | 'household';
 
@@ -47,7 +48,7 @@ export function CatalogScreen() {
             <Pressable accessibilityRole="button" onPress={() => router.push('/(app)/(tabs)/catalog/manage' as never)} style={styles.manageAction}>
               <ThemedText themeColor="link" style={styles.manageText}>Manage</ThemedText>
             </Pressable>
-            <CircularAddButton accessibilityLabel="Add catalog item" onPress={() => router.push('/(app)/(tabs)/catalog/add')} />
+            <CircularAddButton accessibilityLabel="Add catalog item" onPress={() => router.push({ pathname: '/(app)/(tabs)/catalog/add', params: namePrefillParams(search, namePrefillScope(userId, sessionId, householdId)) })} />
           </>} />
         <ThemedInput accessibilityLabel="Search household items" onChangeText={setSearch} placeholder="Search household items" value={search} />
         <View style={styles.filters}>

@@ -88,6 +88,29 @@ describe('Catalog choice native sheet', () => {
     expect(mockBack).not.toHaveBeenCalled();
   });
 
+  it.each(['  cost  ', 'Cup & Spoon + 🥬?', '', '   '])('hands the latest query %j to Create, even with partial results', async (query) => {
+    const view = await openPicker([{ id: 'costco', label: 'Costco' }], { label: 'Store', searchable: true, createLabel: 'Create store' });
+    await fireEvent.changeText(view.getByLabelText('Search Store'), 'old query');
+    await fireEvent.changeText(view.getByLabelText('Search Store'), query);
+    if (query.trim() === 'cost') expect(view.getByRole('button', { name: 'Costco' })).toBeTruthy();
+    const create = view.getByRole('button', { name: 'Create store' });
+    await fireEvent.press(create);
+    await fireEvent.press(create);
+    expect(view.onCreate).toHaveBeenCalledTimes(1);
+    expect(view.onCreate).toHaveBeenCalledWith(query.trim());
+    expect(view.onManage).not.toHaveBeenCalled();
+    expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  it('does not turn Manage into a Create or carry its selector query', async () => {
+    const view = await openPicker([], { searchable: true });
+    await fireEvent.changeText(view.getByLabelText('Search Category'), 'Baking');
+    await fireEvent.press(view.getByRole('button', { name: 'Manage categories' }));
+    expect(view.onManage).toHaveBeenCalledTimes(1);
+    expect(view.onManage).toHaveBeenCalledWith();
+    expect(view.onCreate).not.toHaveBeenCalled();
+  });
+
   it('keeps a long searchable list and query filtering inside the native route content', async () => {
     const view = await openPicker(Array.from({ length: 10 }, (_value, index) => ({ id: `category-${index}`, label: `Category ${index}` })));
     expect(view.sheetOptions).toEqual({ detents: [0.58, 0.94] });
