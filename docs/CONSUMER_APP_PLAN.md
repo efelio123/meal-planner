@@ -93,9 +93,12 @@ deleted rows reconcile with retry in the same open picker. Pending operations,
 old loads and household/session changes are guarded. Felipe reports “okay this
 looks good” and accepts the reviewed fix October 28. Full cross-phone and Android
 acceptance are not inferred from that report. No live Mac runtime/data or
-deployment changed. Next candidate is F08 search-to-create name prefill, subject
-to its own scope/plan approval. See the focused plan for validation and the
-acceptance checklist.
+deployment changed. F08 search-to-create name prefill is now planned in
+`docs/plans/search-create-name-prefill.md` for review: initialize the editable
+name once from the current search across existing creation origins, including
+Categories/managers for consistency, without overwriting drafts or crossing
+household/session scope. No F08 implementation is approved or made yet. See
+the focused Shopping plan for validation and the acceptance checklist.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
