@@ -202,7 +202,7 @@ export default function ShoppingListScreen() {
     </ShoppingSwipeRow>;
   });
 
-  return <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']} onRefresh={() => { setOpenSwipeId(null); return refresh(); }}
+  return <Screen layout="tab-root" contentAlignment="top" onRefresh={() => { setOpenSwipeId(null); return refresh(); }}
     onScrollBeginDrag={(event) => { scrollStartedAfterReveal.current = Boolean(openSwipeId); scrollDragStartY.current = event.nativeEvent.contentOffset.y; scrollOffsetY.current = scrollDragStartY.current; }}
     onScroll={(event) => {
       // The vertical ScrollView can begin a drag during a horizontal row swipe.

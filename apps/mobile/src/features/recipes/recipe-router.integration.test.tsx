@@ -293,10 +293,14 @@ describe('Recipes through the actual Expo Router', () => {
 
     const sheet = screen.getByTestId('recipe-ingredient-search-sheet');
     expect(StyleSheet.flatten(sheet.props.style)).toMatchObject({ flex: 1 });
-    expect(StyleSheet.flatten(sheet.props.contentContainerStyle)).toMatchObject({ paddingTop: 28, gap: 16 });
+    const resultsScroll = screen.getByTestId('recipe-food-scroll');
+    expect(within(resultsScroll).queryByLabelText('Search Food Catalog')).toBeNull();
+    expect(within(resultsScroll).queryByText('Create Food item in Catalog')).toBeNull();
+    expect(within(screen.getByTestId('recipe-food-footer')).getByText('Create Food item in Catalog')).toBeTruthy();
+    expect(StyleSheet.flatten(screen.getByTestId('recipe-food-header').props.style)).toMatchObject({ paddingTop: 28, gap: 16 });
     expect(screen.getByTestId('recipe-food-results')).toBeTruthy();
-    expect(sheet.props.keyboardShouldPersistTaps).toBe('handled');
-    expect(sheet.props.keyboardDismissMode).toBe(Platform.OS === 'ios' ? 'interactive' : 'on-drag');
+    expect(resultsScroll.props.keyboardShouldPersistTaps).toBe('handled');
+    expect(resultsScroll.props.keyboardDismissMode).toBe(Platform.OS === 'ios' ? 'interactive' : 'on-drag');
     expect(screen.getByLabelText('Search Food Catalog')).toBeTruthy();
     expect(screen.getByText('Milk')).toBeTruthy();
     expect(screen.getByText('Create Food item in Catalog')).toBeTruthy();
@@ -597,7 +601,7 @@ describe('Recipes through the actual Expo Router', () => {
     expect(editorScroll.props.keyboardDismissMode).toBe(Platform.OS === 'ios' ? 'interactive' : 'on-drag');
     expect(editorScroll.props.automaticallyAdjustKeyboardInsets).toBe(Platform.OS === 'ios');
     if (Platform.OS === 'ios') {
-      expect(editorScroll.parent?.props.edges).toEqual({ top: false, right: false, bottom: true, left: false });
+      expect(editorScroll.parent?.props.edges).toEqual({ top: false, right: true, bottom: true, left: true });
     }
     await fireEvent(screen.getByLabelText('Recipe name'), 'focus');
     await fireEvent.changeText(screen.getByLabelText('Recipe name'), 'Keyboard-safe draft');

@@ -282,11 +282,10 @@ export default function HouseholdDetailsScreen() {
   };
 
   return (
-    <Screen
+    <Screen layout="tab-stack"
       contentAlignment="top"
       onRefresh={Platform.OS === 'web' ? undefined : refreshDetails}
       refreshing={refreshing}
-      safeAreaEdges={['left', 'right']}
     >
       <View style={styles.content}>
         <ThemedText accessibilityRole="header" type="subtitle">{target.name}</ThemedText>

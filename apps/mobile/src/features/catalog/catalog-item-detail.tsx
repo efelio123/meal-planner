@@ -110,7 +110,7 @@ export function CatalogItemDetail() {
     {Platform.OS === 'ios' && itemScope === scope && item ? <Stack.Toolbar placement="right">
       <Stack.Toolbar.Button accessibilityLabel="Edit item" hidesSharedBackground onPress={() => router.push(`/(app)/(tabs)/catalog/item/${item.id}/edit` as never)} tintColor={theme.link} variant="plain">Edit</Stack.Toolbar.Button>
     </Stack.Toolbar> : null}
-    <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+    <Screen layout="tab-stack" contentAlignment="top">
       <View style={styles.content}>
         {householdId && loading ? <ActivityIndicator accessibilityLabel="Loading catalog item" color={theme.activity} /> : null}
         {householdId && itemScope === scope && item?.household_id === householdId ? <>

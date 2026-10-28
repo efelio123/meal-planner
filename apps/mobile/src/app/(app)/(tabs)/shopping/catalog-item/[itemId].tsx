@@ -1,5 +1,5 @@
 import { CatalogItemForm } from '@/features/catalog/catalog-item-form';
 
 export default function ShoppingCatalogItemEditRoute() {
-  return <CatalogItemForm shoppingOriginMode />;
+  return <CatalogItemForm layout="stack-modal" shoppingOriginMode />;
 }

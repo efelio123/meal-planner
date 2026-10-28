@@ -310,6 +310,42 @@ describe('signed-in startup routing', () => {
   });
   afterEach(() => { jest.restoreAllMocks(); });
 
+  it.each([
+    '/profile/my-account', '/profile/my-households', '/profile/my-households/create',
+    '/profile/my-households/household-a', '/profile/my-households/household-a/edit',
+    '/profile/my-households/household-a/members/membership-b',
+    '/profile/my-households/household-a/invitations', '/profile/my-households/household-a/archived-recipes',
+    '/catalog/manage', '/catalog/add', '/catalog/item/food-1',
+    '/catalog/choices/category', '/catalog/choices/store', '/catalog/choices/shopping-unit',
+  ])('reserves the native bottom bar on the pushed page %s without double top padding', async (path) => {
+    jest.replaceProperty(Platform, 'OS', 'ios');
+    const result = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await navigateTo(result, path);
+    // Native tab roots stay mounted in this router fixture. Only the pushed
+    // page should reserve bottom chrome without also owning the top inset.
+    const pages = screen.getAllByTestId('screen').filter((candidate) => candidate.parent?.props.edges?.top === false);
+    expect(pages).toHaveLength(1);
+    const page = pages[0];
+    expect(page.parent?.props.edges).toEqual({ top: false, right: true, bottom: true, left: true });
+    expect(page.props.contentInsetAdjustmentBehavior).toBe('never');
+  });
+
+  it.each(['/catalog/add', '/shopping/catalog-item'])('hides empty Household More details on %s and preserves the Food fields', async (path) => {
+    const result = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await navigateTo(result, path);
+    await fireEvent.press(await screen.findByRole('button', { name: 'More details' }));
+    expect(screen.getByRole('button', { name: 'Recipe measurement: Not selected' })).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'Preserved item name');
+    await fireEvent.press(screen.getByRole('radio', { name: 'Household' }));
+    expect(screen.queryByRole('button', { name: 'More details' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Recipe measurement: Not selected' })).toBeNull();
+    expect(screen.getByLabelText('Item name').props.value).toBe('Preserved item name');
+    await fireEvent.press(screen.getByRole('radio', { name: 'Food' }));
+    expect(screen.getByRole('button', { name: 'More details' })).toBeTruthy();
+  });
+
   it('redirects a cold signed-in launch to the usable Plan tab', async () => {
     useActualRootStartup = true;
     const renderResult = await renderRouter(

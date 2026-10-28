@@ -89,7 +89,7 @@ export function DisplayNameCompletionScreen() {
   };
 
   return (
-    <Screen>
+    <Screen layout="standalone">
       <View style={styles.content}>
         <ThemedText accessibilityRole="header" style={styles.title}>Choose your display name</ThemedText>
         <ThemedText themeColor="textSecondary">

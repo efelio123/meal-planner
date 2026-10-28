@@ -1,6 +1,7 @@
-import { render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { NativeSheetProvider } from '@/features/native-sheets/native-sheet-context';
 import { CatalogProvider } from './catalog-context';
 import { CatalogChoiceForm, CatalogChoiceManagement } from './catalog-choice-management';
 
@@ -40,10 +41,11 @@ const apiMock = jest.requireMock('@/lib/api').api as {
   catalogCategories: jest.Mock;
   catalogStores: jest.Mock;
   catalogUnits: jest.Mock;
+  createCatalogCategory: jest.Mock;
 };
 
 async function renderRoute(child: React.ReactNode) {
-  return render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, right: 0, bottom: 34, left: 0 } }}><CatalogProvider>{child}</CatalogProvider></SafeAreaProvider>);
+  return render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, right: 0, bottom: 34, left: 0 } }}><NativeSheetProvider scope="category-test"><CatalogProvider>{child}</CatalogProvider></NativeSheetProvider></SafeAreaProvider>);
 }
 
 describe('Catalog choice management presentation', () => {
@@ -56,21 +58,37 @@ describe('Catalog choice management presentation', () => {
     apiMock.catalogUnits.mockResolvedValue({ shopping_units: { household: [] } });
   });
 
+  it.each(['food', 'household'] as const)('creates a %s category with a flexible name and full-width type controls', async (itemType) => {
+    mockParams = { kind: 'category', itemType };
+    const name = 'A longer category name that must stay inside the form';
+    apiMock.createCatalogCategory.mockReset().mockResolvedValue({ category: { id: 'new-category', name, item_type: itemType, emoji: null } });
+    const view = await renderRoute(<CatalogChoiceForm layout="tab-stack" />);
+    const input = view.getByLabelText('category name');
+    expect(StyleSheet.flatten(input.props.style)).toMatchObject({ flex: 1, minWidth: 0, textAlign: 'right' });
+    const controls = view.getByTestId('category-type-controls');
+    expect(StyleSheet.flatten(controls.parent?.props.style)).toMatchObject({ flexDirection: 'column', alignItems: 'stretch' });
+    expect(view.getByRole('radio', { name: itemType === 'food' ? 'Food' : 'Household' }).props.accessibilityState.checked).toBe(true);
+    await fireEvent.changeText(input, name);
+    await fireEvent.press(view.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(apiMock.createCatalogCategory).toHaveBeenCalledWith(expect.any(Function), 'household-1', itemType, name, null));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
   it('shows the emoji beside the category name in the editable list', async () => {
-    const view = await renderRoute(<CatalogChoiceManagement />);
+    const view = await renderRoute(<CatalogChoiceManagement layout="tab-stack" />);
     await waitFor(() => expect(view.getByText('Produce')).toBeTruthy());
     expect(view.getByText('🥬')).toBeTruthy();
   });
 
   it('distinguishes absent custom units from built-in units', async () => {
     mockParams = { kind: 'shopping-unit' };
-    const view = await renderRoute(<CatalogChoiceManagement />);
+    const view = await renderRoute(<CatalogChoiceManagement layout="tab-stack" />);
     await waitFor(() => expect(view.getByText('No custom shopping units yet. Built-in units are available when adding or editing items.')).toBeTruthy());
   });
 
   it('describes editing a store rather than adding another one', async () => {
     mockParams = { kind: 'store', choiceId: 'market' };
-    const view = await renderRoute(<CatalogChoiceForm editing />);
+    const view = await renderRoute(<CatalogChoiceForm layout="tab-stack" editing />);
     await waitFor(() => expect(view.getByLabelText('store name').props.value).toBe('Market'));
     expect(view.getByText('Update this shared household store.')).toBeTruthy();
     expect(view.queryByText('Add a household store for catalog items.')).toBeNull();

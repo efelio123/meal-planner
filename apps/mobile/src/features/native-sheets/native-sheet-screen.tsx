@@ -38,9 +38,9 @@ export function NativeSheetScreen({ direct = false }: { direct?: boolean }) {
 
   if (!entry) return null;
 
-  // Stacked Recipes form sheets need the scrollable sheet content to be the
-  // native route's root, as in the accepted gesture prototype. Keep the
-  // container for the existing shared Catalog/time-zone route.
+  // Recipes content owns its native root: a single ScrollView for details,
+  // or distinct header/results/footer siblings for a keyboard-aware picker.
+  // Keep the container for the existing shared Catalog/time-zone route.
   if (direct) return entry.content;
 
   return <View testID="native-sheet-content" style={[styles.content, { backgroundColor: theme.elevatedSurface }]}>

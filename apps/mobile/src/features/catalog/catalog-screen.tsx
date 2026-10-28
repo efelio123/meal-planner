@@ -41,7 +41,7 @@ export function CatalogScreen() {
     }).filter((section) => section.items.length > 0), [filter, visible]);
 
   return (
-    <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']} onRefresh={refresh} refreshing={refreshing}>
+    <Screen layout="tab-root" contentAlignment="top" onRefresh={refresh} refreshing={refreshing}>
       <View style={styles.content}>
         <TabPageHeader title="Catalog" actions={<>
             <Pressable accessibilityRole="button" onPress={() => router.push('/(app)/(tabs)/catalog/manage' as never)} style={styles.manageAction}>

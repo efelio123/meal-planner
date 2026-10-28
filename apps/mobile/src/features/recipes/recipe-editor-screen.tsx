@@ -407,7 +407,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       {Platform.OS === 'ios' ? <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button accessibilityLabel={saveLabel} disabled={saveDisabled} hidesSharedBackground onPress={() => void save()} tintColor={saveDisabled ? theme.textSecondary : theme.link} variant="plain">{saveLabel}</Stack.Toolbar.Button>
       </Stack.Toolbar> : null}
-      <Screen contentAlignment="top" nativeTabBottomInset safeAreaEdges={['left', 'right']} testID="recipe-editor-screen">
+      <Screen layout="tab-stack" contentAlignment="top" testID="recipe-editor-screen">
         <View style={styles.content}>
           {editing && loading ? <ActivityIndicator accessibilityLabel="Loading recipe for editing" color={theme.activity} /> : null}
           {editing && error && !editorLoaded ? <View style={styles.errorBlock}>

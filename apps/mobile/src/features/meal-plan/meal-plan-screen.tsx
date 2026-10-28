@@ -76,7 +76,7 @@ export function MealPlanScreen() {
     router.push({ pathname: '/(app)/(tabs)/plan/shopping-review', params: { weekStart: reviewStart } } as never);
   };
 
-  return <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']} onRefresh={async () => { await refresh(); }} refreshing={refreshing}>
+  return <Screen layout="tab-root" contentAlignment="top" onRefresh={async () => { await refresh(); }} refreshing={refreshing}>
     <View style={styles.page}>
       <TabPageHeader title="Plan" actions={<Pressable accessibilityRole="button" onPress={() => { setDaySelection({ scope, day: null }); void setTodayWeek(); }} style={styles.todayAction}><ThemedText themeColor="link">Today</ThemedText></Pressable>} />
       <View style={styles.weekHeader}>

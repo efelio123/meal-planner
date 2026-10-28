@@ -3,7 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Pressable, StyleSheet, View, type TextInputInstance } from 'react-native';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
-import { Screen } from '@/components/screen';
+import { Screen, type StackScreenLayout } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { MoreDetailsToggle } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
@@ -28,7 +28,7 @@ const emptyForm: FormState = { name: '', itemType: 'food', categoryId: '', shopp
 function byName(choices: { id: string; name: string }[]) { return choices.map((choice) => ({ id: choice.id, label: choice.name })); }
 function unitId(choice: CatalogShoppingUnit) { return choice.id ? `custom:${choice.id}` : `built-in:${choice.code}`; }
 
-export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMode = false }: { recipeIngredientMode?: boolean; shoppingOriginMode?: boolean } = {}) {
+export function CatalogItemForm({ layout, recipeIngredientMode = false, shoppingOriginMode = false }: { layout: StackScreenLayout; recipeIngredientMode?: boolean; shoppingOriginMode?: boolean }) {
   const { getToken, selectedHousehold } = useHouseholdState();
   const theme = useTheme();
   const { sessionId, userId } = useAuth();
@@ -238,7 +238,7 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
   return (
     <View style={styles.routeRoot}>
     <Stack.Screen options={{ title: itemId ? 'Edit item' : recipeIngredientMode ? 'Create Food item' : 'Add item' }} />
-    <Screen contentAlignment="top" nativeTabBottomInset safeAreaEdges={['left', 'right']}>
+    <Screen layout={layout} contentAlignment="top">
       <View style={styles.content}>
         <ThemedText themeColor="textSecondary">Save an item once for everyone in your household to use in the catalog.</ThemedText>
         {initialLoading ? <ActivityIndicator accessibilityLabel="Loading item" /> : null}
@@ -258,20 +258,18 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
         <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Typical shopping unit (optional)" choices={shoppingChoices} searchable selectedId={form.shoppingUnitId} value={selectedUnit} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create shopping unit" manageLabel="Manage shopping units" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(shoppingUnitId) => { updateForm((current) => ({ ...current, shoppingUnitId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('shopping-unit', 'create')} onManage={() => routeToChoices('shopping-unit', 'manage')} />
         <ThemedText themeColor="textSecondary">A typical shopping unit only; the catalog does not track quantities on hand.</ThemedText>
         <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Preferred store (optional)" choices={storeChoices} selectedId={form.storeId} value={selectedStore} emptyChoiceLabel="No preferred store" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={0} createLabel="Create store" manageLabel="Manage stores" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(storeId) => { updateForm((current) => ({ ...current, storeId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('store', 'create')} onManage={() => routeToChoices('store', 'manage')} />
-        <>
+        {form.itemType === 'food' ? <>
           <MoreDetailsToggle expanded={moreDetails} onPress={() => setMoreDetails((value) => !value)} />
           {moreDetails ? (
             <View style={styles.content}>
-              {form.itemType === 'food' ? <>
                 <ThemedText themeColor="textSecondary">Optional recipe measurements do not convert shopping units.</ThemedText>
                 <ChoicePicker sheetRoute={choiceSheetRoute} label="Recipe measurement" choices={[
                   { id: 'volume', label: 'Volume' }, { id: 'mass', label: 'Mass' }, { id: 'count', label: 'Count' },
                 ]} compact selectedId={form.recipeDimension} value={form.recipeDimension ? form.recipeDimension[0].toUpperCase() + form.recipeDimension.slice(1) : ''} emptyChoiceLabel="No recipe measurement" onSelect={(value) => updateForm((current) => ({ ...current, recipeDimension: value as FormState['recipeDimension'], recipeUnitCode: '' }))} />
                 {form.recipeDimension ? <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Base unit for recipes" choices={recipeChoices} selectedId={form.recipeUnitCode} value={selectedRecipeUnit} onSelect={(recipeUnitCode) => updateForm((current) => ({ ...current, recipeUnitCode }))} /> : null}
-              </> : null}
             </View>
           ) : null}
-        </>
+        </> : null}
         {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
         <PrimaryButton disabled={saving || initialLoading || Boolean(itemId && loadedItemScope !== scope)} onPress={() => void save()} title={saving ? 'Saving…' : itemId ? 'Save changes' : recipeIngredientMode ? 'Create & use ingredient' : shoppingOriginMode ? 'Create & add to Shopping' : 'Add to catalog'} />
       </View>

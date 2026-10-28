@@ -51,7 +51,7 @@ export default function JoinHousehold() {
     }
   };
 
-  return <Screen><View style={styles.content}>
+  return <Screen layout="standalone"><View style={styles.content}>
     <Text style={[styles.title, { color: theme.text }]}>Join a household</Text>
     <Text style={[styles.body, { color: theme.textSecondary }]}>Paste the development invitation code shared by a household owner.</Text>
     <ThemedInput accessibilityLabel="Invitation code" autoCapitalize="none" autoCorrect={false} onChangeText={setCode} placeholder="Invitation code" value={code} />

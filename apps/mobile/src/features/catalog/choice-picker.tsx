@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View, type TextInputInstance } from 'react-native';
+import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { useRouter } from 'expo-router';
 
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
+import { KeyboardAwareSheet } from '@/components/keyboard-aware-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
@@ -36,6 +37,7 @@ function ChoiceSheet({ expectedScope, label, choices, selectedId, emptyChoiceLab
   const [customMode, setCustomMode] = useState(false);
   const [customText, setCustomText] = useState(customValue ?? '');
   const searchInput = useRef<TextInputInstance>(null);
+  const results = useRef<ScrollViewInstance>(null);
   const filtered = choices.filter((choice) => choice.label.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const canLeave = () => {
     if (leaving.current || flow.scope !== expectedScope) return false;
@@ -52,19 +54,19 @@ function ChoiceSheet({ expectedScope, label, choices, selectedId, emptyChoiceLab
     if (action && canLeave()) action();
   };
 
-  return <KeyboardAvoidingView testID="catalog-choice-keyboard-area" behavior="padding" style={styles.keyboardArea}>
+  return <KeyboardAwareSheet testID="catalog-choice-keyboard-area" style={styles.keyboardArea}>
     <View accessibilityViewIsModal testID="catalog-choice-sheet" style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
     <View style={styles.sheetHeading}>
       <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>{customMode ? 'Custom unit' : label}</ThemedText>
       <Pressable accessibilityLabel={`Close ${label} choices`} accessibilityRole="button" onPress={close} style={styles.closeButton}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>{customMode ? 'Back' : 'Done'}</ThemedText></Pressable>
     </View>
-    {customMode ? <View style={styles.customEntry}>
+    {customMode ? <ScrollView contentContainerStyle={styles.customEntry} keyboardShouldPersistTaps="handled" automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" style={styles.choices}>
       <ThemedText themeColor="textSecondary">For this ingredient only</ThemedText>
       <ThemedInput accessibilityLabel="Custom recipe unit" autoFocus maxLength={40} onChangeText={setCustomText} placeholder="e.g. pinch" value={customText} />
       <PrimaryButton disabled={!customText.trim()} onPress={() => { if (canLeave()) { onCustomSelect?.(customText.trim()); router.back(); } }} title="Use custom unit" />
-    </View> : <>
-      {searchable ? <ThemedInput ref={searchInput} accessibilityLabel={`Search ${label}`} onChangeText={setSearch} placeholder={`Search ${label.toLocaleLowerCase()}`} value={search} returnKeyType="search" /> : null}
-      <ScrollView testID="catalog-choice-scroll" contentContainerStyle={styles.list} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={styles.choices}>
+    </ScrollView> : <>
+      {searchable ? <ThemedInput ref={searchInput} accessibilityLabel={`Search ${label}`} onChangeText={(value) => { setSearch(value); results.current?.scrollTo({ y: 0, animated: false }); }} placeholder={`Search ${label.toLocaleLowerCase()}`} value={search} returnKeyType="search" /> : null}
+      <ScrollView ref={results} testID="catalog-choice-scroll" automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" contentContainerStyle={styles.list} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={styles.choices}>
         <View style={[styles.choiceCard, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
           {emptyChoiceLabel ? <Pressable accessibilityLabel={emptyChoiceLabel} accessibilityRole="button" accessibilityState={{ selected: !selectedId }} onPress={() => choose('')} style={styles.choice}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'circle.slash', android: 'block', web: 'block' }} size={24} tintColor={theme.textSecondary} /><ThemedText style={styles.choiceLabel}>{emptyChoiceLabel}</ThemedText>{!selectedId ? <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={20} tintColor={theme.link} /> : null}</Pressable> : null}
           {filtered.map((choice, index) => <View key={choice.id} style={(index > 0 || Boolean(emptyChoiceLabel)) && { borderTopColor: theme.border, ...visualStyles.groupedDivider }}>
@@ -85,7 +87,7 @@ function ChoiceSheet({ expectedScope, label, choices, selectedId, emptyChoiceLab
       </View> : null}
     </>}
     </View>
-  </KeyboardAvoidingView>;
+  </KeyboardAwareSheet>;
 }
 
 export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCreate, onManage, onOpen, onCustomSelect, emptyChoiceLabel, searchable: searchableOverride, createLabel, manageLabel, sheetRoute, sheetDetents, sheetInitialDetentIndex, disabled = false, compact = false }: {

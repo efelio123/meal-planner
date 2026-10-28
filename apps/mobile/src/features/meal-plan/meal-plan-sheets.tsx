@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
+import { KeyboardAwareSheet } from '@/components/keyboard-aware-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
@@ -132,7 +133,7 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
   // Keep the header and footer as native siblings of the scrolling content.
   // iOS form sheets can otherwise resize the flattened ScrollView to the full
   // sheet, drawing its first row over the header and its last row under Save.
-  return <View collapsable={false} style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
+  return <KeyboardAwareSheet style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
     <Header title="Add meal" onCancel={() => { context.clearRecipeCreate(); router.back(); }} />
     <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
       <ThemedText themeColor="textSecondary">Plan a saved recipe for your household.</ThemedText>
@@ -168,7 +169,7 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
       {actionError ? <ThemedText accessibilityRole="alert" themeColor="error">{actionError}</ThemedText> : null}
       <PrimaryButton disabled={!draft.recipeId || saving || loading} onPress={() => void submit()} title={saving ? 'Adding…' : 'Add meal'} />
     </View>
-  </View>;
+  </KeyboardAwareSheet>;
 }
 
 export function MealPlanEditSheet({ householdId, dates, entry, onSave, onRemove, onReload }: {
@@ -252,7 +253,7 @@ export function MealPlanEditSheet({ householdId, dates, entry, onSave, onRemove,
       if (isCurrent()) setActionError('We couldn’t refresh the plan. Please try again.');
     } finally { if (isCurrent()) setSaving(false); }
   };
-  return <View collapsable={false} style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
+  return <KeyboardAwareSheet style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
     <Header title="Edit meal" onCancel={() => router.back()} />
     <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
       <ThemedText style={styles.label}>Day</ThemedText>
@@ -281,7 +282,7 @@ export function MealPlanEditSheet({ householdId, dates, entry, onSave, onRemove,
         <Pressable accessibilityRole="button" disabled={saving || needsPlanReload} onPress={() => setConfirmRemove(true)} style={styles.removeButton}><ThemedText themeColor="error">Remove from plan</ThemedText></Pressable>
       </>}
     </View>
-  </View>;
+  </KeyboardAwareSheet>;
 }
 
 export type { MealDraft };

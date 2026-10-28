@@ -53,6 +53,22 @@ describe('Catalog choice native sheet', () => {
     mockScope = 'test-scope';
   });
 
+  it('keeps Use custom unit outside long search results and retains a usable custom-entry save', async () => {
+    const onCustomSelect = jest.fn();
+    const field = await render(<ChoicePicker label="Unit" choices={Array.from({ length: 40 }, (_, index) => ({ id: `unit-${index}`, label: `Unit ${index}` }))} value="" searchable onSelect={jest.fn()} onCustomSelect={onCustomSelect} />);
+    await fireEvent.press(field.getByTestId('choice-picker-field'));
+    const [content] = mockPresent.mock.calls.at(-1)!;
+    const sheet = await render(content as React.ReactElement);
+    await fireEvent.changeText(sheet.getByLabelText('Search Unit'), 'Unit 39');
+    expect(sheet.getByRole('button', { name: 'Unit 39' })).toBeTruthy();
+    expect(within(sheet.getByTestId('catalog-choice-scroll')).queryByRole('button', { name: 'Use custom unit' })).toBeNull();
+    await fireEvent.press(sheet.getByRole('button', { name: 'Use custom unit' }));
+    await fireEvent.changeText(sheet.getByLabelText('Custom recipe unit'), 'pinch');
+    await fireEvent.press(sheet.getByRole('button', { name: 'Use custom unit' }));
+    expect(onCustomSelect).toHaveBeenCalledWith('pinch');
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
   it.each(['Create category', 'Manage categories'])('hands off %s once without issuing a separate Back', async (action) => {
     const view = await openPicker([{ id: 'produce', label: 'Produce' }]);
     const button = view.getByRole('button', { name: action });

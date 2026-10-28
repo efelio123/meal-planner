@@ -173,7 +173,7 @@ export function ShoppingReviewScreen() {
     setSelected((current) => current.includes(needKey) ? current.filter((key) => key !== needKey) : [...current, needKey]);
   };
 
-  return <Screen contentAlignment="top" nativeTabBottomInset safeAreaEdges={['left', 'right']} onRefresh={load} refreshing={loading} footer={review && needs.length > 0 ? <View style={[styles.footer, { backgroundColor: theme.screen, borderTopColor: theme.border }]}>
+  return <Screen layout="tab-stack" contentAlignment="top" onRefresh={load} refreshing={loading} footer={review && needs.length > 0 ? <View style={[styles.footer, { backgroundColor: theme.screen, borderTopColor: theme.border }]}>
     <ThemedText themeColor="textSecondary" style={styles.footerNote}>Nothing is added until you confirm.</ThemedText>
     <PrimaryButton disabled={!selected.length || submitting || loading || reviewNeedsRefresh || Boolean(error)} onPress={confirm} title={submitting ? 'Adding…' : `Add ${selected.length} selected to Shopping`} />
   </View> : undefined}>

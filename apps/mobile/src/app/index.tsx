@@ -8,6 +8,6 @@ import { useHouseholdState } from '@/hooks/use-household-state';
 export default function Index() {
   const { destination } = useHouseholdState();
 
-  if (destination === 'loading') return <Screen><ActivityIndicator /></Screen>;
+  if (destination === 'loading') return <Screen layout="standalone"><ActivityIndicator /></Screen>;
   return <Redirect href={startupRouteForDestination(destination)} />;
 }

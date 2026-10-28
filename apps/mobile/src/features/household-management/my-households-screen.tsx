@@ -74,11 +74,10 @@ export function MyHouseholdsScreen() {
   };
 
   return (
-    <Screen
+    <Screen layout="tab-stack"
       contentAlignment="top"
       onRefresh={Platform.OS === 'web' ? undefined : refreshHouseholds}
       refreshing={refreshing}
-      safeAreaEdges={['left', 'right']}
     >
       <View style={styles.content}>
         <ThemedText accessibilityRole="header" type="subtitle">My households</ThemedText>

@@ -128,7 +128,7 @@ export function HouseholdFormScreen({ mode }: { mode: 'create' | 'edit' }) {
   if (mode === 'edit' && (!target || target.role !== 'owner')) return null;
 
   return (
-    <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+    <Screen layout="tab-stack" contentAlignment="top">
       <View style={styles.content}>
         <ThemedText accessibilityRole="header" type="subtitle">{mode === 'create' ? 'Create household' : 'Edit household'}</ThemedText>
         <ThemedInput

@@ -4,15 +4,13 @@ import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { SafeAreaView as NativeTabSafeAreaView } from 'react-native-screens/experimental';
 import { useTheme } from '@/hooks/use-theme';
 
+/** Choose the chrome actually shown by the route, including modal presentation. */
+export type ScreenLayout = 'tab-root' | 'tab-stack' | 'stack-modal' | 'standalone';
+export type StackScreenLayout = Extract<ScreenLayout, 'tab-stack' | 'stack-modal'>;
+
 type ScreenProps = PropsWithChildren<{
-  safeAreaEdges?: Edge[];
+  layout: ScreenLayout;
   contentAlignment?: 'center' | 'top';
-  /** Marks tab-root content whose iOS inset adjustment is owned by NativeTabs. */
-  nativeTabScreen?: boolean;
-  /** Use with a NativeTabs.Trigger that disables automatic content insets. */
-  manualNativeTabInsets?: boolean;
-  /** For a nested stack page beneath NativeTabs with a fixed footer. */
-  nativeTabBottomInset?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void | Promise<void>;
   onScrollBeginDrag?: ScrollViewProps['onScrollBeginDrag'];
@@ -22,23 +20,31 @@ type ScreenProps = PropsWithChildren<{
   testID?: string;
 }>;
 
-const defaultSafeAreaEdges: Edge[] = ['top', 'right', 'bottom', 'left'];
+const standaloneEdges: Edge[] = ['top', 'right', 'bottom', 'left'];
+const stackEdges: Edge[] = ['right', 'bottom', 'left'];
+const androidTabEdges: Edge[] = ['top', 'right', 'left'];
+const androidStackEdges: Edge[] = ['right', 'left'];
 
-export function Screen({ children, contentAlignment = 'center', safeAreaEdges = defaultSafeAreaEdges, nativeTabScreen = false, manualNativeTabInsets = false, nativeTabBottomInset = false, refreshing = false, onRefresh, onScrollBeginDrag, onScroll, footer, testID = 'screen' }: ScreenProps) {
+export function Screen({ children, layout, contentAlignment = 'center', refreshing = false, onRefresh, onScrollBeginDrag, onScroll, footer, testID = 'screen' }: ScreenProps) {
   const theme = useTheme();
-  const nativeIosInsets = nativeTabScreen && Platform.OS === 'ios';
-  const manualIosInsets = nativeIosInsets && manualNativeTabInsets;
+  const tabRoot = layout === 'tab-root';
+  const nativeIosInsets = Platform.OS === 'ios' && (tabRoot || layout === 'tab-stack');
+  const safeAreaEdges = layout === 'standalone' ? standaloneEdges
+    : Platform.OS === 'android' && tabRoot ? androidTabEdges
+    : Platform.OS === 'android' && layout === 'tab-stack' ? androidStackEdges
+    : tabRoot ? standaloneEdges : stackEdges;
   const body = (
     <>
       <ScrollView
         style={[styles.scroll, { backgroundColor: theme.screen }]}
-        contentContainerStyle={[styles.content, contentAlignment === 'top' ? styles.contentTop : styles.contentCenter, manualIosInsets && styles.contentFill]}
+        contentContainerStyle={[styles.content, contentAlignment === 'top' ? styles.contentTop : styles.contentCenter, tabRoot && Platform.OS === 'ios' && styles.contentFill]}
         alwaysBounceVertical={Platform.OS === 'ios'}
-        contentInsetAdjustmentBehavior={nativeIosInsets && !manualIosInsets ? 'automatic' : 'never'}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
         // Native tab screens remain mounted beneath sheets. Letting their
         // ScrollViews follow a sheet's keyboard can leave a stale bottom inset
         // after dismissal, making the page scroll past all of its content.
-        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios' && !nativeTabScreen}
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios' && !tabRoot}
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={onScrollBeginDrag}
@@ -60,9 +66,8 @@ export function Screen({ children, contentAlignment = 'center', safeAreaEdges = 
       {footer}
     </>
   );
-  if (manualIosInsets) return <NativeTabSafeAreaView edges={{ top: true, right: true, bottom: true, left: true }} style={{ backgroundColor: theme.screen }}>{body}</NativeTabSafeAreaView>;
-  if (nativeTabBottomInset && Platform.OS === 'ios') return <NativeTabSafeAreaView edges={{ bottom: true }} style={[styles.safeArea, { backgroundColor: theme.screen }]}>{body}</NativeTabSafeAreaView>;
-  return <SafeAreaView edges={nativeIosInsets ? [] : safeAreaEdges} style={[styles.safeArea, { backgroundColor: theme.screen }]}>{body}</SafeAreaView>;
+  if (nativeIosInsets) return <NativeTabSafeAreaView edges={{ top: tabRoot, right: true, bottom: true, left: true }} style={[styles.safeArea, { backgroundColor: theme.screen }]}>{body}</NativeTabSafeAreaView>;
+  return <SafeAreaView edges={safeAreaEdges} style={[styles.safeArea, { backgroundColor: theme.screen }]}>{body}</SafeAreaView>;
 }
 
 export const styles = StyleSheet.create({
@@ -73,7 +78,7 @@ export const styles = StyleSheet.create({
   content: { padding: 24, gap: 16 },
   contentCenter: { flexGrow: 1, justifyContent: 'center' },
   contentFill: { flexGrow: 1 },
-  // iOS NativeTabs also adds safe-area insets to its ScrollView. Growing a
-  // short top-aligned page to the full viewport creates a false scroll range.
+  // Native chrome is reserved by the frame; growing short stack pages can
+  // still create an unnecessary scroll range. Tab roots retain their accepted fill.
   contentTop: { justifyContent: 'flex-start' },
 });

@@ -42,9 +42,16 @@ For this SDK migration, also follow https://docs.expo.dev/router/migrate/sdk-57-
   headers/search, and existing draft/Back behavior. Tests for wrapper properties
   do not prove device geometry or scroll settling; report physical checks as
   unrun when they have not been performed.
-- The app-wide audit and proposed shared-layout migration are recorded in
-  `docs/plans/app-wide-page-reachability.md`. Do not apply its unapproved
-  implementation changes merely because this prevention rule is recorded.
+- Pass the required Screen `layout` explicitly: `tab-root`, `tab-stack`,
+  `stack-modal`, or `standalone`. Shared Catalog forms/managers receive the
+  layout from their route wrapper. Do not restore the old inset booleans or
+  directly export a shared form that requires layout props as a route.
+- Fixed-footer sheets use KeyboardAwareSheet with a measured native View root;
+  a sheet already resized by the keyboard must receive zero additional overlap.
+  Single-scroll forms use their scroll view's keyboard inset handling instead.
+  Do not combine these owners or assume keyboard height equals sheet overlap.
+- The approved audit and layout repair are recorded in
+  `docs/plans/app-wide-page-reachability.md`; retain its acceptance checklist.
 
 ## Native-sheet standard
 

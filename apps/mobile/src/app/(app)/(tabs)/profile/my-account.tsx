@@ -9,7 +9,7 @@ export default function MyAccountRoute() {
   const { me } = useHouseholdState();
   const name = me?.user.display_name.trim() || 'Unavailable';
   return (
-    <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+    <Screen layout="tab-stack" contentAlignment="top">
       <View style={styles.content}>
         <ThemedText accessibilityRole="header" type="subtitle">Account information</ThemedText>
         <ThemedText>{name}</ThemedText>
