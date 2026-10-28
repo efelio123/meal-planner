@@ -24,6 +24,28 @@ For this SDK migration, also follow https://docs.expo.dev/router/migrate/sdk-57-
   and documented. Use the current appearance for routine feature review; save
   a dedicated light/dark pass for major deployments.
 
+## Page reachability standard
+
+- Every page must explicitly identify its layout/safe-area owner and reuse the
+  shared Screen contract where applicable. Tab roots, pushed pages below native
+  headers, full-screen modals, native sheets, and standalone auth/onboarding
+  pages have different visible chrome. A route inside a tab folder does not
+  prove the tab bar is visible. Shared feature screens must receive the correct
+  layout from their presentation owner when reused in different frames.
+- A page's last row, field, and action must be reachable above its visible tab
+  bar, home indicator, and keyboard and stay visible after releasing the scroll.
+  Keep bounded scrolling parents and one inset/keyboard owner per layer. Do not
+  compensate with guessed tab heights, blanket padding, or duplicate top insets.
+- Verify long and short/empty content, keyboard show/hide, larger text, and
+  return from nested sheets. Fixed Create/Add/Save actions belong outside long
+  result lists when they must stay visible. Preserve native sheet dragging,
+  headers/search, and existing draft/Back behavior. Tests for wrapper properties
+  do not prove device geometry or scroll settling; report physical checks as
+  unrun when they have not been performed.
+- The app-wide audit and proposed shared-layout migration are recorded in
+  `docs/plans/app-wide-page-reachability.md`. Do not apply its unapproved
+  implementation changes merely because this prevention rule is recorded.
+
 ## Native-sheet standard
 
 - Before adding a short selection or entry flow, read

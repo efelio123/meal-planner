@@ -57,6 +57,16 @@ changes were needed.
 
 ## Goal
 
+October 27 batch C scope clarification: Felipe reports that bottom clipping
+affects more than B01-B03 and requests an audit/repair across every page plus
+a standing new-page rule. He accepts B08/B09 and B04 in principle and asks for
+the concrete category-form changes before implementation. See
+[app-wide reachability and category plan](app-wide-page-reachability.md): all
+64 page-route files and 11 layout files classified, additional source-level
+risks recorded, shared layout and category changes awaiting review. Root/mobile
+AGENTS.md now records the requested prevention rule. No application edits in
+this audit; native geometry remains a physical acceptance check.
+
 Ship a safer, more usable build for the next week of family testing. Fix the
 reported failures in coherent batches, then take on small features individually.
 Keep larger ideas recorded for future iterations. Preserve real household data,

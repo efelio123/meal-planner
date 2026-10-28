@@ -56,6 +56,15 @@ The Mac Mini deployment should remain the functioning family dashboard and a dev
 
 ## Current consumer-app progress (October 4, 2026)
 
+Batch C scope (October 27): Felipe requests bottom-clipping review across the
+whole app rather than only the original three pages, and a standing rule for
+future pages. The source audit classifies all 64 page-route files and 11 layout
+files and finds additional nested pages without explicit bottom-inset handling.
+`docs/plans/app-wide-page-reachability.md` proposes shared typed layout contracts,
+all-page migration, keyboard-action fixes, Household disclosure cleanup, and
+specific category create/edit alignment. Expanded implementation awaits review;
+only the requested prevention rules and planning records have changed.
+
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
 New ingredients now inherit the Catalog recipe unit, including Food created
