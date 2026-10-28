@@ -1,7 +1,8 @@
 # Shopping re-add correctness — B12
 
-Status: proposed October 27, 2026; awaiting Felipe's review. This document does
-not authorize implementation, merge, native rebuild, or trial deployment.
+Status: approved by Felipe and implemented October 28, 2026 on
+`codex/shopping-readd-correctness`. iPhone/cross-phone acceptance is pending.
+Approval covers this implementation, not merge, native rebuild, or trial deployment.
 
 ## Goal and baseline
 
@@ -97,9 +98,61 @@ After all intended implementation/test edits are complete:
 
 Clear purchased items (F03) and other Shopping features remain later slices.
 
-## Decision requested
+## Approved decision and implementation
 
-Approve preserving the existing Shopping amount/unit/store on re-add, with
-every Add-picker tap having Add intent and ordinary editing staying on the
-main list. If Felipe prefers reset-to-Catalog defaults or preserving the
-current already-needed picker Edit action, revise this plan before coding.
+Felipe approved preserving the existing Shopping amount/unit/store on re-add,
+with every Add-picker tap having Add intent and ordinary editing staying on
+the main list. The chat agent implements this bug batch directly under his
+earlier explicit authorization.
+
+The hook owns add/re-add intent and resolves Catalog identity from its latest
+scoped state, rather than the native picker's retained opening snapshot. It
+guards in-flight Catalog/item mutations, sends state-only unchecked PATCHes,
+and merges the canonical row without reloading after success. Duplicate POSTs
+receive one identity lookup followed by the same unchecked PATCH. A deleted
+row triggers reconciliation and a visible retry; a retry in the same picker
+then uses the reconciled state. Household/session changes reject stale
+responses and prevent follow-up requests, including after token resolution.
+
+The picker retains multi-add, search, keyboard/footer geometry, completion
+guards, and the existing small confirmation. Purchased rows have an Add
+affordance; already-needed rows keep On list and confirm their existing state.
+The obsolete picker-to-Edit route and double-dismiss path are removed. Main-list
+Edit saves continue to omit purchased state. No production API/schema,
+dependency, live Mac data/runtime, deployment, or unrelated work changed.
+
+## Validation results — October 28, 2026
+
+- Final coordinated mobile run: 5 suites / 148 tests passed, no skips (19.716s):
+  use-shopping-list, shopping-sheets, shopping-list-screen, shopping-swipe-row,
+  and the actual Expo Router startup/navigation suite. New route regressions
+  exercise purchased re-add, same-picker retry after remote deletion, and
+  ordinary Edit retaining purchased status. Existing filter/sort, multi-add,
+  rapid checkoff and swipe tests remain passing.
+- Final TypeScript `tsc --noEmit` and Expo lint passed. An initial picker-test
+  timing failure was corrected by awaiting async test events and the initial
+  Catalog load; final runs have no overlapping-act warnings.
+- Local PostgreSQL identity verified through SQLAlchemy and
+  `SELECT current_database()` as `meal_planner_disposable_test` on loopback
+  port 5432. Alembic upgrade-to-head and targeted
+  `tests/test_shopping_list_integration.py` passed: 12 tests (3.07s), no skips.
+  Contract coverage now verifies state-only repeated uncheck preserves identity,
+  amount, store, built-in/household/recipe/no unit and blank amount, despite
+  changed Catalog defaults, and clears checked metadata. Fixtures clean up
+  their own test records. The live Mac and development database were untouched.
+- Full mobile/database suites, native builds, physical iPhone/cross-phone and
+  Android checks are unrun for this focused slice. Prior full-suite results
+  remain historical, not validation of these edits.
+
+Phone acceptance after reloading local Expo:
+
+1. Purchase an entry with a recognizable quantity/unit/store, reopen Add and
+   select it without editing anything. Confirm the picker stays open, shows
+   confirmation and allows more additions.
+2. Tap Done: the same entry is To buy with unchanged details, including after
+   refresh. Verify another phone sees the same result after refresh.
+3. Select an already-needed entry: one row and unchanged quantity; no Edit
+   sheet or duplicate. Try several quick independent checkoffs as well.
+4. Purchase an entry, open it from the main list and save ordinary details.
+   It stays purchased. Confirm the existing picker keyboard/footer layout and
+   main-list sort/store filter remain as accepted.

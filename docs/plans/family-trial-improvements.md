@@ -126,7 +126,7 @@ the three clipped pages makes it possible to verify each one independently.
 | B09 | Add ingredient's Create Food item action is pushed below a long result list. | Pin the create action below the scrollable results and above the keyboard; retain a visible search/header. | C iPhone review accepted; detailed matrix not individually recorded |
 | B10 | Recipes cannot be refreshed to see another household member's additions. | Pull-to-refresh works in both grid and list, including short/empty lists, and preserves search/view state. | B implemented; Felipe accepts on iPhone October 27 |
 | B11 | Catalog Edit item previously opened with blank fields. Felipe retested October 25 and existing values now populate correctly. | Currently unreproduced, not a confirmed fix. Retain as a regression watch; investigate if it recurs with concrete reproduction steps. | Watch; no speculative fix |
-| B12 | Re-adding a purchased Shopping entry leaves it purchased, including when its amount is unchanged. | Explicit re-add restores it to To buy even when all quantity/unit/store values stay the same. Ordinary editing must not silently change purchased state. | D |
+| B12 | Re-adding a purchased Shopping entry leaves it purchased, including when its amount is unchanged. | Explicit re-add restores it to To buy even when all quantity/unit/store values stay the same. Ordinary editing must not silently change purchased state. | D approved/implemented October 28; iPhone and cross-phone acceptance pending |
 | B13 | Create category and its related forms are misaligned/inconsistent. | Review Food/Household category variants and all entry origins; reuse accepted field, action, header, and spacing standards. | C iPhone review accepted; detailed matrix not individually recorded |
 
 ## Feature inventory
@@ -234,15 +234,16 @@ Confirmed by Felipe, October 25:
    or longer than a week. Shared meal entries remain the same for everyone;
    all review totals/selections must correspond to the selected date range.
 
+Confirmed by Felipe, October 28:
+
+- **B12:** preserve the purchased entry's current Shopping amount/unit/store
+  when re-adding. Every quick-picker tap has Add intent and explicitly ensures
+  unchecked state; main-list Details remains ordinary editing and retains
+  purchased state. Approved and implemented under
+  `shopping-readd-correctness.md`; physical acceptance remains pending.
+
 Resolve when the corresponding feature is scheduled:
 
-- B12: when re-adding through the quick picker, preserve the purchased entry's
-  existing amount/unit/store (proposed) versus reset to Catalog defaults. In
-  Details, saving an explicit re-add must always uncheck, even with no edits.
-  The focused proposal in `shopping-readd-correctness.md` recommends preserving
-  current Shopping values and making all Add-picker taps explicit Add intent,
-  with ordinary editing on the main list. This intentional picker change and
-  the preservation decision await review; no B12 code has changed yet.
 - F03: clear purchased entries across the active household (as current Clear
   list does) versus only the currently filtered store; state the scope clearly
   and retain an explicit bulk confirmation unless Felipe chooses otherwise.

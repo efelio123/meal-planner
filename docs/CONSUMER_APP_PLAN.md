@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: October 27, 2026
+Last updated: October 28, 2026
 
 ## Purpose of this document
 
@@ -84,10 +84,15 @@ looks good now” at `fa3186f`; the reviewed UI/emoji fixes are accepted on his
 iPhone. This is not an exhaustive per-route/state matrix result or Android
 acceptance. Next agreed inventory batch is D: Shopping re-add must uncheck an
 existing purchased entry even when its amount is unchanged.
-The focused proposal in `docs/plans/shopping-readd-correctness.md` preserves
-existing Shopping amount/unit/store, makes every Add-picker tap explicit Add
-intent, and keeps ordinary editing on the main list. This intentional picker
-behavior change awaits review; only the plan/source audit has been completed.
+Felipe approved `docs/plans/shopping-readd-correctness.md`, implemented on
+`codex/shopping-readd-correctness` October 28. Re-add uses a state-only unchecked
+PATCH, preserves current Shopping amount/unit/store, and merges the canonical
+row. Every Add-picker tap has Add intent; ordinary editing stays on the main
+list and retains purchased state. Duplicate adds recover by Catalog identity;
+deleted rows reconcile with retry in the same open picker. Pending operations,
+old loads and household/session changes are guarded. Physical iPhone and
+cross-phone acceptance remain pending; no live Mac runtime/data or deployment
+changed. See the focused plan for validation and the acceptance checklist.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
