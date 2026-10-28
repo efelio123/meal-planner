@@ -78,6 +78,7 @@ describe('Catalog choice management presentation', () => {
     const view = await renderRoute(<CatalogChoiceManagement layout="tab-stack" />);
     await waitFor(() => expect(view.getByText('Produce')).toBeTruthy());
     expect(view.getByText('🥬')).toBeTruthy();
+    expect(StyleSheet.flatten(view.getByText('🥬').props.style).lineHeight).toBeUndefined();
   });
 
   it('distinguishes absent custom units from built-in units', async () => {

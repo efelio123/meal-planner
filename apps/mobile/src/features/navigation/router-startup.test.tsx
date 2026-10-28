@@ -1790,7 +1790,9 @@ describe('signed-in startup routing', () => {
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/catalog/item/item-1');
-    expect(await screen.findByText('🥛 Dairy')).toBeTruthy();
+    expect(await screen.findByLabelText('🥛 Dairy')).toBeTruthy();
+    expect(StyleSheet.flatten(screen.getByText('🥛').props.style).lineHeight).toBeUndefined();
+    expect(screen.getByText('Dairy')).toBeTruthy();
   });
 
   it('refreshes the mounted item detail after editing its name and category', async () => {

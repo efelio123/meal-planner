@@ -7,6 +7,7 @@ import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { KeyboardAwareSheet } from '@/components/keyboard-aware-sheet';
 import { AppBackButton } from '@/components/app-back-button';
 import { ThemedText } from '@/components/themed-text';
+import { EmojiText } from '@/components/emoji-text';
 import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { ChoicePicker, type ChoiceOption } from '@/features/catalog/choice-picker';
 import { categoryEmojiValidationError } from '@/features/catalog/catalog-emoji-validation';
@@ -184,7 +185,7 @@ export function RecipeCoverSheet({ draft, onChooseInitials, onChooseEmoji }: {
     <View style={styles.coverPreview}><RecipeCover recipe={{ name: draft.name || 'Recipe', cover_kind: draft.coverKind, cover_emoji: draft.coverEmoji || null }} size="row" /><View style={styles.foodSummary}><ThemedText style={styles.foodName}>{draft.name || 'Recipe name'}</ThemedText><ThemedText themeColor="textSecondary">Cover preview</ThemedText></View></View>
     <View style={[styles.choiceGroup, { backgroundColor: theme.screen }]}>
       <Pressable accessibilityRole="button" accessibilityState={{ selected: draft.coverKind === 'initials' }} onPress={() => { onChooseInitials(); router.back(); }} style={[styles.choiceRow, { borderBottomColor: theme.border }]}><ThemedText themeColor="link" style={styles.choiceIcon}>T</ThemedText><View style={styles.foodSummary}><ThemedText style={styles.foodName}>Use initials</ThemedText><ThemedText themeColor="textSecondary">Default · follows the recipe name</ThemedText></View>{draft.coverKind === 'initials' ? <ThemedText themeColor="link">✓</ThemedText> : null}</Pressable>
-      <Pressable accessibilityRole="button" accessibilityState={{ selected: draft.coverKind === 'emoji' }} onPress={onChooseEmoji} style={styles.choiceRow}><ThemedText themeColor="link" style={styles.choiceIcon}>☺</ThemedText><View style={styles.foodSummary}><ThemedText style={styles.foodName}>Use emoji</ThemedText><ThemedText themeColor="textSecondary">Type or paste one emoji</ThemedText></View>{draft.coverKind === 'emoji' ? <ThemedText themeColor="link">✓</ThemedText> : null}</Pressable>
+      <Pressable accessibilityRole="button" accessibilityState={{ selected: draft.coverKind === 'emoji' }} onPress={onChooseEmoji} style={styles.choiceRow}><EmojiText size={26} themeColor="link" style={styles.choiceIcon}>☺</EmojiText><View style={styles.foodSummary}><ThemedText style={styles.foodName}>Use emoji</ThemedText><ThemedText themeColor="textSecondary">Type or paste one emoji</ThemedText></View>{draft.coverKind === 'emoji' ? <ThemedText themeColor="link">✓</ThemedText> : null}</Pressable>
     </View>
   </ScrollView>;
 }
@@ -198,7 +199,7 @@ export function RecipeEmojiSheet({ value, onUse, onClear }: { value: string; onU
   return <RecipeKeyboardSafeSheet testID="recipe-emoji-keyboard-area">
     <View style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
       <View style={styles.header}><AppBackButton accessibilityLabel="Back to recipe cover choices" onPress={() => router.back()} /><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Recipe emoji</ThemedText><Pressable accessibilityRole="button" onPress={() => router.back()} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Cancel</ThemedText></Pressable></View>
-      <View style={[styles.emojiPreview, { backgroundColor: theme.surfaceSelected }]}><ThemedText style={styles.emojiPreviewText}>{emoji || '🙂'}</ThemedText></View>
+      <View style={[styles.emojiPreview, { backgroundColor: theme.surfaceSelected }]}><EmojiText size={52}>{emoji || '🙂'}</EmojiText></View>
       <View style={styles.field}><ThemedText themeColor="textSecondary">Emoji</ThemedText><ThemedInput accessibilityLabel="Recipe emoji" autoCapitalize="none" autoCorrect={false} onChangeText={setEmoji} placeholder="Enter or paste one emoji" value={emoji} /></View>
       <ThemedText themeColor="textSecondary">Enter or paste one emoji.</ThemedText>
       {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
@@ -233,6 +234,5 @@ const styles = StyleSheet.create({
   choiceRow: { alignItems: 'center', flexDirection: 'row', gap: 14, minHeight: 74, paddingHorizontal: 16 },
   choiceIcon: { fontSize: 26, width: 36 },
   emojiPreview: { alignItems: 'center', alignSelf: 'center', borderRadius: 20, height: 96, justifyContent: 'center', width: 96 },
-  emojiPreviewText: { fontSize: 52 },
   actions: { alignItems: 'center', flexDirection: 'row', gap: 14, justifyContent: 'space-between', marginTop: 'auto', paddingBottom: 8 },
 });

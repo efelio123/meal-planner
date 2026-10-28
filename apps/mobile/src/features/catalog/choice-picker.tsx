@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { KeyboardAwareSheet } from '@/components/keyboard-aware-sheet';
 import { ThemedText } from '@/components/themed-text';
+import { EmojiText } from '@/components/emoji-text';
 import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
@@ -72,7 +73,7 @@ function ChoiceSheet({ expectedScope, label, choices, selectedId, emptyChoiceLab
           {filtered.map((choice, index) => <View key={choice.id} style={(index > 0 || Boolean(emptyChoiceLabel)) && { borderTopColor: theme.border, ...visualStyles.groupedDivider }}>
             {choice.group && (index === 0 || filtered[index - 1]?.group !== choice.group) ? <ThemedText style={styles.groupHeading} themeColor="textSecondary">{choice.group}</ThemedText> : null}
             <Pressable accessibilityLabel={choice.label} accessibilityRole="button" accessibilityState={{ selected: choice.id === selectedId }} onPress={() => choose(choice.id)} style={styles.choice}>
-              {choice.emoji ? <ThemedText style={styles.choiceEmoji}>{choice.emoji}</ThemedText> : null}
+              {choice.emoji ? <EmojiText style={styles.choiceEmoji}>{choice.emoji}</EmojiText> : null}
               <ThemedText style={styles.choiceLabel}>{choice.label}</ThemedText>
               {choice.id === selectedId ? <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={20} tintColor={theme.link} /> : null}
             </Pressable>
@@ -174,7 +175,7 @@ const styles = StyleSheet.create({
   list: { gap: 2, paddingBottom: 8 },
   choiceCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   choice: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between', minHeight: 58, paddingHorizontal: 16 },
-  choiceEmoji: { fontSize: 24, width: 32 },
+  choiceEmoji: { width: 32 },
   choiceLabel: { flex: 1 },
   groupHeading: { fontSize: 13, fontWeight: '600', paddingBottom: 4, paddingHorizontal: 16, paddingTop: 14 },
   noChoices: { padding: 16 },

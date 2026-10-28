@@ -256,3 +256,29 @@ native device appearance. The QA matrix remains pending for physical checks.
 No API/schema, dependency, paid resource, Mac runtime/data, existing phone
 installation, unrelated website/Android checkout, merge, push, or deployment
 was changed by this implementation.
+
+## Emoji clipping follow-up (October 27)
+
+Felipe reports slight top clipping wherever emojis appear. Source inspection
+finds emoji-only labels enlarged to 24/52 points while inheriting ThemedText's
+24-point line height; recipe covers also impose fixed line heights and text
+weights on emoji glyphs. This is a bounded typography correction in this slice.
+
+Use shared EmojiText for configured emoji icons/previews. It explicitly clears
+inherited line height/font family, uses normal weight and natural system glyph
+metrics, and retains Android font padding. Decorative icons keep their intended
+size, like the app's symbol icons, independently of label text scaling. Apply
+it to category lists/pickers/edit previews, recipe covers at every size, recipe
+emoji preview/choice, and the category badge. Separate badge glyph/label layout
+retains its combined accessible label. Ordinary text and emoji inputs retain
+their existing typography. Mobile AGENTS.md records this reusable standard.
+
+Six targeted suites / 126 tests passed, plus TypeScript, lint, and whitespace
+checks. Regressions cover sizes 16 through 72, flags and joined family emoji,
+normal text metrics, cover variants, category icons, and recipe/category route
+flows. One old badge assertion expected a single text node; it now checks the
+preserved accessible label and separate glyph/label. No assertion was skipped.
+The earlier full 400-test normal/cache-disabled results precede this follow-up;
+they are historical. Full suite, exports, native builds, interactive browser,
+and physical glyph-boundary checks were not rerun for this small typography fix.
+Actual top/bottom appearance remains an iPhone retest, not proven by style tests.

@@ -6,6 +6,7 @@ import { ActivityIndicator, Keyboard, Modal, Platform, Pressable, StyleSheet, Vi
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen, type StackScreenLayout } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { EmojiText } from '@/components/emoji-text';
 import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import { useHouseholdState } from '@/hooks/use-household-state';
@@ -125,7 +126,7 @@ export function CatalogChoiceManagement({ layout, routeBase = 'catalog' }: { lay
                 return (
                   <Link key={choice.id} href={`/(app)/(tabs)/${base}/${kind ?? 'category'}/${choice.id}${routeQuery || choiceType ? `?${[choiceType ? `itemType=${choiceType}` : null, params.shoppingTarget === 'details' ? 'shoppingTarget=details' : null, params.shoppingTarget === 'details' && params.shoppingCatalogItemId ? `shoppingCatalogItemId=${encodeURIComponent(params.shoppingCatalogItemId)}` : null].filter(Boolean).join('&')}` : ''}` as never} asChild>
                     <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.row, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }])}>
-                      {(choice as ManagedChoice).emoji ? <ThemedText style={styles.choiceEmoji}>{(choice as ManagedChoice).emoji}</ThemedText> : null}
+                      {(choice as ManagedChoice).emoji ? <EmojiText style={styles.choiceEmoji}>{(choice as ManagedChoice).emoji}</EmojiText> : null}
                       <ThemedText style={styles.choiceName}>{choice.name}</ThemedText>
                       <DisclosureChevron />
                     </Pressable>
@@ -538,7 +539,7 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
               </View>
             </View>
             <Pressable accessibilityLabel={`Emoji: ${emoji ?? 'Not set'}`} accessibilityRole="button" onPress={openEmojiSheet} style={[styles.categorySettingRow, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
-              <ThemedText>Emoji</ThemedText><ThemedText style={styles.emojiPreview}>{emoji ?? '—'}</ThemedText><DisclosureChevron />
+              <ThemedText>Emoji</ThemedText><EmojiText style={styles.emojiPreview}>{emoji ?? '—'}</EmojiText><DisclosureChevron />
             </Pressable>
             {editing ? <>
               <View style={[styles.categorySettingRow, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
@@ -588,7 +589,7 @@ const styles = StyleSheet.create({
   group: { gap: 8 },
   choiceCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   row: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 58, paddingHorizontal: 16, paddingVertical: 12 },
-  choiceEmoji: { fontSize: 24, width: 32 },
+  choiceEmoji: { width: 32 },
   choiceName: { flex: 1, fontSize: 17 },
   categoryTypes: { flexDirection: 'row', gap: 8 },
   categoryType: { alignItems: 'center', borderRadius: 10, borderWidth: 1, flex: 1, minWidth: 0, justifyContent: 'center', minHeight: 48, paddingVertical: 12, paddingHorizontal: 8 },
@@ -601,7 +602,7 @@ const styles = StyleSheet.create({
   categoryTrailingText: { textAlign: 'right' },
   categoryCountLabel: { flex: 1 },
   categorySettingRow: { alignItems: 'center', borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, minHeight: 58, paddingHorizontal: 16 },
-  emojiPreview: { flex: 1, fontSize: 24, textAlign: 'right' },
+  emojiPreview: { flex: 1, textAlign: 'right' },
   deleteAction: { alignItems: 'center', borderRadius: 12, borderWidth: 1, justifyContent: 'center', minHeight: 52 },
   confirmOverlay: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'center', padding: 24 },
   confirmCard: { borderRadius: 18, borderWidth: 1, gap: 16, maxWidth: 440, padding: 24, width: '100%' },

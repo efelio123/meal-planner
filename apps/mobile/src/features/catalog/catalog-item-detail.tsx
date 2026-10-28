@@ -5,6 +5,7 @@ import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, View } from 
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { EmojiText } from '@/components/emoji-text';
 import { visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { ApiError, api, type CatalogItem, type GetToken } from '@/lib/api';
@@ -119,7 +120,7 @@ export function CatalogItemDetail() {
             <ThemedText accessibilityRole="header" style={styles.title}>{item.name}</ThemedText>
             <View style={styles.badges}>
               <View style={[styles.badge, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{item.item_type === 'food' ? 'Food' : 'Household'}</ThemedText></View>
-              <View style={[styles.badge, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{categoryEmoji ? `${categoryEmoji} ` : ''}{item.category_name ?? 'Uncategorized'}</ThemedText></View>
+              <View accessible accessibilityLabel={`${categoryEmoji ? `${categoryEmoji} ` : ''}${item.category_name ?? 'Uncategorized'}`} style={[styles.badge, styles.categoryBadge, { backgroundColor: theme.surfaceSelected }]}>{categoryEmoji ? <EmojiText size={16}>{categoryEmoji}</EmojiText> : null}<ThemedText style={styles.categoryName}>{item.category_name ?? 'Uncategorized'}</ThemedText></View>
             </View>
           </View>
           <View style={styles.detailsSection}>
@@ -171,6 +172,8 @@ const styles = StyleSheet.create({
   initialText: { fontSize: 30, fontWeight: '700', lineHeight: 38 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   badge: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 6 },
+  categoryBadge: { alignItems: 'center', flexDirection: 'row', gap: 4, maxWidth: '100%' },
+  categoryName: { flexShrink: 1 },
   detailsSection: { gap: 8 },
   detailCard: { borderWidth: StyleSheet.hairlineWidth },
   detailRow: { alignItems: 'center', flexDirection: 'row', gap: 16, justifyContent: 'space-between', minHeight: 54, paddingHorizontal: 16, paddingVertical: 12 },

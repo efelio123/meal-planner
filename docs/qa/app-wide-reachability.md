@@ -71,3 +71,11 @@ choice/custom-entry, and keyboard/mouse Back/Cancel interactions. Record actual
 browser testing separately from a successful export. Dedicated light/dark
 visual review remains a major-deployment gate. Do not infer Android or the
 second iPhone's acceptance from a single iPhone report.
+
+Emoji follow-up, October 27: visually check Category list/picker/edit preview,
+Catalog item category badge, Recipes grid/row/detail/editor covers, Plan recipe
+covers, and the Recipe emoji entry preview. Tops and bottoms must be fully
+visible at each icon size, including a flag or joined-family emoji; repeat with
+larger phone text to ensure fixed icon containers remain intact. These physical
+checks are pending. Current focused automation: 6 suites / 126 tests plus
+TypeScript/lint; the earlier full 400-test runs precede this follow-up.

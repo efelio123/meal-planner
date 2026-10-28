@@ -71,6 +71,10 @@ Full normal and cache-disabled mobile runs each pass 55 suites / 400 tests, no
 skips; TypeScript, lint, and web export pass. The page-family physical checklist
 in `docs/qa/app-wide-reachability.md` remains pending. No backend, dependencies,
 live Mac runtime/data, native build, hosted deployment, or unrelated work changed.
+An emoji-clipping follow-up replaces constrained text metrics with a shared
+natural-metric emoji renderer across category and recipe displays. Six targeted
+suites / 126 tests, TypeScript, and lint pass; glyph appearance still needs an
+iPhone retest. The earlier full 400-test results precede this typography edit.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

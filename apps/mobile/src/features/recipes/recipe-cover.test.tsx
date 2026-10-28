@@ -12,9 +12,10 @@ describe('Recipe cover presentation', () => {
 
   it('scales selected emojis for hero and thumbnail covers', async () => {
     const view = await render(<RecipeCover recipe={{ name: 'Soup', cover_kind: 'emoji', cover_emoji: '🍲' }} size="hero" />);
-    expect(StyleSheet.flatten(view.getByLabelText('Recipe cover 🍲').props.style)).toMatchObject({ fontSize: 72, lineHeight: 84 });
+    expect(StyleSheet.flatten(view.getByLabelText('Recipe cover 🍲').props.style)).toMatchObject({ fontSize: 72, lineHeight: undefined, fontWeight: '400' });
 
     await view.rerender(<RecipeCover recipe={{ name: 'Soup', cover_kind: 'emoji', cover_emoji: '🍲' }} size="row" />);
-    expect(StyleSheet.flatten(view.getByLabelText('Recipe cover 🍲').props.style)).toMatchObject({ fontSize: 28, lineHeight: 34 });
+    expect(StyleSheet.flatten(view.getByLabelText('Recipe cover 🍲').props.style)).toMatchObject({ fontSize: 28, lineHeight: undefined });
+    expect(view.getByLabelText('Recipe cover 🍲').props.allowFontScaling).toBe(false);
   });
 });

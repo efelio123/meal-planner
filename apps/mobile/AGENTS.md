@@ -53,6 +53,13 @@ For this SDK migration, also follow https://docs.expo.dev/router/migrate/sdk-57-
 - The approved audit and layout repair are recorded in
   `docs/plans/app-wide-page-reachability.md`; retain its acceptance checklist.
 
+## Emoji rendering
+
+- Render emoji icons/previews with the shared `EmojiText` component. It keeps
+  their intended icon size and lets the system emoji font supply natural glyph
+  metrics. Do not enlarge ordinary ThemedText for emoji: its inherited line
+  height can clip them. Keep adjacent readable labels in ordinary themed text.
+
 ## Native-sheet standard
 
 - Before adding a short selection or entry flow, read
