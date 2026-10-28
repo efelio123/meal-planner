@@ -73,8 +73,9 @@ required layout contract. Native geometry remains a physical acceptance check;
 see `docs/qa/app-wide-reachability.md`. Felipe subsequently accepts the reviewed
 iPhone UI, including the final emoji-input fix at `fa3186f`. Individual matrix
 cases and Android acceptance are not inferred from that report. No API, schema,
-or Mac changes. Next batch is D (B12); its re-add semantics still need the
-focused decision recorded below.
+or Mac changes. Batch D (B12) was subsequently approved, implemented and accepted
+in review October 28; see `shopping-readd-correctness.md`. Next candidate is F08
+search-to-create name prefill, with a separate scope/plan approval required.
 
 Ship a safer, more usable build for the next week of family testing. Fix the
 reported failures in coherent batches, then take on small features individually.
@@ -126,7 +127,7 @@ the three clipped pages makes it possible to verify each one independently.
 | B09 | Add ingredient's Create Food item action is pushed below a long result list. | Pin the create action below the scrollable results and above the keyboard; retain a visible search/header. | C iPhone review accepted; detailed matrix not individually recorded |
 | B10 | Recipes cannot be refreshed to see another household member's additions. | Pull-to-refresh works in both grid and list, including short/empty lists, and preserves search/view state. | B implemented; Felipe accepts on iPhone October 27 |
 | B11 | Catalog Edit item previously opened with blank fields. Felipe retested October 25 and existing values now populate correctly. | Currently unreproduced, not a confirmed fix. Retain as a regression watch; investigate if it recurs with concrete reproduction steps. | Watch; no speculative fix |
-| B12 | Re-adding a purchased Shopping entry leaves it purchased, including when its amount is unchanged. | Explicit re-add restores it to To buy even when all quantity/unit/store values stay the same. Ordinary editing must not silently change purchased state. | D approved/implemented October 28; iPhone and cross-phone acceptance pending |
+| B12 | Re-adding a purchased Shopping entry leaves it purchased, including when its amount is unchanged. | Explicit re-add restores it to To buy even when all quantity/unit/store values stay the same. Ordinary editing must not silently change purchased state. | D implemented; Felipe accepts reviewed fix October 28; full cross-phone/Android checks not established |
 | B13 | Create category and its related forms are misaligned/inconsistent. | Review Food/Household category variants and all entry origins; reuse accepted field, action, header, and spacing standards. | C iPhone review accepted; detailed matrix not individually recorded |
 
 ## Feature inventory
@@ -240,7 +241,10 @@ Confirmed by Felipe, October 28:
   when re-adding. Every quick-picker tap has Add intent and explicitly ensures
   unchecked state; main-list Details remains ordinary editing and retains
   purchased state. Approved and implemented under
-  `shopping-readd-correctness.md`; physical acceptance remains pending.
+  `shopping-readd-correctness.md`; Felipe subsequently accepts the reviewed fix
+  October 28 (“okay this looks good”). Full cross-phone and Android acceptance
+  are not inferred from that report. Next candidate is F08 search-to-create
+  name prefill, requiring its own scope/plan approval before implementation.
 
 Resolve when the corresponding feature is scheduled:
 

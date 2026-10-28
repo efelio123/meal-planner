@@ -1,7 +1,9 @@
 # Shopping re-add correctness — B12
 
 Status: approved by Felipe and implemented October 28, 2026 on
-`codex/shopping-readd-correctness`. iPhone/cross-phone acceptance is pending.
+`codex/shopping-readd-correctness`. Felipe reports “okay this looks good” after
+implementation and accepts the reviewed fix October 28. This does not establish
+the full cross-phone checklist or Android acceptance.
 Approval covers this implementation, not merge, native rebuild, or trial deployment.
 
 ## Goal and baseline

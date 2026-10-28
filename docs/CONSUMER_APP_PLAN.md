@@ -90,9 +90,12 @@ PATCH, preserves current Shopping amount/unit/store, and merges the canonical
 row. Every Add-picker tap has Add intent; ordinary editing stays on the main
 list and retains purchased state. Duplicate adds recover by Catalog identity;
 deleted rows reconcile with retry in the same open picker. Pending operations,
-old loads and household/session changes are guarded. Physical iPhone and
-cross-phone acceptance remain pending; no live Mac runtime/data or deployment
-changed. See the focused plan for validation and the acceptance checklist.
+old loads and household/session changes are guarded. Felipe reports “okay this
+looks good” and accepts the reviewed fix October 28. Full cross-phone and Android
+acceptance are not inferred from that report. No live Mac runtime/data or
+deployment changed. Next candidate is F08 search-to-create name prefill, subject
+to its own scope/plan approval. See the focused plan for validation and the
+acceptance checklist.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
