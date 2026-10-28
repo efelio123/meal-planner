@@ -1,9 +1,9 @@
 # App-wide page reachability and category forms
 
-Status: source audit and proposed plan, October 27, 2026. Awaiting Felipe's
-review of the expanded shared-layout repair and category-form treatment. He
-accepts the previously proposed keyboard-action fixes (B08/B09) and removal of
-empty Household More details (B04). No application changes made by this plan.
+Status: Felipe explicitly approved the expanded plan October 27, 2026. The
+chat agent implemented it on `codex/app-wide-reachability`, based on clean
+planning commit `e42d8b2`. Approval includes B08/B09 and B04. Automated validation
+passes as recorded below; physical acceptance remains pending.
 
 ## Goal and baseline
 
@@ -183,12 +183,12 @@ automatically and smoke-check web without calling those native acceptance.
 No live household mutations or destructive tests on the Mac. No merge, push,
 phone rebuild, or deployment is authorized by this planning update.
 
-## Decisions for review
+## Approved decisions
 
-- Approve the explicit shared layout modes and app-wide migration rather than
-  adding bottom padding only to the originally reported pages.
-- Approve the category Create layout above; retain Edit's read-only Type and
-  existing Create-versus-Save action convention.
+- Explicit shared layout modes and app-wide migration, covering every page
+  family rather than only the originally reported pages.
+- Category Create layout above; retain Edit's read-only Type and existing
+  Create-versus-Save action convention.
 - B08/B09 and B04 are already accepted in principle; integrate them with this
   reviewed shared-layout scope. No additional product clarification is needed.
 
@@ -202,4 +202,57 @@ whereas iOS automatic scroll insets are disabled by the current tab triggers.
 - [React Native ScrollView](https://reactnative.dev/docs/scrollview)
 - [Accepted native-sheet plan](native-sheets-app-wide.md)
 
-No app test run is claimed for this documentation/source audit.
+The original documentation/source audit did not run app tests. Implementation
+results below must not be attributed to that earlier audit.
+
+## Implementation and validation (October 27)
+
+- Screen requires `layout`: tab-root, tab-stack, stack-modal, or standalone.
+  All callers were migrated. Shared Catalog item/choice forms and managers
+  require the owning layout from their route wrappers, including Shopping's
+  full-screen modal exceptions. Native-tab bottom handling stays separate from
+  standalone/modal safe areas and native headers. Automatic scroll compensation
+  is disabled to avoid applying it twice. Android keeps its native bottom owner.
+- Recipe Food search has distinct, unflattened native header, results, and
+  Create footer views. Search resets results to the first match. The footer
+  is outside the list; keyboard clearance uses the measured sheet frame.
+- KeyboardAwareSheet compares the root's window bounds to the keyboard's top.
+  An already resized viewport receives zero extra padding. It handles a keyboard
+  already open on mount, detent/layout changes, hiding, and stale measurement
+  callbacks. Shared choice custom/create/manage actions and Plan fixed-footer
+  forms use this one owner. Ingredient/Shopping single-scroll details instead
+  use native scroll keyboard insets. Existing accepted Shopping picker placement,
+  time-zone picker, and Catalog emoji keyboard behavior were retained.
+- Household Catalog items have no empty More details control. Food keeps its
+  recipe measurement fields and existing creation/return behavior.
+- Category Create and Edit use the same flexible inline Name field and grouped
+  card. Create's equal-width type controls use a full-width row beneath Type;
+  Edit's Type remains read-only. Emoji, count, delete confirmation, and native
+  Save conventions are preserved. Cover selection now scrolls at larger text.
+- Mobile AGENTS.md documents the required layout and keyboard owners. The
+  physical acceptance matrix is in `docs/qa/app-wide-reachability.md`.
+
+Final validation:
+
+- Full mobile normal run: 55 suites / 400 tests, no skips, passed (59.447 s).
+- Full `--no-cache` run: 55 suites / 400 tests, no skips, passed (91.401 s).
+- TypeScript and lint passed without remaining errors/warnings.
+- Web static export passed with non-secret placeholder configuration. Output
+  remains in the ignored mobile dist directory; no hosting was changed.
+- Diff whitespace check passed before the final documentation record.
+
+The first run passed existing regressions but failed 16 new assertions: the
+route fixture retained tab roots, making a global Screen query ambiguous, and
+category-create fixtures lacked NativeSheetProvider. The tests now identify
+the one pushed-page frame and provide its real context. A missing mock API type
+and a named test component resolved the new type/lint findings. No production
+behavior assertion was skipped or suppressed to make tests pass.
+
+Still unrun: post-change iPhone/Android geometry, scroll settling, native drag,
+keyboard/large-text visual checks, interactive browser review, dedicated light/
+dark review, native builds, hosted CI, and PostgreSQL tests (no backend edits).
+Automated platform/inset and measured-keyboard simulations do not establish
+native device appearance. The QA matrix remains pending for physical checks.
+No API/schema, dependency, paid resource, Mac runtime/data, existing phone
+installation, unrelated website/Android checkout, merge, push, or deployment
+was changed by this implementation.

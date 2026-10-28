@@ -62,8 +62,15 @@ future pages. The source audit classifies all 64 page-route files and 11 layout
 files and finds additional nested pages without explicit bottom-inset handling.
 `docs/plans/app-wide-page-reachability.md` proposes shared typed layout contracts,
 all-page migration, keyboard-action fixes, Household disclosure cleanup, and
-specific category create/edit alignment. Expanded implementation awaits review;
-only the requested prevention rules and planning records have changed.
+specific category create/edit alignment. Felipe approved the expanded plan and
+it is implemented on `codex/app-wide-reachability`, retaining the accepted B05/B
+fixes. Screen now requires an explicit layout, supplied by route wrappers for
+shared modal/stack forms. Measured sheet/keyboard overlap keeps fixed actions
+reachable, and Create/Edit category alignment follows the approved treatment.
+Full normal and cache-disabled mobile runs each pass 55 suites / 400 tests, no
+skips; TypeScript, lint, and web export pass. The page-family physical checklist
+in `docs/qa/app-wide-reachability.md` remains pending. No backend, dependencies,
+live Mac runtime/data, native build, hosted deployment, or unrelated work changed.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
