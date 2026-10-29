@@ -127,8 +127,12 @@ its existing unit-sheet route with per-flow opening height. Seven targeted
 suites / 184 tests pass after one test-fixture correction; TypeScript and lint
 pass. Felipe subsequently accepts the reviewed change October 29 (“Okay looks
 good”); individual device-checklist cases and Android acceptance are not inferred
-from that report. F03 (clear purchased Shopping items only) is next for planning,
-not yet approved for implementation. See
+from that report. F03 is now proposed in
+`docs/plans/clear-purchased-shopping-items.md`: a purchased-only cleanup beside
+Clear entire list, recommended all-store household scope and one confirmation,
+atomic server-side status checking and removed-ID reconciliation. Scope and
+implementation await review; no F03 code or schema changes are approved or made.
+See
 `docs/plans/recipe-measurement-unit-list.md`. No API/schema, dependency, live Mac
 or deployment change; the earlier 479-test full result predates F02.
 
