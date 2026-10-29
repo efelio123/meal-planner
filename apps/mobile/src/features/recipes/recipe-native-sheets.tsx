@@ -9,7 +9,8 @@ import { AppBackButton } from '@/components/app-back-button';
 import { ThemedText } from '@/components/themed-text';
 import { EmojiText } from '@/components/emoji-text';
 import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
-import { ChoicePicker, type ChoiceOption } from '@/features/catalog/choice-picker';
+import { ChoicePicker } from '@/features/catalog/choice-picker';
+import { recipeUnitChoices } from '@/features/catalog/recipe-unit-options';
 import { categoryEmojiValidationError } from '@/features/catalog/catalog-emoji-validation';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { useTheme } from '@/hooks/use-theme';
@@ -126,7 +127,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingIndex
   const [unitError, setUnitError] = useState<string | null>(null);
   const [retryUnits, setRetryUnits] = useState(0);
   const amountError = ingredientAmountError(draft.amount);
-  const unitChoices: ChoiceOption[] = (units?.recipe_measurement_units ?? []).map((unit) => ({ id: unit.code, label: unit.label, group: `${unit.dimension[0].toUpperCase()}${unit.dimension.slice(1)}` }));
+  const unitChoices = recipeUnitChoices(units?.recipe_measurement_units ?? []);
 
   useEffect(() => {
     if (initialUnits) return;

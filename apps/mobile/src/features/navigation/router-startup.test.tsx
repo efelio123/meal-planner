@@ -6,7 +6,7 @@ import { act, fireEvent } from '@testing-library/react-native';
 import { router, type Href } from 'expo-router';
 import { renderRouter as renderActualRouter, screen, waitFor } from 'expo-router/testing-library';
 import { Alert, Button, Keyboard, Platform, StyleSheet, Text } from 'react-native';
-import { ApiError, api, type CatalogItem, type ShoppingList, type ShoppingListItem } from '@/lib/api';
+import { ApiError, api, type CatalogItem, type CatalogUnits, type ShoppingList, type ShoppingListItem } from '@/lib/api';
 import { catalogEmojiSheetKeyboardBehavior } from '@/features/catalog/catalog-emoji-input-sheet';
 import { useResetToHouseholdStartup } from '@/features/profile/use-reset-to-household-startup';
 
@@ -57,6 +57,18 @@ function catalogItem(overrides: Partial<CatalogItem> = {}): CatalogItem {
     recipe_measurement_unit_label: null, created_at: '', updated_at: '', ...overrides,
   };
 }
+
+const recipeUnits: CatalogUnits = {
+  shopping_units: { built_in: [{ code: 'bag', label: 'Bag', unit_group: 'package_count' }], household: [] },
+  recipe_measurement_units: [
+    { code: 'dozen', label: 'Dozen', dimension: 'count' },
+    { code: 'unit', label: 'Unit', dimension: 'count' },
+    { code: 'ounce', label: 'Ounce', dimension: 'mass' },
+    { code: 'pound', label: 'Pound', dimension: 'mass' },
+    { code: 'cup', label: 'Cup', dimension: 'volume' },
+    { code: 'fluid_ounce', label: 'Fluid ounce', dimension: 'volume' },
+  ],
+};
 
 jest.mock('@clerk/expo', () => ({
   ...(() => {
@@ -180,6 +192,7 @@ jest.mock('@/lib/api', () => ({
     catalogItem: jest.fn(),
     createCatalogItem: jest.fn(),
     updateCatalogItem: jest.fn(),
+    updateRecipe: jest.fn(),
     deleteCatalogItem: jest.fn(),
     createCatalogCategory: jest.fn(),
     updateCatalogCategory: jest.fn(),
@@ -336,14 +349,130 @@ describe('signed-in startup routing', () => {
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(result, path);
     await fireEvent.press(await screen.findByRole('button', { name: 'More details' }));
-    expect(screen.getByRole('button', { name: 'Recipe measurement: Not selected' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Default unit for recipes (optional): Not selected' })).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Item name'), 'Preserved item name');
     await fireEvent.press(screen.getByRole('radio', { name: 'Household' }));
     expect(screen.queryByRole('button', { name: 'More details' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Recipe measurement: Not selected' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Default unit for recipes (optional): Not selected' })).toBeNull();
     expect(screen.getByLabelText('Item name').props.value).toBe('Preserved item name');
     await fireEvent.press(screen.getByRole('radio', { name: 'Food' }));
     expect(screen.getByRole('button', { name: 'More details' })).toBeTruthy();
+  });
+
+  it.each([
+    { code: 'cup', label: 'Cup', dimension: 'volume' },
+    { code: 'pound', label: 'Pound', dimension: 'mass' },
+    { code: 'dozen', label: 'Dozen', dimension: 'count' },
+  ] as const)('chooses $label directly from the complete recipe-unit list and saves its matching type', async (unit) => {
+    jest.mocked(api.catalogUnits).mockResolvedValue(recipeUnits);
+    jest.mocked(api.createCatalogItem).mockResolvedValue({ item: catalogItem({ recipe_measurement_dimension: unit.dimension, recipe_measurement_unit_code: unit.code, recipe_measurement_unit_label: unit.label }) });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await navigateTo(rendered, '/catalog/add');
+    await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Family ingredient');
+    await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
+    await fireEvent.press(screen.getByRole('button', { name: 'More details' }));
+    expect(screen.queryByRole('button', { name: 'Recipe measurement: Not selected' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Base unit for recipes: Not selected' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Default unit for recipes (optional): Not selected' }));
+    for (const available of recipeUnits.recipe_measurement_units) expect(screen.getByRole('button', { name: available.label })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Bag' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Use custom unit' })).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Search Default unit for recipes (optional)'), unit.label);
+    await fireEvent.press(screen.getByRole('button', { name: unit.label }));
+    expect(rendered.getPathname()).toBe('/catalog/add');
+    expect(screen.getByRole('button', { name: `Default unit for recipes (optional): ${unit.label}` })).toBeTruthy();
+    expect(screen.getByLabelText('Item name').props.value).toBe('Family ingredient');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add to catalog' }));
+    await waitFor(() => expect(api.createCatalogItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({
+      name: 'Family ingredient', recipe_measurement_dimension: unit.dimension, recipe_measurement_unit_code: unit.code,
+      shopping_unit_code: null, custom_shopping_unit_id: null, preferred_store_id: null,
+    })));
+  });
+
+  it.each(['unchanged', 'cancel', 'replace', 'clear'] as const)('preserves existing shopping preferences when its recipe default is %s', async (action) => {
+    const original = catalogItem({ shopping_unit_code: 'bag', shopping_unit_label: 'Bag', preferred_store_id: 'market', preferred_store_name: 'Market', recipe_measurement_dimension: 'volume', recipe_measurement_unit_code: 'cup', recipe_measurement_unit_label: 'Cup' });
+    let savedItem = original;
+    jest.mocked(api.catalogUnits).mockResolvedValue(recipeUnits);
+    jest.mocked(api.catalogStores).mockResolvedValue({ stores: [{ id: 'market', name: 'Market', created_at: '', updated_at: '' }] });
+    jest.mocked(api.catalogItem).mockImplementation(async () => ({ item: savedItem }));
+    jest.mocked(api.updateCatalogItem).mockImplementation(async (_token, _householdId, _id, values) => {
+      savedItem = { ...original, ...values, recipe_measurement_unit_label: recipeUnits.recipe_measurement_units.find((unit) => unit.code === values.recipe_measurement_unit_code)?.label ?? null };
+      return { item: savedItem };
+    });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await navigateTo(rendered, '/catalog/item/item-1/edit');
+    await waitFor(() => expect(screen.getByLabelText('Item name').props.value).toBe('Milk'));
+    await fireEvent.press(screen.getByRole('button', { name: 'More details' }));
+    const selector = screen.getByRole('button', { name: 'Default unit for recipes (optional): Cup' });
+    if (action !== 'unchanged') {
+      await fireEvent.press(selector);
+      expect(screen.getByRole('button', { name: 'Pound' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Dozen' })).toBeTruthy();
+      if (action === 'cancel') await fireEvent.press(screen.getByRole('button', { name: 'Close Default unit for recipes (optional) choices' }));
+      else await fireEvent.press(screen.getByRole('button', { name: action === 'replace' ? 'Pound' : 'No default unit' }));
+    }
+    const code = action === 'replace' ? 'pound' : action === 'clear' ? null : 'cup';
+    const dimension = action === 'replace' ? 'mass' : action === 'clear' ? null : 'volume';
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(api.updateCatalogItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'item-1', expect.objectContaining({
+      recipe_measurement_dimension: dimension, recipe_measurement_unit_code: code,
+      shopping_unit_code: 'bag', preferred_store_id: 'market', name: 'Milk',
+    })));
+    expect(api.updateRecipe).not.toHaveBeenCalled();
+    await waitFor(() => expect(rendered.getPathname()).not.toBe('/catalog/item/item-1/edit'));
+    await navigateTo(rendered, '/catalog/item/item-1/edit');
+    await waitFor(() => expect(screen.getByLabelText('Item name').props.value).toBe('Milk'));
+    await fireEvent.press(screen.getByRole('button', { name: 'More details' }));
+    expect(screen.getByRole('button', { name: `Default unit for recipes (optional): ${action === 'clear' ? 'Not selected' : action === 'replace' ? 'Pound' : 'Cup'}` })).toBeTruthy();
+  });
+
+  it.each(['dozen', null] as const)('creates Food from Shopping with optional recipe default %s and normal shopping defaults', async (code) => {
+    const savedItem = catalogItem({ name: 'Family Food', recipe_measurement_dimension: code ? 'count' : null, recipe_measurement_unit_code: code, recipe_measurement_unit_label: code ? 'Dozen' : null });
+    jest.mocked(api.catalogUnits).mockResolvedValue(recipeUnits);
+    jest.mocked(api.createCatalogItem).mockResolvedValue({ item: savedItem });
+    jest.mocked(api.addShoppingListItem).mockResolvedValue({ item: shoppingRow({ name: 'Family Food' }) });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add from Catalog' }));
+    await fireEvent.changeText(await screen.findByLabelText('Search Catalog'), 'Family Food');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create Catalog item' }));
+    await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
+    await fireEvent.press(screen.getByRole('button', { name: 'More details' }));
+    if (code) {
+      await fireEvent.press(screen.getByRole('button', { name: 'Default unit for recipes (optional): Not selected' }));
+      await fireEvent.press(screen.getByRole('button', { name: 'Dozen' }));
+    }
+    await fireEvent.press(screen.getByRole('button', { name: 'Create & add to Shopping' }));
+    await waitFor(() => expect(api.createCatalogItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({
+      name: 'Family Food', recipe_measurement_dimension: code ? 'count' : null, recipe_measurement_unit_code: code,
+      shopping_unit_code: null, custom_shopping_unit_id: null, preferred_store_id: null,
+    })));
+    await waitFor(() => expect(api.addShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'item-1', { amount: '1' }));
+  });
+
+  it('keeps an existing recipe default protected through a failed metadata load and retry', async () => {
+    jest.mocked(api.catalogItem).mockResolvedValue({ item: catalogItem({ recipe_measurement_dimension: 'volume', recipe_measurement_unit_code: 'cup', recipe_measurement_unit_label: 'Cup' }) });
+    jest.mocked(api.catalogUnits).mockResolvedValue(recipeUnits);
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await navigateTo(rendered, '/catalog');
+    await waitFor(() => expect(screen.queryByLabelText('Loading catalog')).toBeNull());
+    // Fail the edit form's request, not the Catalog tab's initial background load.
+    jest.mocked(api.catalogUnits).mockRejectedValueOnce(new Error('Offline'));
+    await navigateTo(rendered, '/catalog/item/item-1/edit');
+    await screen.findByRole('button', { name: 'Retry loading item' });
+    await fireEvent.press(screen.getByRole('button', { name: 'More details' }));
+    expect(screen.getByRole('button', { name: 'Default unit for recipes (optional): Not selected' }).props.accessibilityState?.disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Save changes' }).props.accessibilityState?.disabled).toBe(true);
+    expect(api.updateCatalogItem).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry loading item' }));
+    expect(await screen.findByRole('button', { name: 'Default unit for recipes (optional): Cup' })).toBeTruthy();
   });
 
   it('redirects a cold signed-in launch to the usable Plan tab', async () => {
@@ -2131,6 +2260,8 @@ describe('signed-in startup routing', () => {
     expect(await screen.findByText('Dairy')).toBeTruthy();
     expect(screen.getByText('Shopping preferences')).toBeTruthy();
     expect(screen.getByText('Recipe measurement')).toBeTruthy();
+    expect(screen.getByText('Default unit')).toBeTruthy();
+    expect(screen.queryByText('Base unit')).toBeNull();
     expect(screen.queryByText('Catalog details')).toBeNull();
     expect(renderResult.getPathname()).toBe('/catalog/item/item-1');
 

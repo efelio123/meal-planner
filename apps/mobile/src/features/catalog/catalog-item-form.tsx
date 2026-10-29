@@ -14,6 +14,7 @@ import { useCatalogContext, type CatalogChoiceKind } from './catalog-context';
 import { useRecipeContext } from '@/features/recipes/recipe-context';
 import { useShoppingContextOptional } from '@/features/shopping-list/shopping-context';
 import { initialCreateName, namePrefillParams, namePrefillScope, type NamePrefillParams } from './catalog-name-prefill';
+import { recipeUnitChoices } from './recipe-unit-options';
 
 type FormState = {
   name: string;
@@ -29,7 +30,7 @@ const emptyForm: FormState = { name: '', itemType: 'food', categoryId: '', shopp
 function byName(choices: { id: string; name: string }[]) { return choices.map((choice) => ({ id: choice.id, label: choice.name })); }
 function unitId(choice: CatalogShoppingUnit) { return choice.id ? `custom:${choice.id}` : `built-in:${choice.code}`; }
 
-export function CatalogItemForm({ layout, recipeIngredientMode = false, shoppingOriginMode = false }: { layout: StackScreenLayout; recipeIngredientMode?: boolean; shoppingOriginMode?: boolean }) {
+export function CatalogItemForm({ layout, recipeIngredientMode = false, shoppingOriginMode = false, recipeUnitSheetRoute }: { layout: StackScreenLayout; recipeIngredientMode?: boolean; shoppingOriginMode?: boolean; recipeUnitSheetRoute?: string }) {
   const { getToken, selectedHousehold } = useHouseholdState();
   const theme = useTheme();
   const { sessionId, userId } = useAuth();
@@ -164,7 +165,7 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
   ] : [];
   const categoryChoices: ChoiceOption[] = categories.filter((category) => category.item_type === form.itemType).map((category) => ({ id: category.id, label: category.name, emoji: category.emoji }));
   const storeChoices = byName(stores);
-  const recipeChoices = units?.recipe_measurement_units.filter((unit) => !form.recipeDimension || unit.dimension === form.recipeDimension).map((unit) => ({ id: unit.code, label: unit.label })) ?? [];
+  const recipeChoices = recipeUnitChoices(units?.recipe_measurement_units ?? []);
   const selectedCategoryOption = categoryChoices.find((choice) => choice.id === form.categoryId);
   const selectedCategory = selectedCategoryOption ? `${selectedCategoryOption.emoji ? `${selectedCategoryOption.emoji} ` : ''}${selectedCategoryOption.label}` : '';
   const selectedStore = storeChoices.find((choice) => choice.id === form.storeId)?.label ?? '';
@@ -269,11 +270,12 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
           <MoreDetailsToggle expanded={moreDetails} onPress={() => setMoreDetails((value) => !value)} />
           {moreDetails ? (
             <View style={styles.content}>
-                <ThemedText themeColor="textSecondary">Optional recipe measurements do not convert shopping units.</ThemedText>
-                <ChoicePicker sheetRoute={choiceSheetRoute} label="Recipe measurement" choices={[
-                  { id: 'volume', label: 'Volume' }, { id: 'mass', label: 'Mass' }, { id: 'count', label: 'Count' },
-                ]} compact selectedId={form.recipeDimension} value={form.recipeDimension ? form.recipeDimension[0].toUpperCase() + form.recipeDimension.slice(1) : ''} emptyChoiceLabel="No recipe measurement" onSelect={(value) => updateForm((current) => ({ ...current, recipeDimension: value as FormState['recipeDimension'], recipeUnitCode: '' }))} />
-                {form.recipeDimension ? <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Base unit for recipes" choices={recipeChoices} selectedId={form.recipeUnitCode} value={selectedRecipeUnit} onSelect={(recipeUnitCode) => updateForm((current) => ({ ...current, recipeUnitCode }))} /> : null}
+                <ThemedText themeColor="textSecondary">Used when adding this food to a recipe. You can change it for each recipe.</ThemedText>
+                <ChoicePicker sheetRoute={recipeUnitSheetRoute ?? choiceSheetRoute} compact searchable label="Default unit for recipes (optional)" choices={recipeChoices} selectedId={form.recipeUnitCode} value={selectedRecipeUnit} emptyChoiceLabel="No default unit" disabled={initialLoading || !units} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} onSelect={(code) => {
+                  const unit = units?.recipe_measurement_units.find((candidate) => candidate.code === code);
+                  if (code && !unit) return;
+                  updateForm((current) => ({ ...current, recipeDimension: unit?.dimension ?? '', recipeUnitCode: unit?.code ?? '' }));
+                }} />
             </View>
           ) : null}
         </> : null}

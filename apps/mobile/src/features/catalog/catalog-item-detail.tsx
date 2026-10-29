@@ -133,7 +133,7 @@ export function CatalogItemDetail() {
           {item.item_type === 'food' ? <View style={styles.detailsSection}>
             <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Recipe measurement</ThemedText>
             <View style={[styles.detailCard, visualStyles.groupedSurface, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
-              <DetailRow label="Base unit" value={item.recipe_measurement_unit_label ?? 'Not set'} last />
+              <DetailRow label="Default unit" value={item.recipe_measurement_unit_label ?? 'Not set'} last />
             </View>
           </View> : null}
           <Pressable accessibilityRole="button" onPress={() => setConfirming(true)} style={styles.removeAction}>

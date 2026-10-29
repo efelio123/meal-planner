@@ -2,6 +2,7 @@ import { fireEvent, render } from '@testing-library/react-native';
 import CatalogLayout from '@/app/(app)/(tabs)/catalog/_layout';
 import RecipesLayout from '@/app/(app)/(tabs)/recipes/_layout';
 import ShoppingLayout from '@/app/(app)/(tabs)/shopping/_layout';
+import PlanLayout from '@/app/(app)/(tabs)/plan/_layout';
 
 const mockGet = jest.fn(() => ({ detents: [0.58, 0.94], initialDetent: 1 }));
 const mockBack = jest.fn();
@@ -15,6 +16,14 @@ jest.mock('expo-router', () => {
   }
   Stack.Screen = ScreenRoute;
   return { Stack, useRouter: () => ({ back: mockBack }) };
+});
+
+it.each([0, 1])('keeps the Plan unit sheet in its owning stack with registered initial detent %s', async (initialDetent) => {
+  mockGet.mockReturnValueOnce({ detents: [0.58, 0.94], initialDetent });
+  const view = await render(<PlanLayout />);
+  const options = view.getByTestId('route-sheet/unit').props.options({ route: { params: { sheetId: 'unit-sheet' } } });
+  expect(mockGet).toHaveBeenCalledWith('unit-sheet');
+  expect(options).toMatchObject({ presentation: 'formSheet', sheetAllowedDetents: [0.58, 0.94], sheetInitialDetentIndex: initialDetent });
 });
 
 it.each(['choices/[kind]/index', 'choices/[kind]/create', 'choices/[kind]/[choiceId]'])(

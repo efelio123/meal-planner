@@ -1,5 +1,5 @@
 import { CatalogItemForm } from '@/features/catalog/catalog-item-form';
 
 export default function CreateRecipeFoodForMealPlanRoute() {
-  return <CatalogItemForm layout="tab-stack" recipeIngredientMode />;
+  return <CatalogItemForm layout="tab-stack" recipeIngredientMode recipeUnitSheetRoute="/plan/sheet/unit" />;
 }

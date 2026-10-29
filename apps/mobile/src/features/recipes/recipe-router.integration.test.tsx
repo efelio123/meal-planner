@@ -398,6 +398,38 @@ describe('Recipes through the actual Expo Router', () => {
     expect(mockedApi.createRecipe).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { origin: 'recipes', editor: '/recipes/create', code: 'pound', label: 'Pound', dimension: 'mass' },
+    { origin: 'plan', editor: '/plan/recipe-create', code: 'dozen', label: 'Dozen', dimension: 'count' },
+  ] as const)('creates Food in $origin with a direct $label default and inherits it without changing To taste', async ({ origin, editor, code, label, dimension }) => {
+    const savedFood = { ...food, id: 'new-food', name: 'New Food', recipe_measurement_dimension: dimension, recipe_measurement_unit_code: code, recipe_measurement_unit_label: label };
+    mockedApi.catalogUnits.mockResolvedValue({ ...units, recipe_measurement_units: [...units.recipe_measurement_units, { code: 'pound', label: 'Pound', dimension: 'mass' }, { code: 'dozen', label: 'Dozen', dimension: 'count' }] });
+    mockedApi.createCatalogItem.mockResolvedValue({ item: savedFood });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Plan');
+    await act(async () => router.navigate(editor));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Family recipe draft');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    await fireEvent.press(await screen.findByText('Create Food item in Catalog'));
+    await fireEvent.changeText(await screen.findByLabelText('Item name'), 'New Food');
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Create & use ingredient' }).props.accessibilityState?.disabled).toBe(false));
+    await fireEvent.press(screen.getByRole('button', { name: 'More details' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Default unit for recipes (optional): Not selected' }));
+    expect(rendered.getPathname()).toBe(origin === 'plan' ? '/plan/sheet/unit' : '/recipes/sheet/choice');
+    await fireEvent.press(screen.getByRole('button', { name: label }));
+    expect(rendered.getPathname()).toBe(`/${origin}/catalog-food`);
+    expect(screen.getByLabelText('Item name').props.value).toBe('New Food');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create & use ingredient' }));
+    await waitFor(() => expect(mockedApi.createCatalogItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({ recipe_measurement_dimension: dimension, recipe_measurement_unit_code: code })));
+    expect(await screen.findByRole('button', { name: `Unit: ${label}` })).toBeTruthy();
+    expect(screen.getByLabelText('Ingredient amount').props.value).toBe('');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    expect(await screen.findByText('To taste')).toBeTruthy();
+    expect(screen.getByLabelText('Recipe name').props.value).toBe('Family recipe draft');
+    expect(mockedApi.createRecipe).not.toHaveBeenCalled();
+  });
+
   it('keeps Done and Create Food item actions responsive in the ingredient search sheet', async () => {
     mockedApi.catalogStores.mockResolvedValue({ stores: Array.from({ length: 7 }, (_, index) => ({ id: `store-${index}`, name: `Store ${index}`, created_at: '', updated_at: '' })) });
     mockedApi.catalogCategories.mockResolvedValue({ categories: Array.from({ length: 7 }, (_, index) => ({ id: `category-${index}`, name: `Category ${index}`, item_type: 'food' as const, emoji: null, active_item_count: 0, created_at: '', updated_at: '' })) });
@@ -429,10 +461,8 @@ describe('Recipes through the actual Expo Router', () => {
     expect(within(catalogMoreDetails).getByTestId('more-details-chevron', { includeHiddenElements: true }).props.name.ios).toBe('chevron.down');
     await fireEvent.press(catalogMoreDetails);
     expect(within(screen.getByRole('button', { name: 'More details' })).getByTestId('more-details-chevron', { includeHiddenElements: true }).props.name.ios).toBe('chevron.up');
-    expect(screen.getByRole('button', { name: 'Recipe measurement: Not selected' })).toBeTruthy();
-    await fireEvent.press(screen.getByRole('button', { name: 'Recipe measurement: Not selected' }));
-    await fireEvent.press(await screen.findByRole('button', { name: 'Volume' }));
-    await fireEvent.press(screen.getByRole('button', { name: 'Base unit for recipes: Not selected' }));
+    expect(screen.queryByRole('button', { name: 'Recipe measurement: Not selected' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Default unit for recipes (optional): Not selected' }));
     await fireEvent.press(await screen.findByRole('button', { name: 'Cup' }));
     await fireEvent.changeText(screen.getByLabelText('Item name'), 'QA Celery');
     await fireEvent.press(screen.getByRole('button', { name: 'Category: Not selected' }));
