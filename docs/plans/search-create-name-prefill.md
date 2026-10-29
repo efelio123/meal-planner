@@ -212,3 +212,46 @@ Validation: the coordinated choice-navigation and actual-router run passed
 passed. No API/database changes; database tests, full mobile suite, native build
 and physical-device checks are unrun for this follow-up. The earlier 219-test
 feature result is historical and is not claimed as a rerun of this edit.
+
+### Return destination correction — October 29
+
+Felipe clarifies that Back must return to the Store picker, not directly to
+the item form. This supersedes the earlier replacement/Back destination for
+Shopping-origin choice flows. Keep the real native picker in the Shopping
+stack while presenting full-screen Create/Manage above it. Back from Manage
+or a directly opened Create reveals the same picker/search; nested Edit/Create
+returns to its manager first. Re-enable picker actions on focus and synchronize
+its choices/selection with the parent so management changes are visible.
+Direct Create success still selects the choice and returns to the form by
+closing both Create and picker; Create inside Manage still returns to Manage.
+Apply the same behavior to Store, Unit and Category in Shopping Catalog forms
+and Shopping entry Details. Retain the earlier atomic replacement contract for
+ordinary Catalog/Recipes stacks, which do not use these full-screen modals.
+No delayed Back/Push pair or custom modal is introduced.
+
+Implemented on the same focused follow-up branch. Shared ChoicePicker resets
+its navigation guard when its route regains focus and subscribes to its field's
+current choices/selection without remounting its search. NativeSheetScreen keeps
+one removal subscription through Activity hide/show and releases it on actual
+route removal, including a hidden picker popped together with a successful
+Create. Shopping-origin direct Create is explicitly marked; only this modal
+case dismisses two routes after Save. Create/Edit reached from a manager keeps
+its ordinary one-level Save/Back return to that manager.
+
+Final validation for this correction: full normal mobile run **58 suites /
+479 tests passed**, no skips (49.158s); TypeScript, Expo lint and diff checks
+passed. An initial run found a legacy cross-origin test still expecting Back
+to skip Shopping's selector; its Store/Unit expectations now reflect Felipe's
+clarification while Catalog/Recipes expectations remain unchanged. Tests cover
+the retained query, repeated Create after Back, live Store edits/selection,
+direct Create/Save for all three kinds, Shopping entry amount preservation,
+and Activity-covered sheet cleanup. This full result includes all current
+mobile edits and supersedes the earlier targeted-only result for this checkout.
+
+No API/schema/dependencies or live Mac changes. Database tests, cache-disabled
+mobile run, native builds and physical iPhone/Android tests are unrun for this
+correction. On iPhone, verify Store Create -> Back and Manage -> Back both reveal
+the Store picker (same query/scroll/detent), then Done reveals the unchanged item
+draft. Repeat Create from the returned picker to ensure it remains responsive;
+Save should select the new choice and return to the draft. Physical visibility
+of the full-screen modal above the retained picker still requires this retest.

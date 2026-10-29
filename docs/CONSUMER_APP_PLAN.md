@@ -108,6 +108,14 @@ AppBackButton on Manage/Create/Edit routes, also covering Units and Categories,
 on `codex/shopping-choice-back-navigation`. Route tests now press the visible
 arrow and verify one-level returns with drafts intact. Physical retest remains
 pending; see the focused plan for results. No API/schema or live Mac changes.
+Felipe then clarifies that Back must reveal the picker dialog rather than the
+item form. Shopping now retains that native picker below its full-screen
+Create/Manage pages, preserving its query and updating its choices after
+management. Done closes the picker; direct Create success still selects and
+returns to the form, while manager subpages return to their manager. Focus
+guards and Activity-aware removal cleanup cover the retained layer. Full mobile
+validation passes 58 suites / 479 tests, TypeScript and lint. The clarified
+native flow awaits physical retest; no API/schema, live Mac or deployment change.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
