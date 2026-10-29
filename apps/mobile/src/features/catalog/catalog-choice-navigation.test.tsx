@@ -1,9 +1,10 @@
-import { render } from '@testing-library/react-native';
+import { fireEvent, render } from '@testing-library/react-native';
 import CatalogLayout from '@/app/(app)/(tabs)/catalog/_layout';
 import RecipesLayout from '@/app/(app)/(tabs)/recipes/_layout';
 import ShoppingLayout from '@/app/(app)/(tabs)/shopping/_layout';
 
 const mockGet = jest.fn(() => ({ detents: [0.58, 0.94], initialDetent: 1 }));
+const mockBack = jest.fn();
 
 jest.mock('expo-router', () => {
   const React = jest.requireActual<typeof import('react')>('react');
@@ -13,8 +14,20 @@ jest.mock('expo-router', () => {
     return React.createElement(View, { testID: `route-${name}`, options } as never);
   }
   Stack.Screen = ScreenRoute;
-  return { Stack, useRouter: () => ({ back: jest.fn() }) };
+  return { Stack, useRouter: () => ({ back: mockBack }) };
 });
+
+it.each(['choices/[kind]/index', 'choices/[kind]/create', 'choices/[kind]/[choiceId]'])(
+  'gives the Shopping modal %s an explicit shared Back arrow', async (route) => {
+    mockBack.mockClear();
+    const view = await render(<ShoppingLayout />);
+    const options = view.getByTestId(`route-${route}`).props.options;
+    expect(options.presentation).toBe('fullScreenModal');
+    const header = await render(options.headerLeft());
+    await fireEvent.press(header.getByRole('button', { name: 'Back' }));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  },
+);
 jest.mock('@/features/native-sheets/native-sheet-context', () => ({ useNativeSheetFlow: () => ({ get: mockGet }) }));
 jest.mock('@/hooks/use-theme', () => ({ useTheme: () => ({ surface: '#fff', text: '#111', screen: '#fff', elevatedSurface: '#eee' }) }));
 

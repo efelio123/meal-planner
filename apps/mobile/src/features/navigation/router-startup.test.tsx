@@ -674,6 +674,62 @@ describe('signed-in startup routing', () => {
     alert.mockRestore();
   });
 
+  it.each([
+    { kind: 'store', field: 'Preferred store (optional): Not selected', create: 'Create store', manage: 'Manage stores' },
+    { kind: 'shopping-unit', field: 'Typical shopping unit (optional): Not selected', create: 'Create shopping unit', manage: 'Manage shopping units' },
+    { kind: 'category', field: 'Category: Not selected', create: 'Create category', manage: 'Manage categories' },
+  ].flatMap((choice) => (['create', 'manage'] as const).map((mode) => ({ ...choice, mode }))))(
+    'returns from Shopping Catalog $kind $mode using its visible Back arrow without losing the item draft', async ({ kind, field, create, manage, mode }) => {
+      const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+      await rendered;
+      await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+      await fireEvent.press(screen.getByRole('button', { name: 'Add from Catalog' }));
+      await fireEvent.changeText(await screen.findByLabelText('Search Catalog'), 'Family item');
+      await fireEvent.press(screen.getByRole('button', { name: 'Create Catalog item' }));
+      const name = await screen.findByLabelText('Item name');
+      expect(name.props.value).toBe('Family item');
+      await fireEvent.changeText(name, 'Edited family draft');
+      await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
+      await fireEvent.press(screen.getByRole('button', { name: field }));
+      await fireEvent.press(await screen.findByRole('button', { name: mode === 'create' ? create : manage }));
+      await waitFor(() => expect(rendered.getPathname()).toBe(`/shopping/choices/${kind}${mode === 'create' ? '/create' : ''}`));
+      await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
+      await waitFor(() => expect(rendered.getPathname()).toBe('/shopping/catalog-item'));
+      expect(screen.getByLabelText('Item name').props.value).toBe('Edited family draft');
+      expect(api.createCatalogItem).not.toHaveBeenCalled();
+      expect(api.createCatalogStore).not.toHaveBeenCalled();
+      expect(api.createCatalogShoppingUnit).not.toHaveBeenCalled();
+      expect(api.createCatalogCategory).not.toHaveBeenCalled();
+    },
+  );
+
+  it('backs out of Shopping Store Edit and Create one level at a time to the retained new-item draft', async () => {
+    jest.mocked(api.catalogStores).mockResolvedValue({ stores: [{ id: 'market', name: 'Market', created_at: '', updated_at: '' }] });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await rendered;
+    await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add from Catalog' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Create Catalog item' }));
+    await fireEvent.changeText(await screen.findByLabelText('Item name'), 'Retained draft');
+    await waitFor(() => expect(screen.queryByLabelText('Loading item')).toBeNull());
+    await fireEvent.press(screen.getByRole('button', { name: 'Preferred store (optional): Not selected' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Manage stores' }));
+    await fireEvent.press(await screen.findByText('Market'));
+    await waitFor(() => expect(screen.getByLabelText('store name').props.value).toBe('Market'));
+    await fireEvent.changeText(screen.getByLabelText('store name'), 'Unsaved change');
+    await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/shopping/choices/store'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Create store' }));
+    await screen.findByLabelText('store name');
+    await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/shopping/choices/store'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Back' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/shopping/catalog-item'));
+    expect(screen.getByLabelText('Item name').props.value).toBe('Retained draft');
+    expect(api.updateCatalogStore).not.toHaveBeenCalled();
+    expect(api.createCatalogStore).not.toHaveBeenCalled();
+  });
+
   it('creates a store for this Shopping entry without changing the Catalog preferred store', async () => {
     jest.mocked(api.shoppingList).mockResolvedValue({ shopping_list: { id: 'list-a', household_id: 'household-a', items: [shoppingRow()] } });
     jest.mocked(api.shoppingListItem).mockResolvedValue({ item: shoppingRow() });
