@@ -12,6 +12,7 @@ export function NativeSheetScreen({ direct = false }: { direct?: boolean }) {
   const theme = useTheme();
   const flow = useNativeSheetFlow();
   const requestedFallbackBack = useRef(false);
+  const removalSubscription = useRef<{ id: string; unsubscribe: () => void } | null>(null);
   const entry = flow.get(sheetId);
 
   useEffect(() => {
@@ -25,15 +26,20 @@ export function NativeSheetScreen({ direct = false }: { direct?: boolean }) {
   }, [entry, router]);
 
   useEffect(() => {
-    if (!entry) return;
+    if (!entry || removalSubscription.current?.id === entry.id) return;
+    removalSubscription.current?.unsubscribe();
     const unsubscribe = navigation.addListener('removed', () => {
       // SDK 58 reports completed removal after unmount. Effect cleanup alone
       // may also mean Activity hid a retained screen, so it must not drop drafts.
       requestedFallbackBack.current = true;
       flow.remove(entry.id);
+      unsubscribe();
+      removalSubscription.current = null;
     });
-    // Keep listening through unmount so the completed-removal event arrives.
-    return () => queueMicrotask(unsubscribe);
+    removalSubscription.current = { id: entry.id, unsubscribe };
+    // Activity disconnects effects while another modal covers this route.
+    // Keep one listener until actual removal, including when Save pops both
+    // the covering modal and this hidden picker. The event owns cleanup.
   }, [entry, flow, navigation]);
 
   if (!entry) return null;

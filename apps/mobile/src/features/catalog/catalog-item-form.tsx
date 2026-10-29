@@ -176,10 +176,13 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
     const suffix = mode === 'create' ? '/create' : '';
     const base = recipeIngredientMode ? '/(app)/(tabs)/recipes/catalog-choices'
       : shoppingOriginMode ? '/(app)/(tabs)/shopping/choices' : '/(app)/(tabs)/catalog/choices';
-    router.replace({ pathname: `${base}/${kind}${suffix}`, params: {
+    const destination = { pathname: `${base}/${kind}${suffix}`, params: {
       ...(kind === 'category' ? { itemType: form.itemType } : {}),
       ...(mode === 'create' ? namePrefillParams(query, prefillScope) : {}),
-    } } as never);
+      ...(shoppingOriginMode ? { returnToChoicePicker: '1' } : {}),
+    } };
+    if (shoppingOriginMode) router.push(destination as never);
+    else router.replace(destination as never);
   };
 
   const save = async () => {

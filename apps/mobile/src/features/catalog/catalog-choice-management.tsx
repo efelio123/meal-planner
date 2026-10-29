@@ -161,7 +161,7 @@ export function CatalogChoiceForm(props: ChoiceFormProps) {
 }
 
 function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps) {
-  const params = useLocalSearchParams<NamePrefillParams & { kind: string; choiceId?: string; itemType?: string; shoppingTarget?: string; shoppingCatalogItemId?: string }>();
+  const params = useLocalSearchParams<NamePrefillParams & { kind: string; choiceId?: string; itemType?: string; shoppingTarget?: string; shoppingCatalogItemId?: string; returnToChoicePicker?: string }>();
   const kind = isKind(params.kind) ? params.kind : null;
   const itemType = params.itemType === 'food' || params.itemType === 'household' ? params.itemType : undefined;
   const choiceId = typeof params.choiceId === 'string' ? params.choiceId : null;
@@ -268,7 +268,8 @@ function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps)
           shoppingContext.setCreatedChoice({ scope: shoppingContext.scope, catalogItemId: params.shoppingCatalogItemId, kind, id: saved.id });
         } else setChoiceResult({ kind, id: saved.id, label: saved.name, itemType: kind === 'category' ? categoryType as CatalogItemType : undefined });
       }
-      router.back();
+      if (!editing && layout === 'stack-modal' && params.returnToChoicePicker === '1') router.dismiss(2);
+      else router.back();
     } catch (reason) {
       if (mounted.current && scopeRef.current === startedScope) setError(reason instanceof ApiError ? reason.message : 'We couldn’t save this choice. Please try again.');
     } finally { if (mounted.current && scopeRef.current === startedScope) setSaving(false); }
@@ -322,7 +323,7 @@ function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps)
 }
 
 function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
-  const params = useLocalSearchParams<NamePrefillParams & { choiceId?: string; itemType?: string }>();
+  const params = useLocalSearchParams<NamePrefillParams & { choiceId?: string; itemType?: string; returnToChoicePicker?: string }>();
   const itemType = params.itemType === 'food' || params.itemType === 'household' ? params.itemType : undefined;
   const choiceId = typeof params.choiceId === 'string' ? params.choiceId : null;
   const { sessionId, userId } = useAuth();
@@ -446,7 +447,8 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
       if (!mounted.current || scopeRef.current !== requestScope || requestGeneration.current !== generation) return;
       markChanged(editing ? 'all' : 'choices');
       if (!editing) setChoiceResult({ kind: 'category', id: category.id, label: category.name, itemType: category.item_type });
-      router.back();
+      if (!editing && layout === 'stack-modal' && params.returnToChoicePicker === '1') router.dismiss(2);
+      else router.back();
     } catch (reason) {
       if (mounted.current && scopeRef.current === requestScope && requestGeneration.current === generation) {
         setError(reason instanceof ApiError ? reason.message : 'We couldn’t save this category. Please try again.');
@@ -454,7 +456,7 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
     } finally {
       if (mounted.current && scopeRef.current === requestScope) setSaving(false);
     }
-  }, [categoryName, categoryType, choiceId, editing, emoji, emojiDraft, emojiSheetVisible, householdId, loadedScope, markChanged, router, scope, setChoiceResult]);
+  }, [categoryName, categoryType, choiceId, editing, emoji, emojiDraft, emojiSheetVisible, householdId, layout, loadedScope, markChanged, params.returnToChoicePicker, router, scope, setChoiceResult]);
 
   const openEmojiSheet = () => {
     Keyboard.dismiss();

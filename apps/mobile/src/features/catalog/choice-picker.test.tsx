@@ -10,7 +10,13 @@ const mockBack = jest.fn();
 let mockMode: 'light' | 'dark' = 'light';
 let mockScope = 'test-scope';
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: mockBack }) }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush, back: mockBack }),
+  useFocusEffect: (callback: () => void) => {
+    const React = jest.requireActual<typeof import('react')>('react');
+    React.useEffect(callback, [callback]);
+  },
+}));
 jest.mock('@/features/native-sheets/native-sheet-context', () => ({ useNativeSheetFlow: () => ({ present: mockPresent, scope: mockScope }) }));
 jest.mock('@/hooks/use-color-scheme', () => ({ useColorScheme: () => mockMode }));
 jest.mock('expo-symbols', () => {

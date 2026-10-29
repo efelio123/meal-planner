@@ -582,6 +582,10 @@ describe('Recipes through the actual Expo Router', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Manage stores' }));
     expect(rendered.getPathname()).toBe(`${choiceBase}/store`);
     await act(async () => { router.back(); });
+    if (origin === 'shopping') {
+      expect(rendered.getPathname()).toBe('/shopping/sheet/choice');
+      await fireEvent.press(screen.getByRole('button', { name: 'Close Preferred store (optional) choices' }));
+    }
     expect(rendered.getPathname()).toBe(formRoute);
     expect(screen.getByDisplayValue('Unsaved Food')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Typical shopping unit (optional): Not selected' }));
@@ -589,6 +593,10 @@ describe('Recipes through the actual Expo Router', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Create shopping unit' }));
     expect(rendered.getPathname()).toBe(`${choiceBase}/shopping-unit/create`);
     await act(async () => { router.back(); });
+    if (origin === 'shopping') {
+      expect(rendered.getPathname()).toBe('/shopping/sheet/choice');
+      await fireEvent.press(screen.getByRole('button', { name: 'Close Typical shopping unit (optional) choices' }));
+    }
     expect(rendered.getPathname()).toBe(formRoute);
     expect(screen.getByDisplayValue('Unsaved Food')).toBeTruthy();
     expect(mockedApi.createCatalogItem).not.toHaveBeenCalled();

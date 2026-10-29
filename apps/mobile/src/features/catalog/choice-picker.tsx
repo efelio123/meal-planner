@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
 import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { KeyboardAwareSheet } from '@/components/keyboard-aware-sheet';
@@ -13,11 +13,28 @@ import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-contex
 
 export type ChoiceOption = { id: string; label: string; group?: string; emoji?: string | null };
 
+type ChoiceData = { choices: ChoiceOption[]; selectedId?: string };
+
+// Native-sheet content is registered outside the field's React subtree. Keep
+// its choices live without remounting (and losing search) when Manage returns.
+function createChoiceData(initial: ChoiceData) {
+  let snapshot = initial;
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: () => snapshot,
+    subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    update: (next: ChoiceData) => {
+      if (snapshot.choices === next.choices && snapshot.selectedId === next.selectedId) return;
+      snapshot = next;
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+
 type ChoiceSheetProps = {
   expectedScope: string;
   label: string;
-  choices: ChoiceOption[];
-  selectedId?: string;
+  data: ReturnType<typeof createChoiceData>;
   emptyChoiceLabel?: string;
   searchable: boolean;
   createActionLabel?: string;
@@ -29,11 +46,13 @@ type ChoiceSheetProps = {
   onCustomSelect?: (value: string) => void;
 };
 
-function ChoiceSheet({ expectedScope, label, choices, selectedId, emptyChoiceLabel, searchable, createActionLabel, manageActionLabel, customValue, onSelect, onCreate, onManage, onCustomSelect }: ChoiceSheetProps) {
+function ChoiceSheet({ expectedScope, label, data, emptyChoiceLabel, searchable, createActionLabel, manageActionLabel, customValue, onSelect, onCreate, onManage, onCustomSelect }: ChoiceSheetProps) {
   const theme = useTheme();
   const router = useRouter();
   const flow = useNativeSheetFlow();
   const leaving = useRef(false);
+  const { choices, selectedId } = useSyncExternalStore(data.subscribe, data.getSnapshot, data.getSnapshot);
+  useFocusEffect(useCallback(() => { leaving.current = false; }, []));
   const [search, setSearch] = useState('');
   const [customMode, setCustomMode] = useState(false);
   const [customText, setCustomText] = useState(customValue ?? '');
@@ -50,8 +69,8 @@ function ChoiceSheet({ expectedScope, label, choices, selectedId, emptyChoiceLab
   const close = () => { if (canLeave()) router.back(); };
   const choose = (id: string) => { if (canLeave()) { onSelect(id); router.back(); } };
   const runRouteAction = (action?: () => void) => {
-    // The destination replaces this sheet in its owning stack. Splitting this
-    // into Back + a frame-scheduled Push can navigate beneath a dismissing modal.
+    // Route atomically on the owner stack. Shopping presents a full-screen
+    // modal above this picker; card destinations elsewhere replace it.
     if (action && canLeave()) action();
   };
 
@@ -97,9 +116,9 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
   selectedId?: string;
   choices: ChoiceOption[];
   onSelect: (id: string) => void;
-  /** Replace the active picker route with a destination in the same stack. */
+  /** Open a destination in the same stack, retaining the picker for modal flows. */
   onCreate?: (query: string) => void;
-  /** Replace the active picker route with a destination in the same stack. */
+  /** Open a destination in the same stack, retaining the picker for modal flows. */
   onManage?: () => void;
   onOpen?: () => void;
   /** Optional per-field value; does not create a household Catalog choice. */
@@ -120,6 +139,8 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
   const theme = useTheme();
   const router = useRouter();
   const { present, scope } = useNativeSheetFlow();
+  const [data] = useState(() => createChoiceData({ choices, selectedId }));
+  useLayoutEffect(() => { data.update({ choices, selectedId }); }, [choices, data, selectedId]);
   const searchable = searchableOverride ?? choices.length > 6;
   const createActionLabel = createLabel ?? `Create ${label.toLocaleLowerCase().replace(/ \(optional\)/, '')}`;
   const manageActionLabel = manageLabel ?? `Manage ${label.toLocaleLowerCase().replace(/ \(optional\)/, '')}s`;
@@ -130,8 +151,7 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
       <ChoiceSheet
         expectedScope={scope}
         label={label}
-        choices={choices}
-        selectedId={selectedId}
+        data={data}
         emptyChoiceLabel={emptyChoiceLabel}
         searchable={searchable}
         createActionLabel={onCreate ? createActionLabel : undefined}

@@ -301,8 +301,8 @@ function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemo
   const routeToChoices = (kind: CatalogChoiceKind, mode: 'create' | 'manage', query = '') => {
     Keyboard.dismiss();
     const suffix = mode === 'create' ? '/create' : '';
-    router.replace({ pathname: `/(app)/(tabs)/shopping/choices/${kind}${suffix}`, params: {
-      shoppingTarget: 'details', shoppingCatalogItemId: catalogItem.id,
+    router.push({ pathname: `/(app)/(tabs)/shopping/choices/${kind}${suffix}`, params: {
+      shoppingTarget: 'details', shoppingCatalogItemId: catalogItem.id, returnToChoicePicker: '1',
       ...(mode === 'create' ? namePrefillParams(query, namePrefillScope(userId, sessionId, householdId)) : {}),
     } } as never);
   };
