@@ -118,9 +118,11 @@ validation passes 58 suites / 479 tests, TypeScript and lint. The clarified
 native flow was awaiting physical retest at that validation pass. Felipe then
 reports “Okay looks great” October 29 and accepts the reviewed Shopping picker
 flow. Individual checklist cases, other origins and Android acceptance are not
-inferred from that report. F02 (one complete recipe measurement-unit list) is
-the next candidate for planning, not yet approved for implementation. No
-API/schema, live Mac or deployment change.
+inferred from that report. F02 is now proposed for review in
+`docs/plans/recipe-measurement-unit-list.md`: one optional default recipe-unit
+field with all existing measurement choices, automatic internal dimension
+selection, and unchanged API/data semantics. No F02 implementation is approved
+or made yet. No API/schema, live Mac or deployment change.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
