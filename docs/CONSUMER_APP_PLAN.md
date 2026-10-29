@@ -144,6 +144,12 @@ or deployment change. Full
 suite results predate this slice. See
 `docs/plans/clear-purchased-shopping-items.md` for validation and phone review.
 
+Next proposed slice is F05 Shopping list search, planned in
+`docs/plans/shopping-list-search.md`: local name matching with existing
+Store/sort choices, Purchased matches visible during search, scoped query
+preservation and unchanged household-wide cleanup. Awaiting review; no F05
+application/API/schema changes have been made.
+
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
 New ingredients now inherit the Catalog recipe unit, including Food created
