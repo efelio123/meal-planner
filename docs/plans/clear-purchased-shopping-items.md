@@ -1,7 +1,8 @@
 # Clear purchased Shopping items — F03
 
-Status: proposed October 29, 2026; awaiting Felipe's review. Planning only;
-no application, API, schema, dependency, deployment or live-data changes.
+Status: approved and implemented October 29, 2026. Felipe directly assigned
+implementation to the chat agent. Device acceptance remains pending. No schema,
+dependency, deployment or live-data changes.
 
 Planning branch: `codex/clear-purchased-items-plan`, from clean `a0b714c`
 after Felipe accepted the reviewed F02 recipe-unit change. Preserve accepted
@@ -148,10 +149,61 @@ add search/grouping, change swipe deletion, introduce Undo, or change roles.
   Review the current appearance; Android/native builds and broader device cases
   remain explicit checks, not inferred acceptance. No trial deploy is included.
 
-## Review decisions
+## Approval and implementation
 
-Approve the recommended **all-stores household scope**, **one bulk confirmation**,
-and **two clearly named bottom actions**, plus server-current-status clearing.
-If Felipe prefers current-Store-only clearing or no bulk confirmation, revise
-those decisions before implementation. This proposal does not authorize code,
-schema/configuration changes, push/merge, native rebuild or trial deployment.
+Felipe approved the all-stores household scope, one bulk confirmation, two
+clearly named actions, and server-current-status clearing, and directly assigned
+implementation to the chat agent. Implemented on `codex/clear-purchased-items`
+from `0c1c704`; accepted earlier fixes are preserved. Push/merge, native rebuild
+and trial deployment are separate.
+
+- API performs one conditional DELETE under the existing household lock and
+  returns sorted removed IDs/count. No schema or authorization-policy change.
+- Mobile uses exact returned IDs and canonical refresh, guards local writes and
+  competing clears, ignores stale loads/tokens/scope transitions (including old
+  confirmations after leaving and returning), and retains confirmed deletions
+  if refresh fails. A failed DELETE also releases any invalidated refresh spinner.
+- Both controls retain the existing scrollable tab-root layout and destructive
+  button style. No native-sheet geometry or keyboard changes were needed.
+
+## Validation results — October 29, 2026
+
+- **218 tests / 5 targeted mobile suites passed**, no skips: Shopping hook,
+  screen, swipe row, API client and actual-router startup/navigation suite.
+  Includes all-store eligibility while filtered/collapsed, confirmation and
+  cancellation without writes, accurate counts/zero, busy controls, stale
+  confirmations/scopes/token resolution, exact-ID reconciliation, preserved
+  other-phone unchecks/re-adds, refresh failure/retry and normal checkoffs.
+- **25 API tests passed**, no skips: Shopping integration and request validation.
+  Identity verified as local PostgreSQL `meal_planner_disposable_test`; migrations
+  already at head. Mixed/two-store, all-needed, all-purchased and empty lists;
+  owner/member access, cross-household/removed-member/deleted-household denial;
+  repeats, source preservation and exact IDs/count. Deterministic transaction
+  ordering covers uncheck/re-add before clear, clear then re-add with a new ID,
+  and clear then stale uncheck returning 404. Existing clear-all tests pass.
+- TypeScript, Expo lint, API Ruff and whitespace checks pass. The initial API
+  lint pass found only import ordering in the new test; corrected and rechecked.
+  Final review added the refresh-spinner/scope-cycle regressions before the
+  final mobile pass and the clear-before-uncheck case before final API validation.
+- Official guidance consulted: [Expo SDK 58](https://docs.expo.dev/versions/v58.0.0/),
+  [FastAPI path parameters](https://fastapi.tiangolo.com/tutorial/path-params/),
+  [SQLAlchemy 2 transactions](https://docs.sqlalchemy.org/en/20/core/connections.html),
+  [PostgreSQL 17 DELETE/RETURNING](https://www.postgresql.org/docs/17/sql-delete.html).
+  Existing project versions/dependencies retained.
+- **Unrun:** the full mobile/full PostgreSQL suites, hosted CI, physical iPhone/
+  Android and two-phone checks, native builds and deployment. Historical full
+  results predate this change and do not replace these checks. Mac trial data
+  and runtime were untouched.
+
+## Device review before acceptance
+
+Use the current local API and Expo checkout (the trial Mac API has not received
+this endpoint). Create disposable entries across two Stores, check some, filter
+to one Store and collapse Purchased. The bottom Clear purchased items action
+should remain available; Cancel keeps everything. Confirming should remove
+only purchased entries across all Stores and report the actual number, while
+needed quantities/units/stores remain after refresh. Check that both actions
+scroll above navigation and that Clear entire list still has its distinct
+confirmation. Repeat after rapid checkoffs settle and test a second-phone
+uncheck/re-add before clearing. No fallback to clear-all is permitted if an old
+API returns 404.

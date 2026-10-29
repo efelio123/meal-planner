@@ -81,8 +81,12 @@ not individually established. See `search-create-name-prefill.md`. F02 was
 subsequently approved and implemented on `codex/recipe-unit-list`; 7 targeted
 suites / 184 tests, TypeScript and lint pass. Felipe accepts F02 in review
 October 29; individual device-checklist cases/Android remain unestablished.
-See `recipe-measurement-unit-list.md`. F03 is proposed for review in
-`clear-purchased-shopping-items.md`; no implementation is approved or made yet.
+See `recipe-measurement-unit-list.md`. F03 was subsequently approved and implemented directly on
+`codex/clear-purchased-items`: all-store purchased-only cleanup alongside Clear
+entire list, explicit bulk confirmation and exact removed-ID reconciliation.
+218 targeted mobile tests, 25 local disposable-PostgreSQL API tests, TypeScript
+and lint pass. Device acceptance is pending; no Mac runtime/data changes. See
+`clear-purchased-shopping-items.md`.
 
 Ship a safer, more usable build for the next week of family testing. Fix the
 reported failures in coherent batches, then take on small features individually.
@@ -147,7 +151,7 @@ individual slices, even when they depend on the same bug fixes.
 | --- | --- | --- |
 | F01 | Reorder recipe ingredients using a far-right three-dot/drag affordance; persist their order on create and edit. | Bounded follow-up. API already persists ingredient positions; validate stable row identity, gesture behavior, and reload order. Confirm handle interaction before implementation. |
 | F02 | Choose a recipe measurement unit from one complete list; remove the separate Volume/Mass/Count picker. | Implemented and accepted in review October 29 on `codex/recipe-unit-list`. Optional API-backed picker infers dimension and preserves existing data/shopping preferences. 7 targeted suites / 184 tests, types and lint pass; broader device/Android coverage not inferred. See `recipe-measurement-unit-list.md`. |
-| F03 | Clear only purchased Shopping entries while retaining needed ones. | Focused plan proposed October 29 in `clear-purchased-shopping-items.md`, awaiting review. Recommends all-store household scope, one confirmation and distinct purchased/all clear actions; atomic server-current-status deletion with removed-ID reconciliation. |
+| F03 | Clear only purchased Shopping entries while retaining needed ones. | Approved and implemented October 29 on `codex/clear-purchased-items`. All-store scope, one confirmation, distinct purchased/all actions and atomic server-current-status deletion with removed-ID reconciliation. 218 mobile / 25 API tests, types and lint pass; device review pending. See `clear-purchased-shopping-items.md`. |
 | F04 | Category and Store sorting show labelled sections, optionally collapsible. Alphabetical/Recently added show no such headings. | First deliver headings and sensible uncategorized/no-store groups; decide separately whether collapsing belongs in the first pass. Reuse existing row/swipe controls. |
 | F05 | Search the Shopping list to find and check items quickly. | Early small feature. Search composes with store/sort filters; toggling/removal acts on real item identity and preserves the query. |
 | F06 | Swipe a planned meal left to reveal Delete; continue the swipe to delete, matching Shopping exactly. | Bounded follow-up; reuse accepted circular trash action and swipe behavior. A swipe/cancel must not open meal editing. Keep actual threshold semantics consistent. |
@@ -255,10 +259,9 @@ Confirmed by Felipe, October 28:
 
 Resolve when the corresponding feature is scheduled:
 
-- F03: `clear-purchased-shopping-items.md` proposes the active household across
-  all Stores (matching current clear-all), explicit scope in the UI and one
-  bulk confirmation. These scope/confirmation recommendations await review;
-  no F03 implementation is authorized yet.
+- F03 resolved: approved all-Store household scope, explicit scope and one
+  bulk confirmation. Implemented under `clear-purchased-shopping-items.md`;
+  physical acceptance and trial deployment remain separate.
 - F01: direct long-press/drag on a trailing handle versus an ellipsis menu
   exposing reorder mode. Provide accessible non-drag reorder actions too.
 - F04: first-pass headings only versus expand/collapse; handle search results

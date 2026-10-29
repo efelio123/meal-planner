@@ -127,14 +127,20 @@ its existing unit-sheet route with per-flow opening height. Seven targeted
 suites / 184 tests pass after one test-fixture correction; TypeScript and lint
 pass. Felipe subsequently accepts the reviewed change October 29 (“Okay looks
 good”); individual device-checklist cases and Android acceptance are not inferred
-from that report. F03 is now proposed in
-`docs/plans/clear-purchased-shopping-items.md`: a purchased-only cleanup beside
-Clear entire list, recommended all-store household scope and one confirmation,
-atomic server-side status checking and removed-ID reconciliation. Scope and
-implementation await review; no F03 code or schema changes are approved or made.
-See
-`docs/plans/recipe-measurement-unit-list.md`. No API/schema, dependency, live Mac
-or deployment change; the earlier 479-test full result predates F02.
+from that report. See `docs/plans/recipe-measurement-unit-list.md`. F02 needed
+no API/schema, dependency, live Mac or deployment change; the earlier 479-test
+full result predates F02.
+
+F03 was then approved and implemented directly on `codex/clear-purchased-items`:
+Clear purchased items and Clear entire list, all-Store household scope and one
+bulk confirmation. The new API atomically removes currently purchased rows and
+returns their IDs; mobile reconciles those IDs and refreshes safely across
+shared updates, failures and household/session changes. 218 targeted mobile
+tests / 5 suites and 25 API tests on verified local disposable PostgreSQL pass,
+plus TypeScript and both mobile/API lint. Physical acceptance remains pending;
+no schema/dependency, Mac runtime/data, push/merge or deployment change. Full
+suite results predate this slice. See
+`docs/plans/clear-purchased-shopping-items.md` for validation and phone review.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
