@@ -144,11 +144,14 @@ or deployment change. Full
 suite results predate this slice. See
 `docs/plans/clear-purchased-shopping-items.md` for validation and phone review.
 
-Next proposed slice is F05 Shopping list search, planned in
-`docs/plans/shopping-list-search.md`: local name matching with existing
-Store/sort choices, Purchased matches visible during search, scoped query
-preservation and unchanged household-wide cleanup. Awaiting review; no F05
-application/API/schema changes have been made.
+F05 Shopping list search was then approved and implemented directly on
+`codex/shopping-list-search`: local name matching with existing Store/sort,
+Purchased matches visible during search, scoped query preservation and unchanged
+household-wide cleanup. Shopping reuses measured keyboard clearance only while
+its inline search is focused, preserving the native tab/sheet inset contract.
+274 tests across 8 targeted mobile suites, TypeScript and lint pass; physical
+review remains pending. No API/schema, dependency, live Mac or deployment changes.
+See `docs/plans/shopping-list-search.md` for validation and device checks.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

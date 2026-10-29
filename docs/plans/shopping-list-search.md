@@ -1,12 +1,13 @@
 # Shopping list search — F05
 
-Status: proposed October 29, 2026; awaiting Felipe's review. Planning only.
-No application, API, schema, dependency, deployment or live-data changes.
+Status: approved and implemented October 29, 2026. Felipe directly assigned
+implementation to the chat agent. Physical review remains pending. No API,
+schema, dependency, deployment or live-data changes.
 
 Planning branch: `codex/shopping-search-plan`, from clean `c2b6b00` after
 Felipe accepted F03 purchased-only cleanup. Preserve the accepted family-trial
-fixes and SDK 58. Implementation needs approval and a focused feature branch;
-no push/merge, native rebuild or Mac trial deployment is included.
+fixes and SDK 58. Implemented on `codex/shopping-list-search` from clean
+`3c991d6`. No push/merge, native rebuild or Mac trial deployment is included.
 
 ## Goal
 
@@ -103,8 +104,68 @@ losing the current search, Store selection or sorting.
   theme. Report physical iPhone/Android checks as unrun until actually tested;
   automated checks do not prove native geometry or swipe feel.
 
-## Open decisions for review
+## Approval and implementation
 
-Recommend name-only matching, respecting Store, and automatically revealing
-Purchased matches during search. No blocking product questions beyond approval
-of this scope. Household-wide clear actions retain their already accepted scope.
+Felipe approved the name-only, Store-aware search and Purchased-match behavior,
+and directly requested implementation. Household-wide clear actions retain
+F03's accepted scope, with the hidden-item caption clarified as planned.
+
+Search stays local to ShoppingListScreen; source items, row IDs, mutation paths
+and API requests are unchanged. The field follows Recipes' existing visual
+pattern and uses a cross-platform Clear search action. Purchased's collapse
+preference is preserved while search temporarily exposes matches.
+
+For keyboard reachability, the existing measured KeyboardAwareSheet wrapper
+now accepts optional `enabled` (default true, preserving all sheet callers).
+Shopping enables it only for its focused inline input. Blur, tab/sheet departure
+and household/session changes remove those subscriptions and derive zero
+clearance; old measurements are invalidated. Existing native tab insets and
+Screen's sheet-keyboard protection remain unchanged. No second ScrollView or
+guessed keyboard/tab padding was introduced.
+
+## Validation results — October 29, 2026
+
+- **274 tests across 8 targeted mobile suites pass**, no skips, across the
+  coordinated pass and affected-suite reruns: Shopping screen/hook/swipe,
+  API client, actual-router startup/navigation, measured keyboard clearance,
+  Screen layout and ChoicePicker. Final four affected suites pass 180 tests;
+  the other four passed 94 in the coordinated run and were unchanged afterward.
+- Covers case/trim/substring and Household names; excluding non-name fields;
+  Store/No store intersections and every existing sort; matching section counts,
+  purchased-only visibility/restoration, clear/blank/no-results states, scoped
+  query preservation, checkbox/removal/refresh and household-wide cleanup.
+- Real routes cover Add/re-add and independent Catalog search, tabs, Details
+  cancel/save and Store/Sort return; a late refresh cannot repopulate a new
+  household and household/session changes clear the query. Keyboard tests
+  cover opt-in/removal, late measurements and existing sheet defaults. Swipe
+  tests keep the accepted behavior; search itself closes any revealed action
+  without consuming the next intentional checkbox tap.
+- TypeScript, Expo lint and whitespace checks pass. Initial test failures were
+  fixture issues (missing theme-mode mock, obsolete testing-library helper,
+  picker accessible close name, and an unscoped query across mounted tabs).
+  Replaced the obsolete helper with subscription-lifecycle assertions and
+  scoped the route query to Shopping. Lint caught an unnecessary synchronous
+  effect state reset in the new opt-out branch; removed it because disabled
+  clearance is derived during render. Relevant checks were rerun successfully.
+- Official guidance consulted against installed Expo 58.0.19 / RN 0.88.0:
+  [SDK 58](https://docs.expo.dev/versions/v58.0.0/),
+  [TextInput](https://reactnative.dev/docs/textinput),
+  [ScrollView](https://reactnative.dev/docs/scrollview), and
+  [Keyboard](https://reactnative.dev/docs/keyboard).
+- **Unrun:** full mobile suite, hosted CI, database suite (UI-only change),
+  physical iPhone/Android review, native builds and deployment. Earlier full
+  suite/database results remain historical. The Mac trial runtime/data and
+  other working copies were untouched.
+
+## Device review before acceptance
+
+Search for a needed item and check several matches quickly with the keyboard
+open. Search for a purchased item after collapsing Purchased, then clear search
+and confirm the prior collapse is restored. Try Store + search, a no-match
+query, edit/save/cancel, Add/re-add and tab return. Verify the query remains,
+and that search/filter-hidden rows are still covered by the two clear actions.
+On long and short lists, scroll the last result/action above the keyboard and
+navigation, release the scroll, then dismiss the keyboard and return from a
+sheet: no snapping, lingering bottom space or clipped actions. Compare Recipes'
+search field and check larger text in the current theme. Automated results do
+not establish native geometry, swipe feel or Android acceptance.
