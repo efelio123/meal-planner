@@ -30,6 +30,7 @@ from meal_planner_api.onboarding import (
 from meal_planner_api.shopping_lists import (
     add_item,
     clear_list,
+    clear_purchased_items,
     delete_item,
     get_item,
     get_list,
@@ -499,6 +500,11 @@ def clear_shopping_list(household_id: UUID, user: User) -> dict:
 def remove_shopping_list_item(household_id: UUID, item_id: UUID, user: User) -> Response:
     delete_item(user, str(household_id), str(item_id))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.delete("/v1/households/{household_id}/shopping-list/purchased-items", tags=["shopping-list"])
+def clear_purchased_shopping_items(household_id: UUID, user: User) -> dict:
+    return clear_purchased_items(user, str(household_id))
 
 
 @app.get("/v1/households/{household_id}/meal-plan", tags=["meal-plan"])

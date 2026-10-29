@@ -5,6 +5,7 @@ import { useHouseholdState } from '@/hooks/use-household-state';
 
 type ShoppingListState = { scope: string; householdId: string | null; items: ShoppingListItem[]; loading: boolean; error: string | null };
 export type ShoppingAddOutcome = 'added' | 'already-needed';
+type BulkAction = { scope: string; mode: 'all' | 'purchased' };
 const emptyState = (scope: string, householdId: string | null, loading = false): ShoppingListState => ({ scope, householdId, items: [], loading, error: null });
 const noPending: ReadonlySet<string> = new Set();
 
@@ -22,6 +23,9 @@ export function useShoppingList() {
   useLayoutEffect(() => { latestStored.current = stored; }, [stored]);
   const visible = stored.scope === scope ? stored : emptyState(scope, householdId, Boolean(householdId));
   const [pendingByScope, setPendingByScope] = useState<Map<string, Set<string>>>(new Map());
+  const [bulkAction, setBulkAction] = useState<BulkAction | null>(null);
+  const bulkActionRef = useRef<BulkAction | null>(null);
+  const clearing = bulkAction?.scope === scope ? bulkAction.mode : null;
   const pendingMutations = useRef(new Set<string>());
   const pendingRemovals = useRef(new Set<string>());
   const latestToken = useRef(getToken);
@@ -40,6 +44,7 @@ export function useShoppingList() {
   }, [householdId, scope]);
 
   const refresh = useCallback(async () => {
+    if (bulkActionRef.current?.scope === scope) return;
     const startedScope = scope;
     const version = ++loadVersion.current;
     if (!householdId) { setStored(emptyState(scope, null)); return; }
@@ -63,6 +68,7 @@ export function useShoppingList() {
   useEffect(() => { void Promise.resolve().then(refresh); }, [refresh]);
 
   const begin = useCallback((startedScope: string, itemKey: string) => {
+    if (bulkActionRef.current?.scope === startedScope) return false;
     const key = JSON.stringify([startedScope, itemKey]);
     if (pendingMutations.current.has(key)) return false;
     pendingMutations.current.add(key);
@@ -85,17 +91,21 @@ export function useShoppingList() {
     const startedVersion = scopeVersion.current;
     const startedScope = scope;
     if (!householdId) return;
-    const result = await api.addShoppingListItem(() => latestToken.current(), householdId, catalogItemId, values);
-    if (startedVersion === scopeVersion.current && previousScope.current === startedScope) {
-      // The response already contains the canonical row and inherited Catalog
-      // preferences. Insert only that row; do not reload the whole list.
-      loadVersion.current += 1;
-      setStored((current) => current.scope === startedScope
-        ? { ...current, items: orderItems([...current.items.filter((item) => item.catalog_item_id !== catalogItemId), result.item]), loading: false, error: null }
-        : current);
-    }
-    return result.item;
-  }, [householdId, scope]);
+    const key = `catalog:${catalogItemId}`;
+    if (!begin(startedScope, key)) throw new Error('This item is already being updated. Please wait.');
+    try {
+      const result = await api.addShoppingListItem(() => latestToken.current(), householdId, catalogItemId, values);
+      if (startedVersion === scopeVersion.current && previousScope.current === startedScope) {
+        // The response already contains the canonical row and inherited Catalog
+        // preferences. Insert only that row; do not reload the whole list.
+        loadVersion.current += 1;
+        setStored((current) => current.scope === startedScope
+          ? { ...current, items: orderItems([...current.items.filter((item) => item.catalog_item_id !== catalogItemId), result.item]), loading: false, error: null }
+          : current);
+      }
+      return result.item;
+    } finally { finish(startedScope, key); }
+  }, [begin, finish, householdId, scope]);
 
   const addOrReadd = useCallback(async (catalogItemId: string): Promise<ShoppingAddOutcome> => {
     const startedScope = scope;
@@ -218,15 +228,73 @@ export function useShoppingList() {
     } finally { pendingRemovals.current.delete(mutationKey); finish(startedScope, item.id); }
   }, [begin, finish, householdId, scope]);
 
-  const clear = useCallback(async () => {
+  const clearItems = useCallback(async (mode: BulkAction['mode']) => {
+    const startedScope = scope;
     const startedVersion = scopeVersion.current;
-    if (!householdId) return;
-    await api.clearShoppingList(() => latestToken.current(), householdId);
-    if (startedVersion === scopeVersion.current) {
+    const isCurrent = () => previousScope.current === startedScope && scopeVersion.current === startedVersion;
+    const assertCurrent = () => {
+      if (!householdId || !isCurrent()) throw new Error('Your household or sign-in changed. Please try again.');
+    };
+    assertCurrent();
+    if (bulkActionRef.current?.scope === startedScope || [...pendingMutations.current].some((key) => JSON.parse(key)[0] === startedScope)) {
+      throw new Error('Items are still updating. Please try clearing again in a moment.');
+    }
+    const operation: BulkAction = { scope: startedScope, mode };
+    bulkActionRef.current = operation;
+    setBulkAction(operation);
+    loadVersion.current += 1;
+    const getRequestToken = async () => {
+      assertCurrent();
+      const token = await latestToken.current();
+      assertCurrent();
+      return token;
+    };
+    try {
+      let removedCount: number;
+      let removedIds: Set<string> | null = null;
+      if (mode === 'purchased') {
+        const result = await api.clearPurchasedShoppingItems(getRequestToken, householdId!);
+        assertCurrent();
+        if (!Array.isArray(result.removed_item_ids) || result.removed_item_ids.some((id) => typeof id !== 'string' || !id)) throw new Error('Invalid clear response');
+        removedIds = new Set(result.removed_item_ids);
+        if (removedIds.size !== result.removed_item_ids.length || removedIds.size !== result.removed_count) throw new Error('Invalid clear response');
+        removedCount = result.removed_count;
+      } else {
+        removedCount = (await api.clearShoppingList(getRequestToken, householdId!)).removed_count;
+        assertCurrent();
+      }
+      if (!Number.isInteger(removedCount) || removedCount < 0) throw new Error('Invalid clear response');
       loadVersion.current += 1;
-      setStored((current) => current.scope === scope ? { ...current, items: [], loading: false, error: null } : current);
+      const deleted = removedIds;
+      setStored((current) => current.scope === startedScope ? {
+        ...current, items: deleted ? current.items.filter((item) => !deleted.has(item.id)) : [], loading: false, error: null,
+      } : current);
+      // The delete is confirmed. A failed reconciliation must not resurrect
+      // those rows or turn a successful deletion into an apparent failure.
+      const version = ++loadVersion.current;
+      try {
+        const result = await api.shoppingList(getRequestToken, householdId!);
+        assertCurrent();
+        if (version === loadVersion.current) setStored({ scope: startedScope, householdId, items: orderItems(result.shopping_list.items), loading: false, error: null });
+      } catch {
+        assertCurrent();
+        if (version === loadVersion.current) setStored((current) => current.scope === startedScope
+          ? { ...current, loading: false, error: 'Items were cleared, but we couldn’t refresh the shopping list. Please retry.' } : current);
+      }
+      return removedCount;
+    } catch {
+      assertCurrent();
+      // A refresh may have started while confirmation was open. Its load was
+      // invalidated above, so release its spinner even when DELETE fails.
+      setStored((current) => current.scope === startedScope ? { ...current, loading: false } : current);
+      throw new Error(mode === 'purchased' ? 'We couldn’t clear purchased items. Please try again.' : 'We couldn’t clear the list. Please try again.');
+    } finally {
+      if (bulkActionRef.current === operation) bulkActionRef.current = null;
+      setBulkAction((current) => current === operation ? null : current);
     }
   }, [householdId, scope]);
+  const clear = useCallback(() => clearItems('all'), [clearItems]);
+  const clearPurchased = useCallback(() => clearItems('purchased'), [clearItems]);
 
-  return { add, addOrReadd, clear, error: visible.error, householdId, items: visible.items, loading: visible.loading, pendingItemIds, refresh, remove, toggle, update };
+  return { add, addOrReadd, clear, clearPurchased, clearing, error: visible.error, householdId, items: visible.items, loading: visible.loading, pendingItemIds, refresh, remove, toggle, update };
 }

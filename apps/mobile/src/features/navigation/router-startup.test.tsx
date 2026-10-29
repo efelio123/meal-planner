@@ -184,6 +184,7 @@ jest.mock('@/lib/api', () => ({
     shoppingListItem: jest.fn(),
     updateShoppingListItem: jest.fn(),
     clearShoppingList: jest.fn(),
+    clearPurchasedShoppingItems: jest.fn(),
     deleteShoppingListItem: jest.fn(),
     catalogUnits: jest.fn(),
     catalogCategories: jest.fn(),
@@ -453,6 +454,24 @@ describe('signed-in startup routing', () => {
       shopping_unit_code: null, custom_shopping_unit_id: null, preferred_store_id: null,
     })));
     await waitFor(() => expect(api.addShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'item-1', { amount: '1' }));
+  });
+
+  it('clears purchased items through the real Shopping route and retains needed items', async () => {
+    const needed = shoppingRow();
+    const purchased = shoppingRow({ id: 'shopping-bread', catalog_item_id: 'bread', name: 'Bread', is_checked: true });
+    jest.mocked(api.shoppingList).mockResolvedValueOnce({ shopping_list: { ...shoppingListResponse().shopping_list, items: [needed, purchased] } })
+      .mockResolvedValue({ shopping_list: { ...shoppingListResponse().shopping_list, items: [needed] } });
+    jest.mocked(api.clearPurchasedShoppingItems).mockResolvedValue({ removed_count: 1, removed_item_ids: [purchased.id] });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => { buttons?.find((button) => button.style === 'destructive')?.onPress?.(); });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Bread');
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear purchased items' }));
+    await screen.findByText('1 purchased item removed.');
+    expect(screen.getByRole('checkbox', { name: 'Mark Milk purchased' })).toBeTruthy();
+    expect(screen.queryByText('Bread')).toBeNull();
+    expect(api.clearPurchasedShoppingItems).toHaveBeenCalledWith(expect.any(Function), 'household-a');
+    expect(api.clearShoppingList).not.toHaveBeenCalled();
+    alert.mockRestore();
   });
 
   it('keeps an existing recipe default protected through a failed metadata load and retry', async () => {

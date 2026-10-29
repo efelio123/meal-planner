@@ -2,7 +2,7 @@ import os
 from collections.abc import Generator
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
-from threading import Barrier
+from threading import Barrier, Event
 from uuid import uuid4
 
 import pytest
@@ -11,9 +11,10 @@ from httpx2 import ASGITransport, AsyncClient
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import make_url
 
+from meal_planner_api import shopping_lists
 from meal_planner_api.main import app
 from meal_planner_api.onboarding import CurrentUser, require_current_user
-from meal_planner_api.shopping_lists import add_item
+from meal_planner_api.shopping_lists import add_item, clear_purchased_items, update_item
 
 DISPOSABLE_TEST_DATABASE = "meal_planner_disposable_test"
 
@@ -609,6 +610,7 @@ async def test_cross_household_reads_and_mutations_leave_existing_target_unchang
             assert (await call_as(member_id, "member@example.test", client, "PATCH", f"/v1/households/{other_household_id}/shopping-list/items/{target_item_id}", json={"is_checked": True})).status_code == 404
             assert (await call_as(member_id, "member@example.test", client, "DELETE", f"/v1/households/{other_household_id}/shopping-list/items/{target_item_id}")).status_code == 404
             assert (await call_as(member_id, "member@example.test", client, "DELETE", f"/v1/households/{other_household_id}/shopping-list")).status_code == 404
+            assert (await call_as(member_id, "member@example.test", client, "DELETE", f"/v1/households/{other_household_id}/shopping-list/purchased-items")).status_code == 404
 
             # Even supplying the attacker's own household ID with a known foreign
             # item ID must not update or delete the foreign row.
@@ -663,6 +665,7 @@ async def test_removed_members_cannot_read_or_write_and_target_rows_stay_unchang
             assert (await call_as(former_member_id, "former@example.test", client, "PATCH", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}", json={"is_checked": True})).status_code == 404
             assert (await call_as(former_member_id, "former@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}")).status_code == 404
             assert (await call_as(former_member_id, "former@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list")).status_code == 404
+            assert (await call_as(former_member_id, "former@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list/purchased-items")).status_code == 404
         with disposable_engine.connect() as connection:
             assert item_snapshot(connection, target_item_id) == before
             assert connection.execute(text("SELECT count(*) FROM shopping_list_items WHERE shopping_list_id = :id"), {"id": list_id}).scalar_one() == 1
@@ -696,6 +699,7 @@ async def test_soft_deleted_household_cannot_be_read_or_written_and_rows_stay_un
             assert (await call_as(owner_id, "owner@example.test", client, "PATCH", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}", json={"is_checked": True})).status_code == 404
             assert (await call_as(owner_id, "owner@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list/items/{target_item_id}")).status_code == 404
             assert (await call_as(owner_id, "owner@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list")).status_code == 404
+            assert (await call_as(owner_id, "owner@example.test", client, "DELETE", f"/v1/households/{household_id}/shopping-list/purchased-items")).status_code == 404
         with disposable_engine.connect() as connection:
             assert item_snapshot(connection, target_item_id) == before
     finally:
@@ -707,3 +711,134 @@ async def test_soft_deleted_household_cannot_be_read_or_written_and_rows_stay_un
             connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM households WHERE id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM users WHERE id = :id"), {"id": owner_id})
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("role", ["owner", "member"])
+@pytest.mark.parametrize("states", [(False, True, True), (False, False), (True, True), ()], ids=["mixed", "needed", "purchased", "empty"])
+async def test_clear_purchased_is_conditional_idempotent_and_preserves_sources(disposable_engine, role, states):
+    with disposable_engine.begin() as connection:
+        owner = insert_user(connection, f"clear-owner-{uuid4()}@example.test")
+        member = insert_user(connection, f"clear-member-{uuid4()}@example.test")
+        household, list_id = insert_household(connection, owner)
+        foreign_household, foreign_list = insert_household(connection, owner)
+        foreign_row = insert_item(connection, foreign_list, owner, "Other household")
+        connection.execute(text("UPDATE shopping_list_items SET is_checked=true, checked_at=CURRENT_TIMESTAMP, checked_by_user_id=:owner WHERE id=:id"), {"owner": owner, "id": foreign_row})
+        foreign_before = item_snapshot(connection, foreign_row)
+        connection.execute(text("INSERT INTO household_members (household_id,user_id,role) VALUES (:hh,:user,'member')"), {"hh": household, "user": member})
+        stores = [connection.execute(text("INSERT INTO catalog_stores (household_id,name,normalized_name) VALUES (:hh,:name,:name) RETURNING id::text"), {"hh": household, "name": name}).scalar_one() for name in ("market", "warehouse")]
+        rows = []
+        removed = []
+        needed = []
+        for position, checked in enumerate(states):
+            row = insert_item(connection, list_id, owner, f"Clear test {position}")
+            connection.execute(text("""UPDATE shopping_list_items SET amount=2.5, shopping_unit_code='pound', shopping_store_id=:store,
+                is_checked=:checked, checked_at=CASE WHEN :checked THEN CURRENT_TIMESTAMP ELSE NULL END,
+                checked_by_user_id=CASE WHEN :checked THEN CAST(:owner AS uuid) ELSE NULL END WHERE id=:id"""),
+                {"store": stores[position % 2], "checked": checked, "owner": owner, "id": row})
+            rows.append(row)
+            if checked:
+                removed.append(row)
+            else:
+                needed.append(dict(connection.execute(text("SELECT * FROM shopping_list_items WHERE id=:id"), {"id": row}).mappings().one()))
+        catalog = insert_catalog_item(connection, household, owner, "Recipe source")
+        recipe = connection.execute(text("""INSERT INTO household_recipes (household_id,created_by_user_id,create_request_id,name,normalized_name)
+            VALUES (:hh,:owner,:request,'Source recipe','source recipe') RETURNING id::text"""), {"hh": household, "owner": owner, "request": str(uuid4())}).scalar_one()
+        connection.execute(text("INSERT INTO household_recipe_ingredients (household_id,recipe_id,catalog_item_id,position) VALUES (:hh,:recipe,:catalog,0)"), {"hh": household, "recipe": recipe, "catalog": catalog})
+        connection.execute(text("""INSERT INTO household_meal_plan_entries (household_id,recipe_id,planned_for,meal_slot,created_by_user_id)
+            VALUES (:hh,:recipe,'2026-10-29','dinner',:owner)"""), {"hh": household, "recipe": recipe, "owner": owner})
+        if removed:
+            connection.execute(text("UPDATE shopping_list_items SET catalog_item_id=:catalog,shopping_unit_code=NULL,recipe_unit_code='tablespoon',recipe_unit_dimension='volume' WHERE id=:id"), {"catalog": catalog, "id": removed[0]})
+            connection.execute(text("UPDATE catalog_items SET archived_at=CURRENT_TIMESTAMP WHERE id=:id"), {"id": catalog})
+        source_tables = ("catalog_items", "household_recipes", "household_recipe_ingredients", "household_meal_plan_entries", "catalog_stores")
+        def sources(connection):
+            return {table: [dict(row) for row in connection.execute(text(f"SELECT * FROM {table} WHERE household_id=:hh ORDER BY id"), {"hh": household}).mappings()] for table in source_tables}
+        before = sources(connection)
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            url = f"/v1/households/{household}/shopping-list/purchased-items"
+            response = await call_as(owner if role == "owner" else member, "clear@example.test", client, "DELETE", url)
+            assert response.status_code == 200
+            assert response.json() == {"removed_count": len(removed), "removed_item_ids": sorted(removed)}
+            repeated = await client.delete(url)
+            assert repeated.status_code == 200
+            assert repeated.json() == {"removed_count": 0, "removed_item_ids": []}
+        with disposable_engine.connect() as connection:
+            remaining = [dict(row) for row in connection.execute(text("SELECT * FROM shopping_list_items WHERE household_id=:hh ORDER BY id"), {"hh": household}).mappings()]
+            assert sorted(remaining, key=lambda row: str(row["id"])) == sorted(needed, key=lambda row: str(row["id"]))
+            assert sources(connection) == before
+            assert item_snapshot(connection, foreign_row) == foreign_before
+    finally:
+        app.dependency_overrides.clear()
+        with disposable_engine.begin() as connection:
+            for table in ("household_meal_plan_entries", "household_recipe_ingredients", "household_recipes", "shopping_list_items", "catalog_items", "catalog_stores", "shopping_lists", "household_members"):
+                connection.execute(text(f"DELETE FROM {table} WHERE household_id IN (:hh,:foreign)"), {"hh": household, "foreign": foreign_household})
+            connection.execute(text("DELETE FROM households WHERE id IN (:hh,:foreign)"), {"hh": household, "foreign": foreign_household})
+            connection.execute(text("DELETE FROM users WHERE id IN (:owner,:member)"), {"owner": owner, "member": member})
+
+
+@pytest.mark.parametrize("ordering", ["uncheck-first", "readd-first", "clear-first", "clear-before-uncheck"])
+def test_clear_purchased_serializes_with_other_phone_writes(disposable_engine, monkeypatch, ordering):
+    with disposable_engine.begin() as connection:
+        owner = insert_user(connection, f"concurrent-clear-{uuid4()}@example.test")
+        household, list_id = insert_household(connection, owner)
+        row = insert_item(connection, list_id, owner, "Shared milk")
+        catalog = connection.execute(text("SELECT catalog_item_id::text FROM shopping_list_items WHERE id=:id"), {"id": row}).scalar_one()
+        connection.execute(text("UPDATE shopping_list_items SET is_checked=true,checked_at=CURRENT_TIMESTAMP,checked_by_user_id=:owner WHERE id=:id"), {"owner": owner, "id": row})
+    user = CurrentUser(owner, "concurrent@example.test", "Test User")
+    holding, second_started, release = Event(), Event(), Event()
+    original_lock = shopping_lists.lock_household
+    def controlled_lock(connection, household_id, user_id):
+        if holding.is_set():
+            second_started.set()
+            return original_lock(connection, household_id, user_id)
+        result = original_lock(connection, household_id, user_id)
+        holding.set()
+        assert release.wait(10), "Timed out releasing first transaction"
+        return result
+    monkeypatch.setattr(shopping_lists, "lock_household", controlled_lock)
+    def clear():
+        return clear_purchased_items(user, household, disposable_engine)
+    def uncheck_or_readd():
+        # Both checkbox uncheck and B12 re-add use the explicit false PATCH.
+        return update_item(user, household, row, {"is_checked": False}, {"is_checked"}, disposable_engine)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(clear if ordering.startswith("clear-") else uncheck_or_readd)
+            try:
+                assert holding.wait(10)
+                if ordering == "clear-first":
+                    second = pool.submit(add_item, user, household, catalog, {"amount": "1"}, disposable_engine)
+                else:
+                    second = pool.submit(uncheck_or_readd if ordering == "clear-before-uncheck" else clear)
+                assert second_started.wait(10)
+            finally:
+                release.set()
+            first_result = first.result(timeout=15)
+            if ordering == "clear-before-uncheck":
+                assert first_result == {"removed_count": 1, "removed_item_ids": [row]}
+                with pytest.raises(HTTPException) as error:
+                    second.result(timeout=15)
+                assert error.value.status_code == 404
+                with disposable_engine.connect() as connection:
+                    assert connection.execute(text("SELECT count(*) FROM shopping_list_items WHERE household_id=:hh"), {"hh": household}).scalar_one() == 0
+                return
+            second_result = second.result(timeout=15)
+        with disposable_engine.connect() as connection:
+            remaining = connection.execute(text("SELECT id::text,is_checked,catalog_item_id::text FROM shopping_list_items WHERE household_id=:hh"), {"hh": household}).one()
+            assert remaining.is_checked is False
+            assert remaining.catalog_item_id == catalog
+            if ordering == "clear-first":
+                assert first_result == {"removed_count": 1, "removed_item_ids": [row]}
+                assert remaining.id != row
+                assert second_result["id"] == remaining.id
+            else:
+                assert remaining.id == row
+                assert second_result == {"removed_count": 0, "removed_item_ids": []}
+    finally:
+        release.set()
+        with disposable_engine.begin() as connection:
+            for table in ("shopping_list_items", "catalog_items", "shopping_lists", "household_members"):
+                connection.execute(text(f"DELETE FROM {table} WHERE household_id=:hh"), {"hh": household})
+            connection.execute(text("DELETE FROM households WHERE id=:hh"), {"hh": household})
+            connection.execute(text("DELETE FROM users WHERE id=:id"), {"id": owner})

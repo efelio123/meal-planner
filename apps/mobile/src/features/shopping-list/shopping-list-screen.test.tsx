@@ -62,7 +62,7 @@ describe('Shopping list screen', () => {
     mockScopeValue = '["user-1","session-1","household-1"]';
     mockedHouseholdState.mockReturnValue({ selectedHousehold: { id: 'household-1', name: 'Home', time_zone: 'UTC', role: 'member' } } as unknown as ReturnType<typeof useHouseholdState>);
     mockedShoppingList.mockReturnValue({
-      add: jest.fn(), addOrReadd: jest.fn().mockResolvedValue('added'), clear: jest.fn().mockResolvedValue(undefined), error: null, householdId: 'household-1', items: [item('milk', 'Milk'), item('bread', 'Bread', true)],
+      add: jest.fn(), addOrReadd: jest.fn().mockResolvedValue('added'), clear: jest.fn().mockResolvedValue(0), clearPurchased: jest.fn().mockResolvedValue(1), clearing: null, error: null, householdId: 'household-1', items: [item('milk', 'Milk'), item('bread', 'Bread', true)],
       loading: false, pendingItemIds: new Set(), refresh: mockRefresh, remove: jest.fn(), toggle: jest.fn().mockResolvedValue(undefined), update: jest.fn(),
     } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
   });
@@ -146,8 +146,95 @@ describe('Shopping list screen', () => {
     mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), clear } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     await render(<ShoppingListScreen />);
-    fireEvent.press(screen.getByRole('button', { name: 'Clear list' }));
+    fireEvent.press(screen.getByRole('button', { name: 'Clear entire list' }));
     expect(alert).toHaveBeenCalledWith('Clear the whole list?', expect.stringContaining('all stores'), expect.any(Array));
+    alert.mockRestore();
+  });
+
+  it('keeps cleanup available with Purchased collapsed and closes a revealed swipe before confirmation', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    await render(<ShoppingListScreen />);
+    await act(async () => screen.getByTestId('shopping-swipe-milk').props.onReveal());
+    await fireEvent.press(screen.getByRole('button', { name: /^Purchased/ }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear purchased items' }));
+    expect(screen.queryByRole('button', { name: 'Remove Milk from Shopping' })).toBeNull();
+    expect(alert).toHaveBeenCalledWith('Clear purchased items?', 'This removes purchased items from all stores in this household. Items still needed will stay on the list.', expect.any(Array));
+    const buttons = alert.mock.calls.at(-1)![2]!;
+    expect(buttons.find((button) => button.text === 'Cancel')?.style).toBe('cancel');
+    expect(mockedShoppingList().clearPurchased).not.toHaveBeenCalled();
+    await act(async () => buttons.find((button) => button.style === 'destructive')!.onPress!());
+    expect(mockedShoppingList().clearPurchased).toHaveBeenCalledTimes(1);
+    expect(mockedShoppingList().clear).not.toHaveBeenCalled();
+    expect(screen.getByText('1 purchased item removed.')).toBeTruthy();
+    alert.mockRestore();
+  });
+
+  it('uses all loaded rows for cleanup eligibility even under a Store filter', async () => {
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [
+      { ...item('milk', 'Milk'), store_id: 'market', store_name: 'Market' },
+      { ...item('bread', 'Bread', true), store_id: 'other', store_name: 'Other' },
+    ] });
+    const view = await render(<ShoppingListScreen />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Store: All stores' }));
+    expect(screen.queryByText('Bread')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Clear purchased items' })).toBeTruthy();
+    expect(screen.getByText('Applies to all stores.')).toBeTruthy();
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [{ ...item('milk', 'Milk'), store_id: 'market', store_name: 'Market' }] });
+    await view.rerender(<ShoppingListScreen />);
+    expect(screen.getByRole('button', { name: 'Store: Market' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Clear purchased items' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Clear entire list' })).toBeTruthy();
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [] });
+    await view.rerender(<ShoppingListScreen />);
+    expect(screen.queryByRole('button', { name: 'Clear entire list' })).toBeNull();
+  });
+
+  it.each(['pending', 'purchased', 'all'] as const)('disables competing clearing while %s is running', async (mode) => {
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), clearing: mode === 'pending' ? null : mode, pendingItemIds: new Set(mode === 'pending' ? ['milk'] : []) });
+    await render(<ShoppingListScreen />);
+    expect(screen.getByRole('button', { name: 'Clear purchased items' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Clear entire list' })).toBeDisabled();
+    if (mode !== 'pending') {
+      expect(screen.getByRole('button', { name: 'Add from Catalog' })).toBeDisabled();
+      expect(screen.getByRole('checkbox', { name: 'Mark Milk purchased' })).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Edit Milk' })).toBeDisabled();
+    }
+  });
+
+  it.each([false, true])('ignores a confirmation across scope changes, including returning to the original scope (%s)', async (returnToOriginal) => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    const view = await render(<ShoppingListScreen />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear purchased items' }));
+    const confirm = alert.mock.calls.at(-1)![2]!.find((button) => button.style === 'destructive')!.onPress!;
+    mockScopeValue = '["user-2","session-2","household-2"]';
+    await view.rerender(<ShoppingListScreen />);
+    if (returnToOriginal) {
+      mockScopeValue = '["user-1","session-1","household-1"]';
+      await view.rerender(<ShoppingListScreen />);
+    }
+    await act(async () => confirm());
+    expect(mockedShoppingList().clearPurchased).not.toHaveBeenCalled();
+    expect(mockedShoppingList().clear).not.toHaveBeenCalled();
+    alert.mockRestore();
+  });
+
+  it.each([0, 2])('reports the actual server count %s', async (count) => {
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), clearPurchased: jest.fn().mockResolvedValue(count) });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => { buttons?.find((button) => button.style === 'destructive')?.onPress?.(); });
+    await render(<ShoppingListScreen />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear purchased items' }));
+    expect(await screen.findByText(count ? '2 purchased items removed.' : 'No purchased items to clear.')).toBeTruthy();
+    alert.mockRestore();
+  });
+
+  it('shows a purchased-only failure without trying clear-all', async () => {
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), clearPurchased: jest.fn().mockRejectedValue(new Error('We couldn’t clear purchased items. Please try again.')) });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => { buttons?.find((button) => button.style === 'destructive')?.onPress?.(); });
+    await render(<ShoppingListScreen />);
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear purchased items' }));
+    expect(await screen.findByText('We couldn’t clear purchased items. Please try again.')).toBeTruthy();
+    expect(screen.getByText('Bread')).toBeTruthy();
+    expect(mockedShoppingList().clear).not.toHaveBeenCalled();
     alert.mockRestore();
   });
 
@@ -187,10 +274,10 @@ describe('Shopping list screen', () => {
     const clear = jest.fn().mockResolvedValue(undefined);
     mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), clear } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
     const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
-      buttons?.find((button) => button.text === 'Clear list')?.onPress?.();
+      buttons?.find((button) => button.text === 'Clear entire list')?.onPress?.();
     });
     await render(<ShoppingListScreen />);
-    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Clear list' })));
+    await act(async () => fireEvent.press(screen.getByRole('button', { name: 'Clear entire list' })));
     await waitFor(() => expect(clear).toHaveBeenCalledTimes(1));
     expect(alert).toHaveBeenCalledTimes(1);
     alert.mockRestore();

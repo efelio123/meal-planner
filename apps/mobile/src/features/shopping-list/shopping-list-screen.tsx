@@ -28,11 +28,13 @@ export default function ShoppingListScreen() {
   const { selectedHousehold } = useHouseholdState();
   const { scope, createdItem, setCreatedItem, revisionForHousehold } = useShoppingContext();
   const mealPlanContext = useMealPlanContextOptional();
-  const { addOrReadd, clear, error, householdId, items, loading, pendingItemIds, refresh, remove, toggle } = useShoppingList();
+  const { addOrReadd, clear, clearPurchased, clearing, error, householdId, items, loading, pendingItemIds, refresh, remove, toggle } = useShoppingList();
   const [storeFilter, setStoreFilter] = useState('all');
   const [sort, setSort] = useState<SortKey>('recent');
   const [purchasedExpanded, setPurchasedExpanded] = useState(true);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [clearNotice, setClearNotice] = useState<string | null>(null);
+  const bulkDisabled = loading || Boolean(clearing) || pendingItemIds.size > 0;
   const [failedCreatedItem, setFailedCreatedItem] = useState<{ scope: string; item: CatalogItem } | null>(null);
   const [retryingCreatedItem, setRetryingCreatedItem] = useState(false);
   const suppressRowPressUntil = useRef(0);
@@ -41,6 +43,7 @@ export default function ShoppingListScreen() {
   const scrollOffsetY = useRef(0);
   const scrollStartedAfterReveal = useRef(false);
   const scopeRef = useRef(scope); const previousRevision = useRef({ householdId, revision: householdId ? revisionForHousehold(householdId) : 0 });
+  const scopeVersion = useRef(0);
   const openedEditParam = useRef<string | null>(null);
   const shoppingRevision = householdId ? revisionForHousehold(householdId) : 0;
   const mealRevision = householdId ? mealPlanContext?.shoppingRevisionForHousehold(householdId) ?? 0 : 0;
@@ -49,16 +52,23 @@ export default function ShoppingListScreen() {
   useLayoutEffect(() => {
     if (scopeRef.current === scope) return;
     scopeRef.current = scope;
+    scopeVersion.current += 1;
     setStoreFilter('all');
     setSort('recent');
     setPurchasedExpanded(true);
     setActionError(null);
+    setClearNotice(null);
     setFailedCreatedItem(null);
     setRetryingCreatedItem(false);
     openedEditParam.current = null;
     suppressRowPressUntil.current = 0;
     setOpenSwipeId(null);
   }, [scope]);
+  useEffect(() => {
+    if (!clearNotice) return;
+    const timer = setTimeout(() => setClearNotice(null), 3500);
+    return () => clearTimeout(timer);
+  }, [clearNotice]);
   useEffect(() => {
     const prior = previousRevision.current;
     previousRevision.current = { householdId, revision: shoppingRevision + mealRevision };
@@ -70,7 +80,7 @@ export default function ShoppingListScreen() {
   const params = useLocalSearchParams<{ editItemId?: string }>();
   const quickAdd = useCallback((item: CatalogItem) => addOrReadd(item.id), [addOrReadd]);
   const openItem = useCallback(async (item: ShoppingListItem) => {
-    if (!householdId || !item.catalog_item_id) return;
+    if (clearing || !householdId || !item.catalog_item_id) return;
     setOpenSwipeId(null);
     setActionError(null);
     openShoppingDetails(sheetFlow, router, {
@@ -83,7 +93,7 @@ export default function ShoppingListScreen() {
       preferred_store_id: item.catalog_preferred_store_id ?? null,
       archived: item.catalog_item_archived ?? false,
     }, item, { onChanged: () => undefined, onRemove: remove });
-  }, [householdId, remove, router, sheetFlow]);
+  }, [clearing, householdId, remove, router, sheetFlow]);
 
   useFocusEffect(useCallback(() => {
     const itemId = typeof params.editItemId === 'string' ? params.editItemId : null;
@@ -122,21 +132,33 @@ export default function ShoppingListScreen() {
   });
   const toBuy = ordered.filter((item) => !item.is_checked); const purchased = ordered.filter((item) => item.is_checked);
   const addFromCatalog = () => {
+    if (clearing) return;
     setOpenSwipeId(null);
     setActionError(null);
     const sheetId = sheetFlow.present(<ShoppingCatalogPickerSheet items={items} onAdd={quickAdd} />, { detents: [0.65, 0.94], initialDetent: 1 });
     router.push({ pathname: '/shopping/sheet/picker', params: { sheetId } } as never);
   };
-  const clearList = () => {
+  const clearList = (mode: 'all' | 'purchased') => {
+    if (bulkDisabled) return;
+    const startedScope = scopeRef.current;
+    const startedVersion = scopeVersion.current;
+    const isCurrent = () => scopeRef.current === startedScope && scopeVersion.current === startedVersion;
     setOpenSwipeId(null);
     const confirmClear = async () => {
-      const startedScope = scopeRef.current; setActionError(null);
-      try { await clear(); if (scopeRef.current === startedScope) setActionError(null); }
-      catch { if (scopeRef.current === startedScope) setActionError('We couldn’t clear the list. Please try again.'); }
+      if (!isCurrent()) return;
+      setActionError(null); setClearNotice(null);
+      try {
+        const count = await (mode === 'purchased' ? clearPurchased() : clear());
+        if (isCurrent()) setClearNotice(mode === 'all' ? 'Shopping list cleared.' : count === 0 ? 'No purchased items to clear.' : `${count} purchased ${count === 1 ? 'item' : 'items'} removed.`);
+      } catch (reason) {
+        if (isCurrent()) setActionError(reason instanceof Error ? reason.message : 'We couldn’t clear the list. Please try again.');
+      }
     };
-    const message = 'This removes every item from all stores, including purchased items. Catalog items, recipes, and meal plans stay unchanged.';
-    if (Platform.OS === 'web') { if (globalThis.confirm(`Clear the whole list?\n\n${message}`)) void confirmClear(); }
-    else Alert.alert('Clear the whole list?', message, [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear list', style: 'destructive', onPress: () => void confirmClear() }]);
+    const title = mode === 'purchased' ? 'Clear purchased items?' : 'Clear the whole list?';
+    const message = mode === 'purchased' ? 'This removes purchased items from all stores in this household. Items still needed will stay on the list.' : 'This removes every item from all stores, including purchased items. Catalog items, recipes, and meal plans stay unchanged.';
+    const action = mode === 'purchased' ? 'Clear purchased items' : 'Clear entire list';
+    if (Platform.OS === 'web') { if (globalThis.confirm(`${title}\n\n${message}`)) void confirmClear(); }
+    else Alert.alert(title, message, [{ text: 'Cancel', style: 'cancel' }, { text: action, style: 'destructive', onPress: () => void confirmClear() }]);
   };
 
   const removeFromSwipe = async (item: ShoppingListItem) => {
@@ -167,14 +189,15 @@ export default function ShoppingListScreen() {
 
   const renderRows = (sectionItems: ShoppingListItem[]) => sectionItems.map((item, index) => {
     const pending = pendingItemIds.has(item.id);
+    const writesDisabled = Boolean(clearing) || pending;
     const separatorColor = index < sectionItems.length - 1 ? theme.border : null;
     const amount = [item.amount, item.unit_label].filter(Boolean).join(' ');
     const subtitle = [amount || null, item.store_name || null].filter(Boolean).join(' · ');
     const row = <View style={[styles.itemRow, { backgroundColor: theme.surface }]}>
-      <Pressable accessibilityRole="checkbox" accessibilityLabel={`Mark ${item.name} ${item.is_checked ? 'not purchased' : 'purchased'}`} accessibilityState={{ checked: item.is_checked, disabled: pending }} disabled={pending} onPress={() => { if (interceptRowPress(item.id)) return; setActionError(null); void toggle(item).catch((reason: unknown) => setActionError(reason instanceof Error ? reason.message : 'We couldn’t update that item.')); }} style={styles.checkHit}>
+      <Pressable accessibilityRole="checkbox" accessibilityLabel={`Mark ${item.name} ${item.is_checked ? 'not purchased' : 'purchased'}`} accessibilityState={{ checked: item.is_checked, disabled: writesDisabled }} disabled={writesDisabled} onPress={() => { if (interceptRowPress(item.id)) return; setActionError(null); void toggle(item).catch((reason: unknown) => setActionError(reason instanceof Error ? reason.message : 'We couldn’t update that item.')); }} style={styles.checkHit}>
         <SymbolView name={{ ios: item.is_checked ? 'checkmark.circle.fill' : 'circle', android: item.is_checked ? 'check_circle' : 'radio_button_unchecked', web: item.is_checked ? 'check_circle' : 'radio_button_unchecked' }} size={25} tintColor={item.is_checked ? theme.primary : theme.textSecondary} />
       </Pressable>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${item.name}`} onPress={() => { if (!interceptRowPress(item.id)) void openItem(item); }} style={styles.itemBody}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${item.name}`} accessibilityState={{ disabled: Boolean(clearing) }} disabled={Boolean(clearing)} onPress={() => { if (!interceptRowPress(item.id)) void openItem(item); }} style={styles.itemBody}>
         <View style={styles.itemCopy}><ThemedText style={[styles.itemName, item.is_checked && styles.checked]} numberOfLines={2}>{item.name}</ThemedText>
           {subtitle ? <ThemedText themeColor="textSecondary" style={styles.itemSubtitle} numberOfLines={1}>{subtitle}</ThemedText> : null}
         </View>
@@ -183,7 +206,7 @@ export default function ShoppingListScreen() {
       {pending ? <ActivityIndicator accessibilityLabel={`Updating ${item.name}`} color={theme.activity} /> : null}
     </View>;
     if (Platform.OS === 'web') return <View key={item.id} style={separatorColor ? { borderBottomColor: separatorColor, borderBottomWidth: StyleSheet.hairlineWidth } : undefined}>{row}</View>;
-    return <ShoppingSwipeRow key={item.id} active={openSwipeId === item.id} enabled={!pending}
+    return <ShoppingSwipeRow key={item.id} active={openSwipeId === item.id} enabled={!writesDisabled}
       itemId={item.id} itemName={item.name} separatorColor={separatorColor} onDragStart={suppressRowPressForDrag} onDragEnd={suppressRowPress}
       onReveal={() => { scrollStartedAfterReveal.current = false; scrollDragStartY.current = scrollOffsetY.current; setOpenSwipeId(item.id); }}
       onClose={() => setOpenSwipeId((current) => current === item.id ? null : current)}
@@ -205,14 +228,14 @@ export default function ShoppingListScreen() {
     }} refreshing={loading && items.length > 0}>
     <Stack.Screen options={{ headerShown: false }} />
     <View style={styles.content}>
-      <TabPageHeader title="Shopping" subtitle={<ThemedText themeColor="textSecondary">{selectedHousehold?.name ?? 'Household'} · shared list</ThemedText>} actions={<CircularAddButton accessibilityLabel="Add from Catalog" onPress={addFromCatalog} />} />
+      <TabPageHeader title="Shopping" subtitle={<ThemedText themeColor="textSecondary">{selectedHousehold?.name ?? 'Household'} · shared list</ThemedText>} actions={<CircularAddButton accessibilityLabel="Add from Catalog" disabled={Boolean(clearing)} onPress={addFromCatalog} />} />
       {shoppingNotice ? <View style={[styles.notice, { backgroundColor: theme.surfaceSelected }]}><ThemedText accessibilityRole="alert" style={styles.noticeText}>{shoppingNotice.count} {shoppingNotice.count === 1 ? 'item' : 'items'} added from this week’s meals.</ThemedText><Pressable accessibilityRole="button" accessibilityLabel="Dismiss shopping confirmation" onPress={() => mealPlanContext?.clearShoppingAddNotice(shoppingNotice.requestId)}><ThemedText themeColor="link">Dismiss</ThemedText></Pressable></View> : null}
       <View style={styles.filterRow}><View style={styles.filter}><ChoicePicker compact label="Store" choices={storeOptions} selectedId={activeStoreFilter} value={storeOptions.find((option) => option.id === activeStoreFilter)?.label ?? 'All stores'} onSelect={(value) => { setOpenSwipeId(null); setStoreFilter(value); }} /></View><View style={styles.filter}><ChoicePicker compact label="Sort" choices={sortOptions} selectedId={sort} value={sortOptions.find((option) => option.id === sort)?.label ?? 'Recently added'} onSelect={(value) => { setOpenSwipeId(null); setSort(value as SortKey); }} /></View></View>
       <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>To buy</ThemedText><ThemedText themeColor="textSecondary">{toBuy.length}</ThemedText></View>
       {loading && items.length === 0 ? <ActivityIndicator accessibilityLabel="Loading shopping list" color={theme.activity} /> : null}
       {error ? <View style={styles.message}><ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText><PrimaryButton onPress={() => { setOpenSwipeId(null); void refresh(); }} title="Retry" /></View> : null}
       {actionError ? <ThemedText accessibilityRole="alert" themeColor="error">{actionError}</ThemedText> : null}
-      {failedCreatedItem?.scope === scope ? <PrimaryButton disabled={retryingCreatedItem} onPress={() => {
+      {failedCreatedItem?.scope === scope ? <PrimaryButton disabled={Boolean(clearing) || retryingCreatedItem} onPress={() => {
         setRetryingCreatedItem(true);
         void quickAdd(failedCreatedItem.item).then(() => { if (scopeRef.current === scope) { setFailedCreatedItem(null); setActionError(null); } }).catch((reason: unknown) => {
           if (scopeRef.current !== scope) return;
@@ -225,13 +248,19 @@ export default function ShoppingListScreen() {
       {purchasedExpanded && purchased.length ? <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(purchased)}</View> : null}
       {purchasedExpanded && !purchased.length && items.length ? <ThemedText themeColor="textSecondary">No purchased items yet.</ThemedText> : null}
       {!loading && !error && items.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.empty}>Your shared Shopping list is ready for Catalog items.</ThemedText> : null}
-      {items.length > 0 ? <Pressable accessibilityRole="button" onPress={clearList} style={[styles.clearAction, { borderColor: theme.border }]}><ThemedText themeColor="error">Clear list</ThemedText></Pressable> : null}
+      {clearNotice ? <ThemedText accessibilityLiveRegion="polite">{clearNotice}</ThemedText> : null}
+      {items.length > 0 ? <View style={styles.clearActions}>
+        <ThemedText themeColor="textSecondary">Applies to all stores.</ThemedText>
+        {items.some((item) => item.is_checked) ? <Pressable accessibilityRole="button" accessibilityLabel="Clear purchased items" accessibilityState={{ disabled: bulkDisabled }} disabled={bulkDisabled} onPress={() => clearList('purchased')} style={[styles.clearAction, { borderColor: theme.border, opacity: bulkDisabled ? 0.5 : 1 }]}><ThemedText themeColor="error">{clearing === 'purchased' ? 'Clearing…' : 'Clear purchased items'}</ThemedText></Pressable> : null}
+        <Pressable accessibilityRole="button" accessibilityLabel="Clear entire list" accessibilityState={{ disabled: bulkDisabled }} disabled={bulkDisabled} onPress={() => clearList('all')} style={[styles.clearAction, { borderColor: theme.border, opacity: bulkDisabled ? 0.5 : 1 }]}><ThemedText themeColor="error">{clearing === 'all' ? 'Clearing…' : 'Clear entire list'}</ThemedText></Pressable>
+      </View> : null}
       {Platform.OS === 'web' ? <PrimaryButton disabled={loading} onPress={() => { setOpenSwipeId(null); void refresh(); }} title={loading ? 'Refreshing…' : 'Refresh'} /> : null}
     </View>
   </Screen>;
 }
 
 const styles = StyleSheet.create({
+  clearActions: { gap: 10 },
   content: { gap: 16, paddingBottom: 18 },
   notice: { alignItems: 'center', borderRadius: 12, flexDirection: 'row', gap: 12, justifyContent: 'space-between', padding: 12 }, noticeText: { flex: 1 }, filterRow: { flexDirection: 'row', gap: 10 }, filter: { flex: 1 }, sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }, group: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' }, itemRow: { alignItems: 'center', flexDirection: 'row', gap: 10, minHeight: 68, paddingHorizontal: 10, paddingVertical: 9 }, checkHit: { alignItems: 'center', height: 44, justifyContent: 'center', width: 40 }, itemBody: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8, minHeight: 44, minWidth: 0 }, itemCopy: { flex: 1, gap: 4, minWidth: 0 }, itemName: { fontSize: 16, fontWeight: '600' }, checked: { textDecorationLine: 'line-through' }, itemSubtitle: { fontSize: 13 }, purchasedHeaderRight: { alignItems: 'center', flexDirection: 'row', gap: 8 }, clearAction: { alignItems: 'center', borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, justifyContent: 'center', minHeight: 46, marginTop: 4 }, empty: { paddingBottom: 4 }, message: { gap: 10 },
 });

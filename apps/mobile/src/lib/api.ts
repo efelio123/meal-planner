@@ -19,6 +19,7 @@ export type ShoppingListItem = {
   used_in_meals?: { recipe_name: string; planned_for: string }[];
 };
 export type ShoppingList = { id: string; household_id: string; items: ShoppingListItem[] };
+export type ClearPurchasedShoppingItemsResult = { removed_count: number; removed_item_ids: string[] };
 export type ShoppingListItemInput = {
   amount?: string | null; shopping_unit_code?: string | null;
   custom_shopping_unit_id?: string | null; store_id?: string | null;
@@ -254,6 +255,8 @@ export const api = {
     request<void>(getToken, `/v1/households/${householdId}/shopping-list/items/${itemId}`, { method: 'DELETE' }),
   clearShoppingList: (getToken: GetToken, householdId: string) =>
     request<{ removed_count: number }>(getToken, `/v1/households/${householdId}/shopping-list`, { method: 'DELETE' }),
+  clearPurchasedShoppingItems: (getToken: GetToken, householdId: string) =>
+    request<ClearPurchasedShoppingItemsResult>(getToken, `/v1/households/${householdId}/shopping-list/purchased-items`, { method: 'DELETE' }),
   mealPlan: (getToken: GetToken, householdId: string, weekOffset = 0) =>
     request<MealPlanWeek>(getToken, `/v1/households/${householdId}/meal-plan?week_offset=${weekOffset}`, { method: 'GET' }),
   createMealPlanEntry: (getToken: GetToken, householdId: string, values: Pick<MealPlanEntry, 'planned_for' | 'meal_slot' | 'recipe_id'>) =>

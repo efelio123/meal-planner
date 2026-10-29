@@ -14,6 +14,7 @@ jest.mock('@/lib/api', () => ({
     updateShoppingListItem: jest.fn(),
     deleteShoppingListItem: jest.fn(),
     clearShoppingList: jest.fn(),
+    clearPurchasedShoppingItems: jest.fn(),
   },
 }));
 
@@ -71,6 +72,7 @@ describe('useShoppingList', () => {
     }));
     mockedApi.deleteShoppingListItem.mockResolvedValue(undefined);
     mockedApi.clearShoppingList.mockResolvedValue({ removed_count: 0 });
+    mockedApi.clearPurchasedShoppingItems.mockResolvedValue({ removed_count: 0, removed_item_ids: [] });
   });
 
   it('shows loading while a list request is pending, then shows the empty response', async () => {
@@ -438,6 +440,182 @@ describe('useShoppingList', () => {
       expect(result.current.error).toBeNull();
     },
   );
+
+  it('clears only returned IDs, then reconciles other-phone unchecks and re-added identities', async () => {
+    const bought = { ...item('bought', 'Bought', true), catalog_item_id: 'catalog-a' };
+    const needed = { ...item('needed'), amount: '2.5', unit_kind: 'recipe' as const, recipe_unit_code: 'tablespoon', store_id: 'market' };
+    const stale = item('other-phone-unchecked', 'Keep', true);
+    const fresh = deferred<{ shopping_list: ShoppingList }>();
+    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [bought, needed, stale])).mockReturnValueOnce(fresh.promise);
+    mockedApi.clearPurchasedShoppingItems.mockResolvedValueOnce({ removed_count: 1, removed_item_ids: ['bought'] });
+    const { result } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(result.current.items).toHaveLength(3));
+    let action!: Promise<number>;
+    await act(async () => { action = result.current.clearPurchased(); });
+    expect(result.current.items).toEqual(expect.arrayContaining([needed, stale]));
+    expect(result.current.items).toHaveLength(2);
+    expect(result.current.clearing).toBe('purchased');
+    const readded = { ...bought, id: 'new-id', is_checked: false };
+    await act(async () => { fresh.resolve(listResponse('household-a', [needed, { ...stale, is_checked: false }, readded])); expect(await action).toBe(1); });
+    expect(result.current.items).toEqual(expect.arrayContaining([needed, readded, expect.objectContaining({ id: stale.id, is_checked: false })]));
+    expect(result.current.clearing).toBeNull();
+    expect(mockedApi.clearPurchasedShoppingItems).toHaveBeenCalledWith(expect.any(Function), 'household-a');
+    expect(mockedApi.clearShoppingList).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { removed_count: 1 },
+    { removed_count: 2, removed_item_ids: ['bought'] },
+    { removed_count: 2, removed_item_ids: ['bought', 'bought'] },
+    { removed_count: -1, removed_item_ids: [] },
+  ])('does not clear locally or fall back to clear-all for malformed response %j', async (response) => {
+    const bought = item('bought', 'Bought', true);
+    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [bought]));
+    mockedApi.clearPurchasedShoppingItems.mockResolvedValueOnce(response as Awaited<ReturnType<typeof api.clearPurchasedShoppingItems>>);
+    const { result } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    await act(async () => { await expect(result.current.clearPurchased()).rejects.toThrow('We couldn’t clear purchased items'); });
+    expect(result.current.items).toEqual([bought]);
+    expect(result.current.clearing).toBeNull();
+    expect(mockedApi.clearShoppingList).not.toHaveBeenCalled();
+  });
+
+  it('keeps rows on delete failure and retries safely when another phone already cleared them', async () => {
+    const bought = item('bought', 'Bought', true);
+    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [bought]));
+    mockedApi.clearPurchasedShoppingItems.mockRejectedValueOnce(new ApiError(404, 'Unavailable'));
+    const { result } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    await act(async () => { await expect(result.current.clearPurchased()).rejects.toThrow('We couldn’t clear purchased items'); });
+    expect(result.current.items).toEqual([bought]);
+    await act(async () => expect(await result.current.clearPurchased()).toBe(0));
+    expect(result.current.items).toEqual([]);
+    expect(mockedApi.clearShoppingList).not.toHaveBeenCalled();
+  });
+
+  it('releases an invalidated refresh spinner after DELETE fails', async () => {
+    const bought = item('bought', 'Bought', true);
+    const oldLoad = deferred<{ shopping_list: ShoppingList }>();
+    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [bought])).mockReturnValueOnce(oldLoad.promise);
+    mockedApi.clearPurchasedShoppingItems.mockRejectedValueOnce(new Error('Offline'));
+    const { result } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    let read!: Promise<void>;
+    await act(async () => { read = result.current.refresh(); });
+    expect(result.current.loading).toBe(true);
+    await act(async () => { await expect(result.current.clearPurchased()).rejects.toThrow('We couldn’t clear purchased items'); });
+    expect(result.current.loading).toBe(false);
+    expect(result.current.clearing).toBeNull();
+    expect(result.current.items).toEqual([bought]);
+    await act(async () => { oldLoad.resolve(listResponse('household-a', [])); await read; });
+    expect(result.current.items).toEqual([bought]);
+  });
+
+  it('does not resurrect confirmed deletions when reconciliation fails, and supports refresh retry', async () => {
+    const needed = item('needed');
+    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [needed, item('bought', 'Bought', true)]))
+      .mockRejectedValueOnce(new Error('Offline')).mockResolvedValueOnce(listResponse('household-a', [needed]));
+    mockedApi.clearPurchasedShoppingItems.mockResolvedValueOnce({ removed_count: 1, removed_item_ids: ['bought'] });
+    const { result } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    await act(async () => expect(await result.current.clearPurchased()).toBe(1));
+    expect(result.current.items).toEqual([needed]);
+    expect(result.current.error).toContain('Items were cleared');
+    await act(async () => result.current.refresh());
+    expect(result.current.error).toBeNull();
+  });
+
+  it('invalidates a pre-clear refresh and blocks conflicting writes and duplicate bulk calls until reconciliation ends', async () => {
+    const needed = item('needed');
+    const bought = item('bought', 'Bought', true);
+    const oldLoad = deferred<{ shopping_list: ShoppingList }>();
+    const deletion = deferred<Awaited<ReturnType<typeof api.clearPurchasedShoppingItems>>>();
+    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [needed, bought])).mockReturnValueOnce(oldLoad.promise)
+      .mockResolvedValueOnce(listResponse('household-a', [needed]));
+    mockedApi.clearPurchasedShoppingItems.mockReturnValueOnce(deletion.promise);
+    const { result } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    let read!: Promise<void>; let action!: Promise<number>;
+    await act(async () => { read = result.current.refresh(); });
+    await act(async () => { action = result.current.clearPurchased(); });
+    await act(async () => {
+      await expect(result.current.clear()).rejects.toThrow('still updating');
+      await expect(result.current.clearPurchased()).rejects.toThrow('still updating');
+      await expect(result.current.addOrReadd('catalog-needed')).rejects.toThrow();
+      await expect(result.current.add('catalog-needed')).rejects.toThrow();
+      await result.current.toggle(needed); await result.current.update(needed, { amount: '3' }); await result.current.remove(needed);
+      await result.current.refresh();
+    });
+    expect(mockedApi.updateShoppingListItem).not.toHaveBeenCalled();
+    expect(mockedApi.deleteShoppingListItem).not.toHaveBeenCalled();
+    expect(mockedApi.addShoppingListItem).not.toHaveBeenCalled();
+    expect(mockedApi.clearShoppingList).not.toHaveBeenCalled();
+    await act(async () => { deletion.resolve({ removed_count: 1, removed_item_ids: ['bought'] }); await action; });
+    await act(async () => { oldLoad.resolve(listResponse('household-a', [needed, bought])); await read; });
+    expect(result.current.items).toEqual([needed]);
+    expect(result.current.loading).toBe(false);
+    await act(async () => result.current.toggle(needed));
+    expect(mockedApi.updateShoppingListItem).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for local checkoffs before allowing either bulk operation', async () => {
+    const needed = item('needed');
+    const pending = deferred<{ item: ShoppingListItem }>();
+    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [needed]));
+    mockedApi.updateShoppingListItem.mockReturnValueOnce(pending.promise);
+    const { result } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    let toggle!: Promise<void>;
+    await act(async () => { toggle = result.current.toggle(needed); });
+    await act(async () => {
+      await expect(result.current.clearPurchased()).rejects.toThrow('still updating');
+      await expect(result.current.clear()).rejects.toThrow('still updating');
+    });
+    expect(mockedApi.clearPurchasedShoppingItems).not.toHaveBeenCalled();
+    expect(mockedApi.clearShoppingList).not.toHaveBeenCalled();
+    await act(async () => { pending.resolve({ item: { ...needed, is_checked: true } }); await toggle; });
+    await act(async () => expect(await result.current.clear()).toBe(0));
+    expect(result.current.items).toEqual([]);
+  });
+
+  it.each(['household', 'session'])('ignores a purchased-clear response after a %s switch', async (change) => {
+    const deletion = deferred<Awaited<ReturnType<typeof api.clearPurchasedShoppingItems>>>();
+    mockedApi.clearPurchasedShoppingItems.mockReturnValueOnce(deletion.promise);
+    const { result, rerender } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1));
+    let outcome!: Promise<unknown>;
+    await act(async () => { outcome = result.current.clearPurchased().catch((reason: Error) => reason); });
+    if (change === 'household') selectHousehold('household-b'); else mockSessionId = 'session-2';
+    await rerender(undefined);
+    await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2));
+    expect(result.current.clearing).toBeNull();
+    await act(async () => { deletion.resolve({ removed_count: 0, removed_item_ids: [] }); await outcome; });
+    expect(await outcome).toEqual(expect.objectContaining({ message: expect.stringContaining('household or sign-in changed') }));
+    expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2);
+    expect(result.current.items).toEqual([]);
+  });
+
+  it('rejects an old token before sending the clear and preserves a newer household bulk guard', async () => {
+    const token = deferred<string>();
+    const nextDelete = deferred<Awaited<ReturnType<typeof api.clearPurchasedShoppingItems>>>();
+    const write = jest.fn();
+    mockedApi.clearPurchasedShoppingItems.mockImplementationOnce(async (getRequestToken) => { await getRequestToken(); write(); return { removed_count: 0, removed_item_ids: [] }; })
+      .mockReturnValueOnce(nextDelete.promise);
+    const { result, rerender } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1));
+    getToken.mockReturnValueOnce(token.promise);
+    let old!: Promise<unknown>; let current!: Promise<number>;
+    await act(async () => { old = result.current.clearPurchased().catch((reason: Error) => reason); });
+    selectHousehold('household-b');
+    await rerender(undefined);
+    await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2));
+    await act(async () => { current = result.current.clearPurchased(); });
+    await act(async () => { token.resolve('old-token'); await old; });
+    expect(write).not.toHaveBeenCalled();
+    expect(result.current.clearing).toBe('purchased');
+    await act(async () => { nextDelete.resolve({ removed_count: 0, removed_item_ids: [] }); await current; });
+    expect(result.current.clearing).toBeNull();
+  });
 
   it('does not reload when the token getter identity changes', async () => {
     const { rerender } = await renderHook(() => useShoppingList());
