@@ -118,11 +118,16 @@ validation passes 58 suites / 479 tests, TypeScript and lint. The clarified
 native flow was awaiting physical retest at that validation pass. Felipe then
 reports “Okay looks great” October 29 and accepts the reviewed Shopping picker
 flow. Individual checklist cases, other origins and Android acceptance are not
-inferred from that report. F02 is now proposed for review in
-`docs/plans/recipe-measurement-unit-list.md`: one optional default recipe-unit
-field with all existing measurement choices, automatic internal dimension
-selection, and unchanged API/data semantics. No F02 implementation is approved
-or made yet. No API/schema, live Mac or deployment change.
+inferred from that report. Felipe then approved F02 and assigned implementation
+directly to the chat agent. It is implemented on `codex/recipe-unit-list`:
+one optional default recipe-unit field, all API-backed measurement choices and
+automatic internal dimension selection. Existing selections, ingredient
+overrides and shopping preferences remain unchanged. Plan's Food wrapper uses
+its existing unit-sheet route with per-flow opening height. Seven targeted
+suites / 184 tests pass after one test-fixture correction; TypeScript and lint
+pass. Physical acceptance is pending. See
+`docs/plans/recipe-measurement-unit-list.md`. No API/schema, dependency, live Mac
+or deployment change; the earlier 479-test full result predates F02.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

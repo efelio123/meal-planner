@@ -1,14 +1,23 @@
 # One recipe measurement-unit list — F02
 
-Status: proposed October 29, 2026; awaiting Felipe's review. Planning only;
-no application, API, schema, dependency or deployment changes.
+Status: approved by Felipe and implemented October 29, 2026 on
+`codex/recipe-unit-list`. Felipe explicitly assigned implementation to the chat
+agent. Physical iPhone/Android acceptance is pending.
+
+Implementation routing note: Plan's Food form reuses CatalogItemForm, whose
+generic recipe-choice route points to Recipes. For the new unit field, its
+Plan route wrapper now explicitly supplies the already-existing Plan unit-sheet
+route. That existing route honors the registered per-flow opening detent:
+large for the default-unit field, unchanged medium for Ingredient Details.
+This adds no route or presentation pattern and keeps unit selection above the
+visible Plan draft, as required by the approved cross-origin scope.
 
 Planning branch: `codex/recipe-unit-list-plan`, based on clean `0a3c932` after
 Felipe accepted the reviewed Shopping picker-return flow. Preserve the accepted
 family-trial work and SDK 58, and leave the website/Android checkouts untouched.
-After approval use a focused `codex/` implementation branch from this baseline.
-Implementation ownership follows AGENTS.md unless Felipe assigns it directly
-to the chat agent. Do not start another agent during planning.
+The focused implementation branch retains this baseline and the planning commit
+`1588581`. The chat agent implemented directly under Felipe's explicit request;
+no delegation, unrelated checkout changes, push or merge was performed.
 
 ## Goal
 
@@ -124,10 +133,48 @@ their layout ownership need no change.
   To taste behavior. Spot-check Recipe/Plan and Shopping origins, and record
   Android or any unrun cases explicitly. No automated writes to the live Mac.
 
-## Review decision
+## Approved decision and implementation
 
-Approve the single optional Default unit for recipes field, complete searchable
-list, and automatic internal dimension selection, while retaining the current
-More details placement and per-ingredient custom-unit behavior. No required
-clarification beyond confirming that scope. No implementation, push/merge,
-native rebuild or deployment is authorized by this planning document alone.
+Felipe approved the single optional Default unit for recipes field, complete
+searchable list and automatic internal dimension selection. The shared form
+sets both fields in one draft update, clears both only on explicit No default
+unit, and leaves untouched values unchanged. A shared API-backed option mapper
+also supplies Ingredient Details without changing its custom-unit behavior.
+The field stays under Food's More details, opens large through the existing
+native selector, and is unavailable while unit metadata is absent/loading.
+The read-only Catalog row now says Default unit. Shopping defaults, quantities,
+stores, existing recipe ingredients and backend contracts are unchanged.
+
+## Validation results — October 29, 2026
+
+- **7 targeted suites / 184 tests pass** across the coordinated run and corrected
+  suite rerun: ChoicePicker, choice navigation (including Plan detents), Catalog
+  presentation, actual Router startup/navigation, recipe integration, meal-plan
+  integration and native-sheet route options.
+- The coordinated run passed 6 suites with one new test-fixture failure in
+  startup/navigation: its simulated unit-load error hit the Catalog tab's
+  background request instead of the edit form. After isolating that error,
+  the complete affected suite passed **111 tests**, no skips (23.734s). The
+  other 6 suites' source/tests were unchanged after their passing run.
+- Final TypeScript `tsc --noEmit`, Expo lint and diff checks passed. Coverage
+  includes complete cross-dimension options, searchable selection and paired
+  payloads, no unit, replace/clear/cancel/unchanged and save/reopen, metadata
+  failure/retry, unchanged shopping preferences, read-only wording, Household
+  disclosure, Recipes/Plan Food creation, default inheritance and To taste.
+  Existing recipe-specific/custom override and Shopping navigation tests pass.
+- No API/schema/migrations/dependencies changed. Database tests, full mobile
+  suite, cache-disabled run, web export, native build and physical-device checks
+  were not run for F02. The earlier full 58-suite / 479-test result predates
+  this feature and is historical, not validation of these edits. No live Mac
+  data/runtime, deployment, push or merge changed.
+- Consulted [Expo SDK 58](https://docs.expo.dev/versions/v58.0.0/) and
+  [React object-state guidance](https://react.dev/learn/updating-objects-in-state)
+  against installed Expo 58.0.19, Router 58.0.26 and React 19.3.0.
+
+Phone review: open Food More details in create and edit; select/search Cup,
+Pound and Dozen without choosing a type first. Clear the default, cancel a
+selection, and save/reopen. Check full-height sheet, keyboard and last-row
+reachability. Spot-check Food creation from Recipes/Plan/Shopping, draft
+retention, inherited ingredient unit with blank-amount To taste, and the
+accepted Shopping Create/Manage -> Back-to-picker flow. Record actual device
+results; this implementation does not authorize a native rebuild or deployment.

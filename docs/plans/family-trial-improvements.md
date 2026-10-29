@@ -77,9 +77,10 @@ or Mac changes. Batch D (B12) was subsequently approved, implemented and accepte
 in review October 28; see `shopping-readd-correctness.md`. F08 search-to-create
 name prefill was then approved and implemented. Felipe accepts the reviewed
 Shopping picker return follow-up October 29; the broader device checklist is
-not individually established. See `search-create-name-prefill.md`. F02 is now
-proposed for review in `recipe-measurement-unit-list.md`; no implementation
-is approved or made for that feature yet.
+not individually established. See `search-create-name-prefill.md`. F02 was
+subsequently approved and implemented on `codex/recipe-unit-list`; 7 targeted
+suites / 184 tests, TypeScript and lint pass. Phone acceptance is pending under
+`recipe-measurement-unit-list.md`.
 
 Ship a safer, more usable build for the next week of family testing. Fix the
 reported failures in coherent batches, then take on small features individually.
@@ -143,7 +144,7 @@ individual slices, even when they depend on the same bug fixes.
 | ID | Request and preserved intent | Initial recommendation / dependencies |
 | --- | --- | --- |
 | F01 | Reorder recipe ingredients using a far-right three-dot/drag affordance; persist their order on create and edit. | Bounded follow-up. API already persists ingredient positions; validate stable row identity, gesture behavior, and reload order. Confirm handle interaction before implementation. |
-| F02 | Choose a recipe measurement unit from one complete list; remove the separate Volume/Mass/Count picker. | Focused plan proposed October 29 in `recipe-measurement-unit-list.md`; awaiting review. One optional default-unit field, full API-backed list and inferred dimension; preserve existing data and separate shopping-unit semantics. |
+| F02 | Choose a recipe measurement unit from one complete list; remove the separate Volume/Mass/Count picker. | Approved/implemented October 29 on `codex/recipe-unit-list`; phone acceptance pending. Optional API-backed default-unit picker infers dimension and preserves existing data/shopping preferences. 7 targeted suites / 184 tests, types and lint pass. See `recipe-measurement-unit-list.md`. |
 | F03 | Clear only purchased Shopping entries while retaining needed ones. | Early Shopping feature after B12. Use an atomic household-scoped server operation; resolve filter scope and bulk confirmation wording first. |
 | F04 | Category and Store sorting show labelled sections, optionally collapsible. Alphabetical/Recently added show no such headings. | First deliver headings and sensible uncategorized/no-store groups; decide separately whether collapsing belongs in the first pass. Reuse existing row/swipe controls. |
 | F05 | Search the Shopping list to find and check items quickly. | Early small feature. Search composes with store/sort filters; toggling/removal acts on real item identity and preserves the query. |
