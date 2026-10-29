@@ -1,7 +1,9 @@
 # Clear purchased Shopping items — F03
 
 Status: approved and implemented October 29, 2026. Felipe directly assigned
-implementation to the chat agent. Device acceptance remains pending. No schema,
+implementation to the chat agent. Felipe accepted the reviewed change on
+October 29 ("Okay looks good"). Individual device-checklist cases and Android
+acceptance are not inferred from that report. No schema,
 dependency, deployment or live-data changes.
 
 Planning branch: `codex/clear-purchased-items-plan`, from clean `a0b714c`
@@ -195,7 +197,7 @@ and trial deployment are separate.
   results predate this change and do not replace these checks. Mac trial data
   and runtime were untouched.
 
-## Device review before acceptance
+## Device review checklist
 
 Use the current local API and Expo checkout (the trial Mac API has not received
 this endpoint). Create disposable entries across two Stores, check some, filter
