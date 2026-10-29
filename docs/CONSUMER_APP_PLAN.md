@@ -125,7 +125,10 @@ automatic internal dimension selection. Existing selections, ingredient
 overrides and shopping preferences remain unchanged. Plan's Food wrapper uses
 its existing unit-sheet route with per-flow opening height. Seven targeted
 suites / 184 tests pass after one test-fixture correction; TypeScript and lint
-pass. Physical acceptance is pending. See
+pass. Felipe subsequently accepts the reviewed change October 29 (“Okay looks
+good”); individual device-checklist cases and Android acceptance are not inferred
+from that report. F03 (clear purchased Shopping items only) is next for planning,
+not yet approved for implementation. See
 `docs/plans/recipe-measurement-unit-list.md`. No API/schema, dependency, live Mac
 or deployment change; the earlier 479-test full result predates F02.
 

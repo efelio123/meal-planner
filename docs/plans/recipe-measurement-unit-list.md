@@ -2,7 +2,9 @@
 
 Status: approved by Felipe and implemented October 29, 2026 on
 `codex/recipe-unit-list`. Felipe explicitly assigned implementation to the chat
-agent. Physical iPhone/Android acceptance is pending.
+agent. Felipe accepts the reviewed change October 29 (“Okay looks good”).
+Individual device-checklist results and Android acceptance are not inferred
+from that report.
 
 Implementation routing note: Plan's Food form reuses CatalogItemForm, whose
 generic recipe-choice route points to Recipes. For the new unit field, its
@@ -178,3 +180,10 @@ reachability. Spot-check Food creation from Recipes/Plan/Shopping, draft
 retention, inherited ingredient unit with blank-amount To taste, and the
 accepted Shopping Create/Manage -> Back-to-picker flow. Record actual device
 results; this implementation does not authorize a native rebuild or deployment.
+
+Acceptance update, October 29: Felipe reports “Okay looks good” after reviewing
+the implemented unit picker. Mark F02 accepted in review. This does not establish
+every origin/state in the phone checklist or Android coverage. No application
+changes follow acceptance. Next agreed candidate is F03: clear purchased
+Shopping entries while preserving items still needed, with its own scope/plan
+approval before implementation.
