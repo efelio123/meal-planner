@@ -152,6 +152,11 @@ its inline search is focused, preserving the native tab/sheet inset contract.
 274 tests across 8 targeted mobile suites, TypeScript and lint pass; physical
 review remains pending. No API/schema, dependency, live Mac or deployment changes.
 See `docs/plans/shopping-list-search.md` for validation and device checks.
+October 29 phone follow-up: Felipe reports search mostly looks good, but a gap
+above the keyboard. Moved measured keyboard clearance inside Screen's native
+safe area to avoid reserving the tab bottom inset twice. Four targeted suites /
+179 tests, types and lint pass; physical retest is pending. The earlier 274-test
+result predates this correction. No API or Mac runtime/data changes.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

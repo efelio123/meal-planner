@@ -3,6 +3,7 @@ import { Platform, RefreshControl, ScrollView, StyleSheet, type ScrollViewProps 
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { SafeAreaView as NativeTabSafeAreaView } from 'react-native-screens/experimental';
 import { useTheme } from '@/hooks/use-theme';
+import { KeyboardAwareSheet } from './keyboard-aware-sheet';
 
 /** Choose the chrome actually shown by the route, including modal presentation. */
 export type ScreenLayout = 'tab-root' | 'tab-stack' | 'stack-modal' | 'standalone';
@@ -11,6 +12,8 @@ export type StackScreenLayout = Extract<ScreenLayout, 'tab-stack' | 'stack-modal
 type ScreenProps = PropsWithChildren<{
   layout: ScreenLayout;
   contentAlignment?: 'center' | 'top';
+  /** Pass a stable boolean for a page with inline input; clearance sits inside native safe areas. */
+  inlineKeyboardActive?: boolean;
   refreshing?: boolean;
   onRefresh?: () => void | Promise<void>;
   onScrollBeginDrag?: ScrollViewProps['onScrollBeginDrag'];
@@ -25,7 +28,7 @@ const stackEdges: Edge[] = ['right', 'bottom', 'left'];
 const androidTabEdges: Edge[] = ['top', 'right', 'left'];
 const androidStackEdges: Edge[] = ['right', 'left'];
 
-export function Screen({ children, layout, contentAlignment = 'center', refreshing = false, onRefresh, onScrollBeginDrag, onScroll, footer, testID = 'screen' }: ScreenProps) {
+export function Screen({ children, layout, contentAlignment = 'center', inlineKeyboardActive, refreshing = false, onRefresh, onScrollBeginDrag, onScroll, footer, testID = 'screen' }: ScreenProps) {
   const theme = useTheme();
   const tabRoot = layout === 'tab-root';
   const nativeIosInsets = Platform.OS === 'ios' && (tabRoot || layout === 'tab-stack');
@@ -44,7 +47,7 @@ export function Screen({ children, layout, contentAlignment = 'center', refreshi
         // Native tab screens remain mounted beneath sheets. Letting their
         // ScrollViews follow a sheet's keyboard can leave a stale bottom inset
         // after dismissal, making the page scroll past all of its content.
-        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios' && !tabRoot}
+        automaticallyAdjustKeyboardInsets={Platform.OS === 'ios' && !tabRoot && inlineKeyboardActive === undefined}
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
         onScrollBeginDrag={onScrollBeginDrag}
@@ -66,8 +69,13 @@ export function Screen({ children, layout, contentAlignment = 'center', refreshi
       {footer}
     </>
   );
-  if (nativeIosInsets) return <NativeTabSafeAreaView edges={{ top: tabRoot, right: true, bottom: true, left: true }} style={[styles.safeArea, { backgroundColor: theme.screen }]}>{body}</NativeTabSafeAreaView>;
-  return <SafeAreaView edges={safeAreaEdges} style={[styles.safeArea, { backgroundColor: theme.screen }]}>{body}</SafeAreaView>;
+  // Reserve native navigation/home-indicator space first. Measuring outside
+  // this boundary would reserve that bottom inset again above the keyboard.
+  const insetBody = inlineKeyboardActive === undefined ? body : (
+    <KeyboardAwareSheet enabled={inlineKeyboardActive} testID="screen-inline-keyboard-area">{body}</KeyboardAwareSheet>
+  );
+  if (nativeIosInsets) return <NativeTabSafeAreaView edges={{ top: tabRoot, right: true, bottom: true, left: true }} style={[styles.safeArea, { backgroundColor: theme.screen }]}>{insetBody}</NativeTabSafeAreaView>;
+  return <SafeAreaView edges={safeAreaEdges} style={[styles.safeArea, { backgroundColor: theme.screen }]}>{insetBody}</SafeAreaView>;
 }
 
 export const styles = StyleSheet.create({

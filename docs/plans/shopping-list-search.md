@@ -117,7 +117,9 @@ preference is preserved while search temporarily exposes matches.
 
 For keyboard reachability, the existing measured KeyboardAwareSheet wrapper
 now accepts optional `enabled` (default true, preserving all sheet callers).
-Shopping enables it only for its focused inline input. Blur, tab/sheet departure
+Screen owns that measured frame inside its native safe-area boundary via a
+stable `inlineKeyboardActive` boolean; Shopping activates it only for its
+focused input. Blur, tab/sheet departure
 and household/session changes remove those subscriptions and derive zero
 clearance; old measurements are invalidated. Existing native tab insets and
 Screen's sheet-keyboard protection remain unchanged. No second ScrollView or
@@ -169,3 +171,34 @@ navigation, release the scroll, then dismiss the keyboard and return from a
 sheet: no snapping, lingering bottom space or clipped actions. Compare Recipes'
 search field and check larger text in the current theme. Automated results do
 not establish native geometry, swipe feel or Android acceptance.
+
+
+## Phone review follow-up — keyboard gap, October 29
+
+Felipe reports search mostly looks good, with a black strip above the keyboard.
+The first implementation wrapped Screen in the measured keyboard frame. The
+iOS native tab SafeAreaView reads its ancestor provider's insets even when its
+own frame is reduced, leaving the tab/home-indicator allowance inside the
+already keyboard-cleared area. Source inspection of installed
+react-native-screens 4.30.0 confirmed that provider-based behavior.
+
+Moved the opt-in keyboard frame **inside** Screen's safe area, around its body
+and optional footer. The viewport is measured after native insets, so only the
+actual remaining overlap is cleared. Other pages keep their default structure;
+Shopping always passes its focus boolean, preserving scroll identity across
+focus changes. The measured owner disables automatic scroll keyboard insets
+for opted-in pages and no fixed offsets or native configuration changed.
+
+Validation: **179 tests / 4 targeted suites pass**, no skips: Screen layout,
+measured keyboard clearance, Shopping screen and actual-router navigation.
+Regressions place the measured frame below the safe-area owner, keep the same
+scroll instance through focus/blur, and simulate top 70/bottom 84 insets in an
+844-point window: a keyboard at 500 needs 260 points cleared from the inner
+viewport, leaving its content boundary exactly at 500. TypeScript, Expo lint
+and whitespace pass. The earlier 274-test result predates this correction;
+full mobile suite, physical retest, Android/native builds, hosted CI and database
+checks remain unrun for this UI-only follow-up. No API or Mac runtime/data change.
+
+Phone retest: focus Shopping search and confirm the list reaches the keyboard
+without the black strip; scroll to the final row/action, dismiss the keyboard,
+and open/return from Add or Edit to check for clipping or lingering gaps.

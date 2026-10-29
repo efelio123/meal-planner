@@ -1,6 +1,7 @@
 import { act, fireEvent, render } from '@testing-library/react-native';
 import { Keyboard, Platform, StyleSheet, Text, type KeyboardEvent } from 'react-native';
 import { KeyboardAwareSheet, sheetKeyboardOverlap } from './keyboard-aware-sheet';
+import { Screen } from './screen';
 
 type Measurement = (x: number, y: number, width: number, height: number) => void;
 const mockMeasure = jest.fn<void, [Measurement]>();
@@ -82,6 +83,25 @@ describe('measured sheet keyboard clearance', () => {
     expect(padding()).toBe(0);
     expect(callbacks.size).toBe(0);
     expect(view.getByText('Shopping')).toBeTruthy();
+  });
+
+  it('clears only the keyboard overlap inside a tab page’s already reserved native safe area', async () => {
+    // Screen provider: top 70, bottom 84 in an 844-point window. The inner
+    // viewport therefore ends at 760, not 844. Keyboard begins at 500.
+    mockMeasure.mockImplementation((callback) => callback(0, 70, 390, 690));
+    const view = await render(<Screen layout="tab-root" inlineKeyboardActive contentAlignment="top"><Text>Last Shopping row</Text></Screen>);
+    const frame = view.getByTestId('screen-inline-keyboard-area');
+    expect(frame.parent?.props.edges).toEqual({ top: true, right: true, bottom: true, left: true });
+    expect(view.getByTestId('screen').parent).toBe(frame);
+    await act(async () => { callbacks.get('keyboardWillChangeFrame')!(event); });
+    const clearance = StyleSheet.flatten(view.getByTestId('screen-inline-keyboard-area').props.style).paddingBottom;
+    expect(clearance).toBe(260);
+    expect(70 + 690 - clearance).toBe(event.endCoordinates.screenY);
+    expect(view.getByTestId('screen').props.automaticallyAdjustKeyboardInsets).toBe(false);
+    await view.rerender(<Screen layout="tab-root" inlineKeyboardActive={false} contentAlignment="top"><Text>Last Shopping row</Text></Screen>);
+    expect(StyleSheet.flatten(view.getByTestId('screen-inline-keyboard-area').props.style).paddingBottom).toBe(0);
+    expect(frame.parent?.props.edges.bottom).toBe(true);
+    expect(callbacks.size).toBe(0);
   });
 
   it('rejects a late measurement after keyboard dismissal or sheet unmount', async () => {

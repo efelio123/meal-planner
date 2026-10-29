@@ -673,7 +673,7 @@ describe('signed-in startup routing', () => {
     await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await screen.findByText('Milk');
     await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'milk');
-    await act(async () => within(screen.getByTestId('shopping-search-keyboard-area')).getByTestId('screen').props.refreshControl.props.onRefresh());
+    await act(async () => within(screen.getByTestId('screen-inline-keyboard-area')).getByTestId('screen').props.refreshControl.props.onRefresh());
     await act(async () => { mockSetSelectedHouseholdId?.('household-b'); });
     await screen.findByText('Soap');
     expect(screen.getByLabelText('Search shopping list').props.value).toBe('');

@@ -5,6 +5,20 @@ import { Screen, type ScreenLayout } from './screen';
 const originalPlatform = Platform.OS;
 afterEach(() => { Platform.OS = originalPlatform; });
 
+it('keeps the inline keyboard frame inside native safe areas across focus and retains scroll content', async () => {
+  Platform.OS = 'ios';
+  const view = await render(<Screen layout="tab-root" inlineKeyboardActive={false}><Text>Shopping content</Text></Screen>);
+  const scroll = view.getByTestId('screen');
+  const frame = view.getByTestId('screen-inline-keyboard-area');
+  expect(scroll.parent).toBe(frame);
+  expect(frame.parent?.props.edges.bottom).toBe(true);
+  await view.rerender(<Screen layout="tab-root" inlineKeyboardActive><Text>Shopping content</Text></Screen>);
+  expect(view.getByTestId('screen')).toBe(scroll);
+  await view.rerender(<Screen layout="tab-root" inlineKeyboardActive={false}><Text>Shopping content</Text></Screen>);
+  expect(view.getByTestId('screen')).toBe(scroll);
+  expect(frame.parent?.props.edges.bottom).toBe(true);
+});
+
 describe.each(['ios', 'android', 'web'] as const)('%s page layout ownership', (platform) => {
   it.each(['tab-root', 'tab-stack', 'stack-modal', 'standalone'] as ScreenLayout[])('%s reserves only its visible chrome and keeps the final action outside the scroll body', async (layout) => {
     Platform.OS = platform;

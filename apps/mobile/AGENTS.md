@@ -50,6 +50,10 @@ For this SDK migration, also follow https://docs.expo.dev/router/migrate/sdk-57-
   a sheet already resized by the keyboard must receive zero additional overlap.
   Single-scroll forms use their scroll view's keyboard inset handling instead.
   Do not combine these owners or assume keyboard height equals sheet overlap.
+- For inline input on a tab page, pass Screen a stable `inlineKeyboardActive`
+  boolean. Its measured keyboard frame belongs inside the native safe area.
+  Do not wrap Screen in KeyboardAwareSheet: the tab bottom inset would remain
+  inside the reduced frame and create an extra gap above the keyboard.
 - The approved audit and layout repair are recorded in
   `docs/plans/app-wide-page-reachability.md`; retain its acceptance checklist.
 

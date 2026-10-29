@@ -4,7 +4,6 @@ import { ActivityIndicator, Alert, Keyboard, Platform, Pressable, StyleSheet, Vi
 import { SymbolView } from 'expo-symbols';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
-import { KeyboardAwareSheet } from '@/components/keyboard-aware-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { CircularAddButton, DisclosureChevron, ExpansionChevron, TabPageHeader, visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
@@ -244,7 +243,7 @@ export default function ShoppingListScreen() {
     </ShoppingSwipeRow>;
   });
 
-  return <KeyboardAwareSheet enabled={searchFocused} testID="shopping-search-keyboard-area"><Screen layout="tab-root" contentAlignment="top" onRefresh={() => { setOpenSwipeId(null); return refresh(); }}
+  return <Screen layout="tab-root" inlineKeyboardActive={searchFocused} contentAlignment="top" onRefresh={() => { setOpenSwipeId(null); return refresh(); }}
     onScrollBeginDrag={(event) => { scrollStartedAfterReveal.current = Boolean(openSwipeId); scrollDragStartY.current = event.nativeEvent.contentOffset.y; scrollOffsetY.current = scrollDragStartY.current; }}
     onScroll={(event) => {
       // The vertical ScrollView can begin a drag during a horizontal row swipe.
@@ -299,7 +298,7 @@ export default function ShoppingListScreen() {
       </View> : null}
       {Platform.OS === 'web' ? <PrimaryButton disabled={loading} onPress={() => { setOpenSwipeId(null); void refresh(); }} title={loading ? 'Refreshing…' : 'Refresh'} /> : null}
     </View>
-  </Screen></KeyboardAwareSheet>;
+  </Screen>;
 }
 
 const styles = StyleSheet.create({
