@@ -183,3 +183,32 @@ Phone acceptance after reloading local Expo:
 4. Verify fixed actions and sheet headers remain usable with keyboard open/
    closed. Scope switches must clear old drafts/searches, not carry them to
    another household. Record actual checks rather than assuming full coverage.
+
+## Shopping choice Back follow-up — October 29, 2026
+
+Felipe reports that Shopping -> Create Catalog item -> Store -> Create store
+or Manage stores has no visible Back arrow, trapping the user. These Shopping
+choice routes use fullScreenModal presentation and had no explicit headerLeft;
+the Shopping Catalog edit modal already used the shared AppBackButton for this
+case. Earlier router tests used programmatic Back, which checked draft/route
+return without establishing that a native modal exposed a usable Back action.
+
+On `codex/shopping-choice-back-navigation`, the Shopping stack now gives all
+three choice routes (Manage, Create and Edit) the same explicit AppBackButton.
+It pops exactly one route, returning to a manager when appropriate and then to
+the retained Catalog/Shopping draft. The dynamic routes cover Stores, Shopping
+Units and Categories. Full-screen modal presentation and its existing layout
+owner remain unchanged; no custom modal/header or new route is introduced.
+Related Catalog/Recipes choice pages retain their ordinary stack headers.
+
+New regressions render and press the modal header arrow, exercise Create and
+Manage from Shopping's new-item form for all three choice kinds, and walk
+Store Manage -> Edit/Create -> Back -> Manage -> Back -> Catalog draft without
+saving. Physical iPhone retest remains pending. This is a small follow-up to
+the approved slice, not approval for another feature or deployment.
+
+Validation: the coordinated choice-navigation and actual-router run passed
+2 suites / 102 tests, no skips (54.046s); TypeScript, Expo lint and diff checks
+passed. No API/database changes; database tests, full mobile suite, native build
+and physical-device checks are unrun for this follow-up. The earlier 219-test
+feature result is historical and is not claimed as a rerun of this edit.

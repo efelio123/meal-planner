@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: October 28, 2026
+Last updated: October 29, 2026
 
 ## Purpose of this document
 
@@ -102,6 +102,12 @@ mobile suites / 219 tests, TypeScript and lint pass; actual-router manager
 Create/Cancel coverage passes in a subsequent 89-test run. Phone acceptance
 remains pending. No API/schema, dependency, live Mac or deployment changes.
 See `docs/plans/search-create-name-prefill.md` for validation and phone checks.
+October 29 follow-up: Felipe reports missing Back arrows on Shopping-origin
+Store Create/Manage. Shopping's full-screen choice modals now explicitly reuse
+AppBackButton on Manage/Create/Edit routes, also covering Units and Categories,
+on `codex/shopping-choice-back-navigation`. Route tests now press the visible
+arrow and verify one-level returns with drafts intact. Physical retest remains
+pending; see the focused plan for results. No API/schema or live Mac changes.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
