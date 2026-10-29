@@ -1,7 +1,9 @@
 # Shopping list search — F05
 
 Status: approved and implemented October 29, 2026. Felipe directly assigned
-implementation to the chat agent. Physical review remains pending. No API,
+implementation to the chat agent. Felipe accepted the reviewed search and
+keyboard-spacing correction October 29 ("Okay that looks good now"). Individual
+device-checklist cases and Android acceptance are not inferred. No API,
 schema, dependency, deployment or live-data changes.
 
 Planning branch: `codex/shopping-search-plan`, from clean `c2b6b00` after
@@ -202,3 +204,10 @@ checks remain unrun for this UI-only follow-up. No API or Mac runtime/data chang
 Phone retest: focus Shopping search and confirm the list reaches the keyboard
 without the black strip; scroll to the final row/action, dismiss the keyboard,
 and open/return from Add or Edit to check for clipping or lingering gaps.
+
+
+October 29 acceptance: after the keyboard-boundary correction at `23140e9`,
+Felipe reports "Okay that looks good now" and accepts the reviewed Shopping
+search and spacing. This does not establish every long-list/larger-text,
+keyboard/sheet-return, cross-phone or Android checklist case. Deployment and
+native builds remain separate from this local acceptance.

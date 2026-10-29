@@ -157,6 +157,10 @@ above the keyboard. Moved measured keyboard clearance inside Screen's native
 safe area to avoid reserving the tab bottom inset twice. Four targeted suites /
 179 tests, types and lint pass; physical retest is pending. The earlier 274-test
 result predates this correction. No API or Mac runtime/data changes.
+Felipe subsequently accepts the reviewed Shopping search and keyboard-spacing
+correction October 29 ("Okay that looks good now") after `23140e9`. Individual
+device-checklist cases and Android acceptance are not inferred; deployment and
+native builds remain separate.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
