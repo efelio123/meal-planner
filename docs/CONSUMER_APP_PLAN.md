@@ -115,7 +115,12 @@ management. Done closes the picker; direct Create success still selects and
 returns to the form, while manager subpages return to their manager. Focus
 guards and Activity-aware removal cleanup cover the retained layer. Full mobile
 validation passes 58 suites / 479 tests, TypeScript and lint. The clarified
-native flow awaits physical retest; no API/schema, live Mac or deployment change.
+native flow was awaiting physical retest at that validation pass. Felipe then
+reports “Okay looks great” October 29 and accepts the reviewed Shopping picker
+flow. Individual checklist cases, other origins and Android acceptance are not
+inferred from that report. F02 (one complete recipe measurement-unit list) is
+the next candidate for planning, not yet approved for implementation. No
+API/schema, live Mac or deployment change.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

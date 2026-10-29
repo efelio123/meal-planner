@@ -1,8 +1,11 @@
 # Search-to-create name prefill — F08
 
 Status: approved by Felipe and implemented October 28, 2026 on
-`codex/search-create-prefill`. Phone acceptance is pending. Felipe explicitly
-asked the chat agent to implement this feature directly.
+`codex/search-create-prefill`, with Shopping navigation follow-ups on
+`codex/shopping-choice-back-navigation`. Felipe accepts the reviewed Shopping
+picker return flow October 29 (“Okay looks great”). The wider per-origin
+device checklist and Android acceptance are not inferred from that report.
+Felipe explicitly asked the chat agent to implement this feature directly.
 
 Planning branch: `codex/search-create-prefill-plan`, from clean `75d713b`
 after the accepted Shopping re-add fix. Preserve the accepted family-trial
@@ -255,3 +258,11 @@ the Store picker (same query/scroll/detent), then Done reveals the unchanged ite
 draft. Repeat Create from the returned picker to ensure it remains responsive;
 Save should select the new choice and return to the draft. Physical visibility
 of the full-screen modal above the retained picker still requires this retest.
+
+Acceptance update, October 29: after the return-destination correction Felipe
+reports “Okay looks great”. Mark the reviewed Shopping picker flow accepted.
+The preceding physical-test notes describe what was pending before that report;
+they do not establish individual results for every query, scroll/detent, Save,
+other-origin or Android case. No application changes follow this acceptance.
+F02 (one complete recipe measurement-unit list) is the next planned candidate,
+requiring its own plan review before implementation.

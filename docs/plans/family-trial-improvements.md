@@ -75,9 +75,10 @@ iPhone UI, including the final emoji-input fix at `fa3186f`. Individual matrix
 cases and Android acceptance are not inferred from that report. No API, schema,
 or Mac changes. Batch D (B12) was subsequently approved, implemented and accepted
 in review October 28; see `shopping-readd-correctness.md`. F08 search-to-create
-name prefill was then approved and implemented; its phone acceptance is pending
-under `search-create-name-prefill.md`. F02 is the next feature candidate after
-that review, with separate plan approval required.
+name prefill was then approved and implemented. Felipe accepts the reviewed
+Shopping picker return follow-up October 29; the broader device checklist is
+not individually established. See `search-create-name-prefill.md`. F02 is the
+next feature candidate, with separate plan approval required.
 
 Ship a safer, more usable build for the next week of family testing. Fix the
 reported failures in coherent batches, then take on small features individually.
@@ -147,7 +148,7 @@ individual slices, even when they depend on the same bug fixes.
 | F05 | Search the Shopping list to find and check items quickly. | Early small feature. Search composes with store/sort filters; toggling/removal acts on real item identity and preserves the query. |
 | F06 | Swipe a planned meal left to reveal Delete; continue the swipe to delete, matching Shopping exactly. | Bounded follow-up; reuse accepted circular trash action and swipe behavior. A swipe/cancel must not open meal editing. Keep actual threshold semantics consistent. |
 | F07 | Meal-slot recipe selection includes Leftovers and Eating out, with optional meal/restaurant text displayed in Plan. | Separate schema/API feature. Proposed non-recipe entry types; exclude them from ingredient-shopping calculations unless a later explicit feature changes this. Preserve old recipe entries. |
-| F08 | Search then Create Food item/ingredient, Store, or Shopping Unit prepopulates the name with the unfulfilled search. | Approved and implemented October 28 in `search-create-name-prefill.md`; phone acceptance pending. Current search seeds the name once, preserves nested drafts and includes Category/manager consistency. 10 targeted suites / 219 tests, types and lint pass. 'Shipping unit' means Shopping Unit. |
+| F08 | Search then Create Food item/ingredient, Store, or Shopping Unit prepopulates the name with the unfulfilled search. | Implemented October 28; Shopping picker-return follow-up accepted in review October 29. Current search seeds the name once and preserves drafts. Latest full mobile validation: 58 suites / 479 tests, types and lint pass. Broader per-origin/Android device checks not individually established. See `search-create-name-prefill.md`. |
 | F09 | Optional ingredient sections within a recipe, e.g. Chicken and Mashed potatoes. | Larger recipe-structure feature. These are recipe sections, not nested household Catalog categories. Preserve unsectioned recipes and ordering. |
 | F10 | Copy another recipe's ingredients and directions into an editable recipe draft without modifying the source. | Separate feature after a sections/duplicate-ingredient decision. Decide insertion, servings/scaling, and duplicate Catalog ingredients before designing storage/UI. No live linked edits to the source recipe. |
 | F11 | Each user independently adjusts the visible week horizontally. Its leftmost date defaults Review shopping needs to seven days, and the review also offers an editable start/end date range for any desired shopping period. | Larger planning-range feature. Personal view only; never move or alter shared planned meals or another person's view. Update API range validation and consolidation for arbitrary ranges, not merely a Monday/Sunday switch. Persistence and practical range limits need a focused plan. |
