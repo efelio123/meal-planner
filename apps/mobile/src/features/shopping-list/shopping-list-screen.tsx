@@ -1,9 +1,10 @@
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, Platform, Pressable, StyleSheet, View, type TextInputInstance } from 'react-native';
 import { SymbolView } from 'expo-symbols';
-import { PrimaryButton } from '@/components/themed-controls';
+import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
+import { KeyboardAwareSheet } from '@/components/keyboard-aware-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { CircularAddButton, DisclosureChevron, ExpansionChevron, TabPageHeader, visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
@@ -29,6 +30,9 @@ export default function ShoppingListScreen() {
   const { scope, createdItem, setCreatedItem, revisionForHousehold } = useShoppingContext();
   const mealPlanContext = useMealPlanContextOptional();
   const { addOrReadd, clear, clearPurchased, clearing, error, householdId, items, loading, pendingItemIds, refresh, remove, toggle } = useShoppingList();
+  const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchInput = useRef<TextInputInstance>(null);
   const [storeFilter, setStoreFilter] = useState('all');
   const [sort, setSort] = useState<SortKey>('recent');
   const [purchasedExpanded, setPurchasedExpanded] = useState(true);
@@ -53,6 +57,10 @@ export default function ShoppingListScreen() {
     if (scopeRef.current === scope) return;
     scopeRef.current = scope;
     scopeVersion.current += 1;
+    setSearch('');
+    searchInput.current?.blur();
+    setSearchFocused(false);
+    Keyboard.dismiss();
     setStoreFilter('all');
     setSort('recent');
     setPurchasedExpanded(true);
@@ -77,12 +85,27 @@ export default function ShoppingListScreen() {
       void refresh();
     }
   }, [householdId, mealRevision, refresh, shoppingRevision]);
+  const dismissSearch = useCallback(() => {
+    searchInput.current?.blur();
+    setSearchFocused(false);
+    Keyboard.dismiss();
+  }, []);
+  useFocusEffect(useCallback(() => () => {
+    searchInput.current?.blur();
+    setSearchFocused(false);
+  }, []));
+  const closeSwipeForSearch = () => {
+    setOpenSwipeId(null);
+    scrollStartedAfterReveal.current = false;
+    suppressRowPressUntil.current = 0;
+  };
   const params = useLocalSearchParams<{ editItemId?: string }>();
   const quickAdd = useCallback((item: CatalogItem) => addOrReadd(item.id), [addOrReadd]);
   const openItem = useCallback(async (item: ShoppingListItem) => {
     if (clearing || !householdId || !item.catalog_item_id) return;
     setOpenSwipeId(null);
     setActionError(null);
+    dismissSearch();
     openShoppingDetails(sheetFlow, router, {
       id: item.catalog_item_id,
       item_type: item.catalog_item_type ?? 'food',
@@ -93,7 +116,7 @@ export default function ShoppingListScreen() {
       preferred_store_id: item.catalog_preferred_store_id ?? null,
       archived: item.catalog_item_archived ?? false,
     }, item, { onChanged: () => undefined, onRemove: remove });
-  }, [clearing, householdId, remove, router, sheetFlow]);
+  }, [clearing, dismissSearch, householdId, remove, router, sheetFlow]);
 
   useFocusEffect(useCallback(() => {
     const itemId = typeof params.editItemId === 'string' ? params.editItemId : null;
@@ -121,7 +144,11 @@ export default function ShoppingListScreen() {
     { id: 'none', label: 'No store' },
   ], [items]);
   const activeStoreFilter = storeOptions.some((option) => option.id === storeFilter) ? storeFilter : 'all';
-  const filtered = items.filter((item) => activeStoreFilter === 'all' || (activeStoreFilter === 'none' ? !item.store_id : item.store_id === activeStoreFilter));
+  const query = search.trim().toLocaleLowerCase();
+  const searching = query.length > 0;
+  const showPurchased = searching || purchasedExpanded;
+  const filtered = items.filter((item) => (activeStoreFilter === 'all' || (activeStoreFilter === 'none' ? !item.store_id : item.store_id === activeStoreFilter))
+    && item.name.toLocaleLowerCase().includes(query));
   const compareName = (a: ShoppingListItem, b: ShoppingListItem) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
   const ordered = [...filtered].sort((a, b) => {
     if (sort === 'name-asc') return compareName(a, b);
@@ -133,6 +160,7 @@ export default function ShoppingListScreen() {
   const toBuy = ordered.filter((item) => !item.is_checked); const purchased = ordered.filter((item) => item.is_checked);
   const addFromCatalog = () => {
     if (clearing) return;
+    dismissSearch();
     setOpenSwipeId(null);
     setActionError(null);
     const sheetId = sheetFlow.present(<ShoppingCatalogPickerSheet items={items} onAdd={quickAdd} />, { detents: [0.65, 0.94], initialDetent: 1 });
@@ -140,6 +168,7 @@ export default function ShoppingListScreen() {
   };
   const clearList = (mode: 'all' | 'purchased') => {
     if (bulkDisabled) return;
+    dismissSearch();
     const startedScope = scopeRef.current;
     const startedVersion = scopeVersion.current;
     const isCurrent = () => scopeRef.current === startedScope && scopeVersion.current === startedVersion;
@@ -215,7 +244,7 @@ export default function ShoppingListScreen() {
     </ShoppingSwipeRow>;
   });
 
-  return <Screen layout="tab-root" contentAlignment="top" onRefresh={() => { setOpenSwipeId(null); return refresh(); }}
+  return <KeyboardAwareSheet enabled={searchFocused} testID="shopping-search-keyboard-area"><Screen layout="tab-root" contentAlignment="top" onRefresh={() => { setOpenSwipeId(null); return refresh(); }}
     onScrollBeginDrag={(event) => { scrollStartedAfterReveal.current = Boolean(openSwipeId); scrollDragStartY.current = event.nativeEvent.contentOffset.y; scrollOffsetY.current = scrollDragStartY.current; }}
     onScroll={(event) => {
       // The vertical ScrollView can begin a drag during a horizontal row swipe.
@@ -230,8 +259,17 @@ export default function ShoppingListScreen() {
     <View style={styles.content}>
       <TabPageHeader title="Shopping" subtitle={<ThemedText themeColor="textSecondary">{selectedHousehold?.name ?? 'Household'} · shared list</ThemedText>} actions={<CircularAddButton accessibilityLabel="Add from Catalog" disabled={Boolean(clearing)} onPress={addFromCatalog} />} />
       {shoppingNotice ? <View style={[styles.notice, { backgroundColor: theme.surfaceSelected }]}><ThemedText accessibilityRole="alert" style={styles.noticeText}>{shoppingNotice.count} {shoppingNotice.count === 1 ? 'item' : 'items'} added from this week’s meals.</ThemedText><Pressable accessibilityRole="button" accessibilityLabel="Dismiss shopping confirmation" onPress={() => mealPlanContext?.clearShoppingAddNotice(shoppingNotice.requestId)}><ThemedText themeColor="link">Dismiss</ThemedText></Pressable></View> : null}
-      <View style={styles.filterRow}><View style={styles.filter}><ChoicePicker compact label="Store" choices={storeOptions} selectedId={activeStoreFilter} value={storeOptions.find((option) => option.id === activeStoreFilter)?.label ?? 'All stores'} onSelect={(value) => { setOpenSwipeId(null); setStoreFilter(value); }} /></View><View style={styles.filter}><ChoicePicker compact label="Sort" choices={sortOptions} selectedId={sort} value={sortOptions.find((option) => option.id === sort)?.label ?? 'Recently added'} onSelect={(value) => { setOpenSwipeId(null); setSort(value as SortKey); }} /></View></View>
-      <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>To buy</ThemedText><ThemedText themeColor="textSecondary">{toBuy.length}</ThemedText></View>
+      <View style={[styles.searchField, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}>
+        <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={19} tintColor={theme.inputPlaceholder} />
+        <ThemedInput ref={searchInput} accessibilityLabel="Search shopping list" autoCapitalize="none" autoCorrect={false} placeholder="Search shopping list" returnKeyType="search" submitBehavior="blurAndSubmit" value={search}
+          onFocus={() => { closeSwipeForSearch(); setSearchFocused(true); }} onBlur={() => setSearchFocused(false)} onSubmitEditing={dismissSearch}
+          onChangeText={(value) => { closeSwipeForSearch(); setSearch(value); }} style={styles.searchInput} />
+        {search.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={4} onPress={() => { closeSwipeForSearch(); setSearch(''); }} style={styles.clearSearch}>
+          <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' }} size={21} tintColor={theme.inputPlaceholder} />
+        </Pressable> : null}
+      </View>
+      <View style={styles.filterRow}><View style={styles.filter}><ChoicePicker compact label="Store" onOpen={dismissSearch} choices={storeOptions} selectedId={activeStoreFilter} value={storeOptions.find((option) => option.id === activeStoreFilter)?.label ?? 'All stores'} onSelect={(value) => { setOpenSwipeId(null); setStoreFilter(value); }} /></View><View style={styles.filter}><ChoicePicker compact label="Sort" onOpen={dismissSearch} choices={sortOptions} selectedId={sort} value={sortOptions.find((option) => option.id === sort)?.label ?? 'Recently added'} onSelect={(value) => { setOpenSwipeId(null); setSort(value as SortKey); }} /></View></View>
+      <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>To buy</ThemedText><ThemedText testID="shopping-to-buy-count" themeColor="textSecondary">{toBuy.length}</ThemedText></View>
       {loading && items.length === 0 ? <ActivityIndicator accessibilityLabel="Loading shopping list" color={theme.activity} /> : null}
       {error ? <View style={styles.message}><ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText><PrimaryButton onPress={() => { setOpenSwipeId(null); void refresh(); }} title="Retry" /></View> : null}
       {actionError ? <ThemedText accessibilityRole="alert" themeColor="error">{actionError}</ThemedText> : null}
@@ -242,25 +280,33 @@ export default function ShoppingListScreen() {
           setActionError(reason instanceof Error ? reason.message : 'We couldn’t add this Catalog item. Please try again.');
         }).finally(() => { if (scopeRef.current === scope) setRetryingCreatedItem(false); });
       }} title={retryingCreatedItem ? 'Adding…' : `Retry adding ${failedCreatedItem.item.name}`} /> : null}
-      {!loading && !error && toBuy.length === 0 ? <ThemedText themeColor="textSecondary">{activeStoreFilter === 'all' ? 'Nothing to buy yet. Add items from your Catalog.' : 'No items to buy for this store.'}</ThemedText> : null}
-      <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(toBuy)}</View>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: purchasedExpanded }} onPress={() => { setOpenSwipeId(null); setPurchasedExpanded((value) => !value); }} style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Purchased</ThemedText><View style={styles.purchasedHeaderRight}><ThemedText themeColor="textSecondary">{purchased.length}</ThemedText><ExpansionChevron expanded={purchasedExpanded} /></View></Pressable>
-      {purchasedExpanded && purchased.length ? <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(purchased)}</View> : null}
-      {purchasedExpanded && !purchased.length && items.length ? <ThemedText themeColor="textSecondary">No purchased items yet.</ThemedText> : null}
-      {!loading && !error && items.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.empty}>Your shared Shopping list is ready for Catalog items.</ThemedText> : null}
+      {!searching && !loading && !error && toBuy.length === 0 ? <ThemedText themeColor="textSecondary">{activeStoreFilter === 'all' ? 'Nothing to buy yet. Add items from your Catalog.' : 'No items to buy for this store.'}</ThemedText> : null}
+      {searching && !loading && !error && filtered.length === 0 ? <View style={styles.message}>
+        <ThemedText themeColor="textSecondary">No items match your search.</ThemedText>
+        {activeStoreFilter !== 'all' ? <ThemedText themeColor="textSecondary">Try another name or change the Store filter.</ThemedText> : null}
+      </View> : null}
+      {toBuy.length > 0 ? <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(toBuy)}</View> : null}
+      {searching ? <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Purchased</ThemedText><ThemedText testID="shopping-purchased-count" themeColor="textSecondary">{purchased.length}</ThemedText></View>
+        : <Pressable accessibilityRole="button" accessibilityState={{ expanded: purchasedExpanded }} onPress={() => { setOpenSwipeId(null); setPurchasedExpanded((value) => !value); }} style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Purchased</ThemedText><View style={styles.purchasedHeaderRight}><ThemedText testID="shopping-purchased-count" themeColor="textSecondary">{purchased.length}</ThemedText><ExpansionChevron expanded={purchasedExpanded} /></View></Pressable>}
+      {showPurchased && purchased.length ? <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(purchased)}</View> : null}
+      {!searching && purchasedExpanded && !purchased.length && items.length ? <ThemedText themeColor="textSecondary">No purchased items yet.</ThemedText> : null}
+      {!searching && !loading && !error && items.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.empty}>Your shared Shopping list is ready for Catalog items.</ThemedText> : null}
       {clearNotice ? <ThemedText accessibilityLiveRegion="polite">{clearNotice}</ThemedText> : null}
       {items.length > 0 ? <View style={styles.clearActions}>
-        <ThemedText themeColor="textSecondary">Applies to all stores.</ThemedText>
+        <ThemedText themeColor="textSecondary">Applies to all stores, including hidden items.</ThemedText>
         {items.some((item) => item.is_checked) ? <Pressable accessibilityRole="button" accessibilityLabel="Clear purchased items" accessibilityState={{ disabled: bulkDisabled }} disabled={bulkDisabled} onPress={() => clearList('purchased')} style={[styles.clearAction, { borderColor: theme.border, opacity: bulkDisabled ? 0.5 : 1 }]}><ThemedText themeColor="error">{clearing === 'purchased' ? 'Clearing…' : 'Clear purchased items'}</ThemedText></Pressable> : null}
         <Pressable accessibilityRole="button" accessibilityLabel="Clear entire list" accessibilityState={{ disabled: bulkDisabled }} disabled={bulkDisabled} onPress={() => clearList('all')} style={[styles.clearAction, { borderColor: theme.border, opacity: bulkDisabled ? 0.5 : 1 }]}><ThemedText themeColor="error">{clearing === 'all' ? 'Clearing…' : 'Clear entire list'}</ThemedText></Pressable>
       </View> : null}
       {Platform.OS === 'web' ? <PrimaryButton disabled={loading} onPress={() => { setOpenSwipeId(null); void refresh(); }} title={loading ? 'Refreshing…' : 'Refresh'} /> : null}
     </View>
-  </Screen>;
+  </Screen></KeyboardAwareSheet>;
 }
 
 const styles = StyleSheet.create({
   clearActions: { gap: 10 },
+  searchField: { alignItems: 'center', borderRadius: 9, borderWidth: 1, flexDirection: 'row', gap: 12, minHeight: 52, paddingHorizontal: 14 },
+  searchInput: { backgroundColor: 'transparent', borderWidth: 0, flex: 1, minWidth: 0, paddingHorizontal: 0 },
+  clearSearch: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 44 },
   content: { gap: 16, paddingBottom: 18 },
   notice: { alignItems: 'center', borderRadius: 12, flexDirection: 'row', gap: 12, justifyContent: 'space-between', padding: 12 }, noticeText: { flex: 1 }, filterRow: { flexDirection: 'row', gap: 10 }, filter: { flex: 1 }, sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }, group: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' }, itemRow: { alignItems: 'center', flexDirection: 'row', gap: 10, minHeight: 68, paddingHorizontal: 10, paddingVertical: 9 }, checkHit: { alignItems: 'center', height: 44, justifyContent: 'center', width: 40 }, itemBody: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 8, minHeight: 44, minWidth: 0 }, itemCopy: { flex: 1, gap: 4, minWidth: 0 }, itemName: { fontSize: 16, fontWeight: '600' }, checked: { textDecorationLine: 'line-through' }, itemSubtitle: { fontSize: 13 }, purchasedHeaderRight: { alignItems: 'center', flexDirection: 'row', gap: 8 }, clearAction: { alignItems: 'center', borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, justifyContent: 'center', minHeight: 46, marginTop: 4 }, empty: { paddingBottom: 4 }, message: { gap: 10 },
 });

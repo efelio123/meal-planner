@@ -6,8 +6,8 @@ export function sheetKeyboardOverlap(sheetTop: number, sheetHeight: number, keyb
   return Math.max(0, Math.min(sheetHeight, Math.ceil(sheetTop + sheetHeight - keyboardTop)));
 }
 
-/** One keyboard owner for a bounded sheet with independently scrolling content. */
-export function KeyboardAwareSheet({ children, style, ...props }: PropsWithChildren<Omit<ViewProps, 'onLayout'>>) {
+/** One measured keyboard owner for bounded scrolling content. Inline inputs opt in only while focused. */
+export function KeyboardAwareSheet({ children, enabled = true, style, ...props }: PropsWithChildren<Omit<ViewProps, 'onLayout'> & { enabled?: boolean }>) {
   const frame = useRef<ViewInstance>(null);
   const keyboardTop = useRef<number | null>(null);
   const active = useRef(true);
@@ -25,7 +25,13 @@ export function KeyboardAwareSheet({ children, style, ...props }: PropsWithChild
   }, []);
 
   useEffect(() => {
-    active.current = true;
+    active.current = enabled;
+    if (!enabled) {
+      keyboardTop.current = null;
+      measurement.current += 1;
+      // Disabled padding is derived below; re-enabling measures the current keyboard.
+      return;
+    }
     if (Platform.OS === 'web') return () => { active.current = false; };
     const update = (event: KeyboardEvent) => {
       Keyboard.scheduleLayoutAnimation(event);
@@ -48,9 +54,9 @@ export function KeyboardAwareSheet({ children, style, ...props }: PropsWithChild
       measurement.current += 1;
       subscriptions.forEach((subscription) => subscription.remove());
     };
-  }, [measure]);
+  }, [enabled, measure]);
 
-  return <View {...props} collapsable={false} ref={frame} onLayout={measure} style={[styles.frame, style, { paddingBottom: overlap }]}>
+  return <View {...props} collapsable={false} ref={frame} onLayout={measure} style={[styles.frame, style, { paddingBottom: enabled ? overlap : 0 }]}>
     {children}
   </View>;
 }

@@ -66,6 +66,24 @@ describe('measured sheet keyboard clearance', () => {
     expect(StyleSheet.flatten(view.getByTestId('frame').props.style).paddingBottom).toBe(300);
   });
 
+  it('opts out of other screens’ keyboards and rejects measurements after an inline input blurs', async () => {
+    const view = await render(<KeyboardAwareSheet enabled={false} testID="frame"><Text>Shopping</Text></KeyboardAwareSheet>);
+    const padding = () => StyleSheet.flatten(view.getByTestId('frame').props.style).paddingBottom;
+    expect(callbacks.size).toBe(0);
+    expect(padding()).toBe(0);
+    jest.mocked(Keyboard.metrics).mockReturnValue(event.endCoordinates);
+    await view.rerender(<KeyboardAwareSheet enabled testID="frame"><Text>Shopping</Text></KeyboardAwareSheet>);
+    expect(padding()).toBe(300);
+    let finish!: Measurement;
+    mockMeasure.mockImplementation((callback) => { finish = callback; });
+    await act(async () => { callbacks.get('keyboardWillChangeFrame')!(event); });
+    await view.rerender(<KeyboardAwareSheet enabled={false} testID="frame"><Text>Shopping</Text></KeyboardAwareSheet>);
+    await act(async () => { finish(0, 200, 390, 600); });
+    expect(padding()).toBe(0);
+    expect(callbacks.size).toBe(0);
+    expect(view.getByText('Shopping')).toBeTruthy();
+  });
+
   it('rejects a late measurement after keyboard dismissal or sheet unmount', async () => {
     let finish!: Measurement;
     mockMeasure.mockImplementation((callback) => { finish = callback; });

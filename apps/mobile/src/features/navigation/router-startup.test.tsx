@@ -2,7 +2,7 @@
 // exceed Jest's unit-test default. This is not an app startup performance check.
 import type { PropsWithChildren } from 'react';
 import { createElement } from 'react';
-import { act, fireEvent } from '@testing-library/react-native';
+import { act, fireEvent, within } from '@testing-library/react-native';
 import { router, type Href } from 'expo-router';
 import { renderRouter as renderActualRouter, screen, waitFor } from 'expo-router/testing-library';
 import { Alert, Button, Keyboard, Platform, StyleSheet, Text } from 'react-native';
@@ -618,12 +618,82 @@ describe('signed-in startup routing', () => {
     expect(api.shoppingList).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps Shopping search across tabs, Details cancel/save and nested Store selection', async () => {
+    let current = shoppingRow();
+    jest.mocked(api.shoppingList).mockImplementation(async () => ({ shopping_list: { ...shoppingListResponse().shopping_list, items: [current] } }));
+    jest.mocked(api.shoppingListItem).mockImplementation(async () => ({ item: current }));
+    jest.mocked(api.updateShoppingListItem).mockImplementation(async (_token, _household, _id, values) => {
+      current = { ...current, amount: values.amount ?? null };
+      return { item: current };
+    });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Milk');
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'mi');
+    expect(api.shoppingList).toHaveBeenCalledTimes(1);
+    await navigateTo(rendered, '/recipes');
+    await navigateTo(rendered, '/shopping');
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('mi');
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit Milk' }));
+    await screen.findByRole('button', { name: 'Save changes' });
+    await fireEvent.changeText(screen.getByLabelText('Amount'), '2');
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('mi');
+    expect(api.updateShoppingListItem).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit Milk' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled());
+    await fireEvent.changeText(screen.getByLabelText('Amount'), '3');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
+    await screen.findByText('3');
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('mi');
+    await fireEvent.press(screen.getByRole('button', { name: 'Store: All stores' }));
+    await screen.findByRole('button', { name: 'No store' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Close Store choices' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('mi');
+    await fireEvent.press(screen.getByRole('button', { name: 'Sort: Recently added' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Name A–Z' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('mi');
+    expect(screen.getByRole('button', { name: 'Sort: Name A–Z' })).toBeTruthy();
+  });
+
+  it('resets Shopping search across household/session changes and ignores an old refresh', async () => {
+    const stale = deferred<{ shopping_list: ShoppingList }>();
+    let homeReads = 0;
+    jest.mocked(api.shoppingList).mockImplementation(async (_token, householdId) => {
+      if (householdId === 'household-a') {
+        homeReads += 1;
+        if (homeReads > 1) return stale.promise;
+        return { shopping_list: { ...shoppingListResponse().shopping_list, items: [shoppingRow()] } };
+      }
+      return { shopping_list: { id: 'list-b', household_id: 'household-b', items: [shoppingRow({ id: 'soap', name: 'Soap', catalog_item_type: 'household' })] } };
+    });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Milk');
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'milk');
+    await act(async () => within(screen.getByTestId('shopping-search-keyboard-area')).getByTestId('screen').props.refreshControl.props.onRefresh());
+    await act(async () => { mockSetSelectedHouseholdId?.('household-b'); });
+    await screen.findByText('Soap');
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('');
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'soap');
+    await act(async () => { stale.resolve({ shopping_list: { ...shoppingListResponse().shopping_list, items: [shoppingRow({ name: 'Stale milk' })] } }); });
+    expect(screen.queryByText('Stale milk')).toBeNull();
+    expect(screen.getByText('Soap')).toBeTruthy();
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('soap');
+    await act(async () => { mockSetClerkIdentity?.('user-b', 'session-b'); });
+    await waitFor(() => expect(screen.getByLabelText('Search shopping list').props.value).toBe(''));
+    expect(await screen.findByText('Soap')).toBeTruthy();
+  });
+
   it('adds from the Catalog picker in one selection with amount 1 and no preference overrides', async () => {
     jest.mocked(api.catalogItems).mockResolvedValue({ items: [catalogItem()] });
     jest.mocked(api.addShoppingListItem).mockResolvedValue({ item: shoppingRow() });
     const renderResult = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await renderResult;
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'mi');
 
     await fireEvent.press(screen.getByRole('button', { name: 'Add from Catalog' }));
     expect(await screen.findByRole('button', { name: 'Add Milk from Catalog' })).toBeTruthy();
@@ -639,6 +709,7 @@ describe('signed-in startup routing', () => {
     expect(screen.getByRole('button', { name: 'Edit Milk' })).toBeTruthy();
     expect(api.addShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'item-1', { amount: '1' });
     expect(api.shoppingList).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('mi');
   });
 
   it('re-adds a purchased item in place and keeps the multi-add picker and search open', async () => {
@@ -650,6 +721,7 @@ describe('signed-in startup routing', () => {
     const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByRole('button', { name: 'Edit Milk' });
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'milk');
     await fireEvent.press(screen.getByRole('button', { name: 'Add from Catalog' }));
     await screen.findByRole('button', { name: 'Add Milk from Catalog' });
     await fireEvent.changeText(screen.getByLabelText('Search Catalog'), 'mil');
@@ -662,6 +734,7 @@ describe('signed-in startup routing', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
     await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
     expect(screen.getByRole('checkbox', { name: 'Mark Milk purchased' })).toBeTruthy();
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('milk');
     expect(screen.getByText('2 Pound · Market')).toBeTruthy();
     expect(api.shoppingList).toHaveBeenCalledTimes(1);
   });
