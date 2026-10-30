@@ -172,6 +172,8 @@ expected in this version.
 
 
 October 30 review: Felipe reports "That looks good" and accepts the reviewed
-headings, then requests header-tap collapsing. Follow-up behavior is proposed
-in `shopping-group-collapse.md`; search reveal, scoped memory and accessible
-controls need review before extending this headings-only implementation.
+headings, then requests header-tap collapsing. The follow-up in
+`shopping-group-collapse.md` was revised to allow toggles during search, approved
+and implemented October 30 on `codex/shopping-group-collapse`. It passes 281
+targeted tests, types and lint; physical review of collapsing remains pending.
+This supersedes the headings-only limit for the current implementation.

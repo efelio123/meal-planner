@@ -171,10 +171,15 @@ mobile suites / 256 tests, TypeScript and lint pass; physical review remains
 pending. No API/schema, dependency, keyboard-layout, live Mac or deployment
 changes. See `docs/plans/shopping-group-headings.md` for results and phone checks.
 Felipe subsequently accepts the reviewed headings October 30 and requests
-header-tap collapsing. The follow-up is proposed in
-`docs/plans/shopping-group-collapse.md`: independent group/section choices,
-screen-scoped memory and automatic reveal during search. Awaiting review;
-no collapse implementation changes yet. Broader device cases are not inferred.
+header-tap collapsing. He chose tappable headers even during search; the plan
+was revised before implementation. The follow-up is implemented directly on
+`codex/shopping-group-collapse`: independent normal/query choices per mode,
+section and group; new queries open matches, temporary collapses remain usable,
+and clearing search restores normal choices. Counts/shared arrows stay visible;
+scope changes and successful full clear reset choices. Seven targeted suites /
+281 tests, types and lint pass. Physical collapse review remains pending; no
+API/schema, dependency, keyboard-layout, Mac runtime/data or deployment changes.
+See `docs/plans/shopping-group-collapse.md`. Broader device cases are not inferred.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
