@@ -618,6 +618,71 @@ describe('signed-in startup routing', () => {
     expect(api.shoppingList).toHaveBeenCalledTimes(1);
   });
 
+  it('groups actual Shopping routes through checkoff, Store editing, category refresh and hidden purchased cleanup', async () => {
+    let rows = [
+      shoppingRow({ category_id: 'dairy', category_name: 'Dairy', category_emoji: '🥛', amount: '2', shopping_unit_code: 'bag', unit_kind: 'built_in', unit_label: 'Bag', store_id: 'market', store_name: 'Market', catalog_preferred_store_id: 'warehouse' }),
+      shoppingRow({ id: 'oats', catalog_item_id: 'oats-catalog', name: 'Oats', category_id: 'pantry', category_name: 'Pantry', store_id: 'warehouse', store_name: 'Warehouse' }),
+      shoppingRow({ id: 'eggs', catalog_item_id: 'eggs-catalog', name: 'Eggs', category_id: 'dairy', category_name: 'Dairy', is_checked: true, store_id: 'market', store_name: 'Market' }),
+    ];
+    jest.mocked(api.shoppingList).mockImplementation(async () => ({ shopping_list: { ...shoppingListResponse().shopping_list, items: [...rows] } }));
+    jest.mocked(api.shoppingListItem).mockImplementation(async (_token, _household, id) => ({ item: rows.find((row) => row.id === id)! }));
+    jest.mocked(api.catalogUnits).mockResolvedValue({ shopping_units: { built_in: [{ code: 'bag', label: 'Bag' }], household: [] }, recipe_measurement_units: [] });
+    jest.mocked(api.catalogStores).mockResolvedValue({ stores: ['Market', 'Warehouse'].map((name) => ({ id: name.toLowerCase(), name, created_at: '', updated_at: '' })) });
+    jest.mocked(api.updateShoppingListItem).mockImplementation(async (_token, _household, id, values) => {
+      rows = rows.map((row) => row.id !== id ? row : {
+        ...row, ...values,
+        store_name: values.store_id === undefined ? row.store_name : values.store_id === 'warehouse' ? 'Warehouse' : values.store_id === 'market' ? 'Market' : null,
+      });
+      return { item: rows.find((row) => row.id === id)! };
+    });
+    jest.mocked(api.clearPurchasedShoppingItems).mockImplementation(async () => {
+      const ids = rows.filter((row) => row.is_checked).map((row) => row.id);
+      rows = rows.filter((row) => !row.is_checked);
+      return { removed_count: ids.length, removed_item_ids: ids };
+    });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => { buttons?.find((button) => button.style === 'destructive')?.onPress?.(); });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Milk');
+    await fireEvent.press(screen.getByRole('button', { name: 'Sort: Recently added' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Category' }));
+    await screen.findByRole('header', { name: 'Pantry, 1 item' });
+    expect(within(screen.getByTestId('shopping-group-needed-category:dairy')).getByRole('button', { name: 'Edit Milk' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Milk purchased' }));
+    await screen.findByRole('header', { name: 'Dairy, 2 items' });
+    expect(screen.queryByTestId('shopping-group-needed-category:dairy')).toBeNull();
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Milk not purchased' }));
+    await screen.findByTestId('shopping-group-needed-category:dairy');
+    await fireEvent.press(screen.getByRole('button', { name: 'Sort: Category' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Store' }));
+    await screen.findByTestId('shopping-group-needed-store:market');
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit Milk' }));
+    await fireEvent.press(await screen.findByLabelText('Store (optional): Market'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Warehouse' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled());
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
+    await screen.findByRole('header', { name: 'Warehouse, 2 items' });
+    expect(screen.queryByTestId('shopping-group-needed-store:market')).toBeNull();
+    expect(rows.find((row) => row.id === 'shopping-milk')).toEqual(expect.objectContaining({ amount: '2', shopping_unit_code: 'bag', store_id: 'warehouse', is_checked: false }));
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'milk');
+    await fireEvent.press(screen.getByRole('button', { name: 'Sort: Store' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Category' }));
+    rows = rows.map((row) => row.category_id === 'dairy' ? { ...row, category_name: 'Chilled' } : row);
+    await act(async () => within(screen.getByTestId('screen-inline-keyboard-area')).getByTestId('screen').props.refreshControl.props.onRefresh());
+    await screen.findByRole('header', { name: 'Chilled, 1 item' });
+    expect(screen.queryByText('Dairy')).toBeNull();
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('milk');
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear purchased items' }));
+    await screen.findByText('1 purchased item removed.');
+    expect(api.clearPurchasedShoppingItems).toHaveBeenCalledWith(expect.any(Function), 'household-a');
+    expect(api.clearShoppingList).not.toHaveBeenCalled();
+    expect(rows.map((row) => row.id)).toEqual(['shopping-milk', 'oats']);
+    expect(screen.getByRole('header', { name: 'Chilled, 1 item' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Sort: Category' })).toBeTruthy();
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('milk');
+    alert.mockRestore();
+  });
+
   it('keeps Shopping search across tabs, Details cancel/save and nested Store selection', async () => {
     let current = shoppingRow();
     jest.mocked(api.shoppingList).mockImplementation(async () => ({ shopping_list: { ...shoppingListResponse().shopping_list, items: [current] } }));

@@ -5,6 +5,7 @@ import { SymbolView } from 'expo-symbols';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { EmojiText } from '@/components/emoji-text';
 import { CircularAddButton, DisclosureChevron, ExpansionChevron, TabPageHeader, visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
@@ -16,6 +17,7 @@ import { ShoppingCatalogPickerSheet, openShoppingDetails } from './shopping-shee
 import { useShoppingContext } from './shopping-context';
 import { useShoppingList } from './use-shopping-list';
 import { ShoppingSwipeRow } from './shopping-swipe-row';
+import { groupShoppingItems } from './shopping-list-groups';
 
 type SortKey = 'recent' | 'name-asc' | 'name-desc' | 'store' | 'category';
 const sortOptions = [
@@ -152,8 +154,8 @@ export default function ShoppingListScreen() {
   const ordered = [...filtered].sort((a, b) => {
     if (sort === 'name-asc') return compareName(a, b);
     if (sort === 'name-desc') return compareName(b, a);
-    if (sort === 'store') return (a.store_name ?? '').localeCompare(b.store_name ?? '') || compareName(a, b);
-    if (sort === 'category') return (a.category_name ?? '').localeCompare(b.category_name ?? '') || compareName(a, b);
+    // Category/Store order belongs to the identity-based group helper below.
+    if (sort === 'store' || sort === 'category') return 0;
     return b.created_at.localeCompare(a.created_at);
   });
   const toBuy = ordered.filter((item) => !item.is_checked); const purchased = ordered.filter((item) => item.is_checked);
@@ -243,6 +245,23 @@ export default function ShoppingListScreen() {
     </ShoppingSwipeRow>;
   });
 
+  const renderSectionRows = (sectionItems: ShoppingListItem[], section: 'needed' | 'purchased') => {
+    if (!sectionItems.length) return null;
+    if (sort !== 'category' && sort !== 'store') return <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(sectionItems)}</View>;
+    return <View style={styles.itemGroups}>{groupShoppingItems(sectionItems, sort, items).map((group) => (
+      <View key={group.key} testID={`shopping-group-${section}-${group.key}`} style={styles.itemGroup}>
+        <View accessible accessibilityRole="header" accessibilityLabel={`${group.label}, ${group.items.length} ${group.items.length === 1 ? 'item' : 'items'}`} style={styles.groupHeading}>
+          <View style={styles.groupHeadingCopy}>
+            {group.emoji ? <EmojiText size={18} accessibilityElementsHidden importantForAccessibility="no">{group.emoji}</EmojiText> : null}
+            <ThemedText themeColor="textSecondary" style={styles.groupLabel}>{group.label}</ThemedText>
+          </View>
+          <ThemedText themeColor="textSecondary" style={styles.groupCount}>{group.items.length}</ThemedText>
+        </View>
+        <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(group.items)}</View>
+      </View>
+    ))}</View>;
+  };
+
   return <Screen layout="tab-root" inlineKeyboardActive={searchFocused} contentAlignment="top" onRefresh={() => { setOpenSwipeId(null); return refresh(); }}
     onScrollBeginDrag={(event) => { scrollStartedAfterReveal.current = Boolean(openSwipeId); scrollDragStartY.current = event.nativeEvent.contentOffset.y; scrollOffsetY.current = scrollDragStartY.current; }}
     onScroll={(event) => {
@@ -284,10 +303,10 @@ export default function ShoppingListScreen() {
         <ThemedText themeColor="textSecondary">No items match your search.</ThemedText>
         {activeStoreFilter !== 'all' ? <ThemedText themeColor="textSecondary">Try another name or change the Store filter.</ThemedText> : null}
       </View> : null}
-      {toBuy.length > 0 ? <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(toBuy)}</View> : null}
+      {renderSectionRows(toBuy, 'needed')}
       {searching ? <View style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Purchased</ThemedText><ThemedText testID="shopping-purchased-count" themeColor="textSecondary">{purchased.length}</ThemedText></View>
         : <Pressable accessibilityRole="button" accessibilityState={{ expanded: purchasedExpanded }} onPress={() => { setOpenSwipeId(null); setPurchasedExpanded((value) => !value); }} style={styles.sectionHeader}><ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Purchased</ThemedText><View style={styles.purchasedHeaderRight}><ThemedText testID="shopping-purchased-count" themeColor="textSecondary">{purchased.length}</ThemedText><ExpansionChevron expanded={purchasedExpanded} /></View></Pressable>}
-      {showPurchased && purchased.length ? <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(purchased)}</View> : null}
+      {showPurchased ? renderSectionRows(purchased, 'purchased') : null}
       {!searching && purchasedExpanded && !purchased.length && items.length ? <ThemedText themeColor="textSecondary">No purchased items yet.</ThemedText> : null}
       {!searching && !loading && !error && items.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.empty}>Your shared Shopping list is ready for Catalog items.</ThemedText> : null}
       {clearNotice ? <ThemedText accessibilityLiveRegion="polite">{clearNotice}</ThemedText> : null}
@@ -302,6 +321,12 @@ export default function ShoppingListScreen() {
 }
 
 const styles = StyleSheet.create({
+  itemGroups: { gap: 14 },
+  itemGroup: { gap: 6 },
+  groupHeading: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'space-between', paddingHorizontal: 4, paddingTop: 4 },
+  groupHeadingCopy: { alignItems: 'center', flexDirection: 'row', flex: 1, gap: 8, minWidth: 0 },
+  groupLabel: { flexShrink: 1, fontSize: 13, fontWeight: '600' },
+  groupCount: { fontSize: 13 },
   clearActions: { gap: 10 },
   searchField: { alignItems: 'center', borderRadius: 9, borderWidth: 1, flexDirection: 'row', gap: 12, minHeight: 52, paddingHorizontal: 14 },
   searchInput: { backgroundColor: 'transparent', borderWidth: 0, flex: 1, minWidth: 0, paddingHorizontal: 0 },
