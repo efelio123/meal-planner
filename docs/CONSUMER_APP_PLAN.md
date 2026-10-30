@@ -162,6 +162,12 @@ correction October 29 ("Okay that looks good now") after `23140e9`. Individual
 device-checklist cases and Android acceptance are not inferred; deployment and
 native builds remain separate.
 
+Next proposed slice is F04 Category/Store headings in Shopping, recorded in
+`docs/plans/shopping-group-headings.md`. Recommend labelled groups/counts inside
+To buy/Purchased, missing-value groups last and no new collapse controls in the
+first pass. Search, Store filters, swipe actions and household-wide cleanup stay
+consistent. Planning only, awaiting approval; no F04 implementation yet.
+
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
 New ingredients now inherit the Catalog recipe unit, including Food created
