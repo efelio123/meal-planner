@@ -177,8 +177,10 @@ was revised before implementation. The follow-up is implemented directly on
 section and group; new queries open matches, temporary collapses remain usable,
 and clearing search restores normal choices. Counts/shared arrows stay visible;
 scope changes and successful full clear reset choices. Seven targeted suites /
-281 tests, types and lint pass. Physical collapse review remains pending; no
-API/schema, dependency, keyboard-layout, Mac runtime/data or deployment changes.
+281 tests, types and lint pass. Felipe accepts the reviewed collapsing October
+30 ("Okay this looks great"); individual device-checklist cases and Android
+acceptance are not inferred. No API/schema, dependency, keyboard-layout, Mac
+runtime/data or deployment changes.
 See `docs/plans/shopping-group-collapse.md`. Broader device cases are not inferred.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes

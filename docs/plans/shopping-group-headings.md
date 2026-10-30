@@ -175,5 +175,6 @@ October 30 review: Felipe reports "That looks good" and accepts the reviewed
 headings, then requests header-tap collapsing. The follow-up in
 `shopping-group-collapse.md` was revised to allow toggles during search, approved
 and implemented October 30 on `codex/shopping-group-collapse`. It passes 281
-targeted tests, types and lint; physical review of collapsing remains pending.
+targeted tests, types and lint. Felipe subsequently accepts the reviewed
+collapsing behavior October 30; broader device cases are not inferred.
 This supersedes the headings-only limit for the current implementation.

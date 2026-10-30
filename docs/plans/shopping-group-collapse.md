@@ -2,7 +2,9 @@
 
 Status: approved with revision and implemented October 30, 2026. Felipe chose
 interactive group headers during search. Plan revised before implementation;
-physical review remains pending. No API/schema/dependency or live-data changes.
+Felipe accepted the reviewed behavior October 30 ("Okay this looks great").
+Individual device-checklist cases and Android acceptance are not inferred.
+No API/schema/dependency or live-data changes.
 
 Planning branch: `codex/shopping-group-collapse-plan`, from clean `5f0da9c`.
 Preserve accepted family-trial fixes, grouping, search, cleanup and keyboard
@@ -143,3 +145,9 @@ arrows, retained counts and reachable rows. Collapse during search, change the
 query, clear it, and verify the chosen restore behavior. Try refresh, edit/tab
 return, checkoff into a collapsed destination, swipe then header tap and full
 clear/Cancel. Verify last actions remain reachable with the keyboard open.
+
+
+October 30 review acceptance: after `2fcbd12`, Felipe reports "Okay this looks
+great" and accepts the reviewed group collapsing, including during search.
+This does not establish every individual device/accessibility/cross-phone or
+Android case. Native builds, hosted CI and deployment remain separate.
