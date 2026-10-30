@@ -162,11 +162,14 @@ correction October 29 ("Okay that looks good now") after `23140e9`. Individual
 device-checklist cases and Android acceptance are not inferred; deployment and
 native builds remain separate.
 
-Next proposed slice is F04 Category/Store headings in Shopping, recorded in
-`docs/plans/shopping-group-headings.md`. Recommend labelled groups/counts inside
-To buy/Purchased, missing-value groups last and no new collapse controls in the
-first pass. Search, Store filters, swipe actions and household-wide cleanup stay
-consistent. Planning only, awaiting approval; no F04 implementation yet.
+F04 Category/Store headings were approved and implemented directly October 30
+on `codex/shopping-group-headings`: identity-based groups/counts inside To buy/
+Purchased, alphabetic displayed labels/items, missing-value groups last and no
+new collapse controls. Category emoji reuse EmojiText; accepted search, Store
+filters, swipe actions and household-wide cleanup are preserved. Six targeted
+mobile suites / 256 tests, TypeScript and lint pass; physical review remains
+pending. No API/schema, dependency, keyboard-layout, live Mac or deployment
+changes. See `docs/plans/shopping-group-headings.md` for results and phone checks.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

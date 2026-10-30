@@ -1,14 +1,14 @@
 # Shopping Category and Store headings — F04
 
-Status: proposed October 29, 2026; awaiting Felipe's review. Planning only.
-No application, API, schema, dependency, deployment or live-data changes.
+Status: approved and implemented October 30, 2026. Felipe directly assigned
+implementation to the chat agent. Physical review remains pending. No API,
+schema, dependency, deployment or live-data changes.
 
 Planning branch: `codex/shopping-group-headings-plan`, from clean `49b7848`
 after Felipe accepted Shopping search and its keyboard-spacing correction.
-Preserve accepted family-trial fixes, SDK 58, search and cleanup. After approval,
-implement on a focused feature branch. No push/merge, native rebuild or Mac
-trial deployment is included. Implementation ownership follows AGENTS.md unless
-Felipe directly assigns implementation to this chat agent.
+Accepted family-trial fixes, SDK 58, search and cleanup are preserved.
+Implementation branch: `codex/shopping-group-headings`, from clean plan commit
+`44c334c`. No push/merge, native rebuild or Mac trial deployment is included.
 
 ## Goal
 
@@ -104,9 +104,66 @@ which group each item belongs to without opening its details.
   scroll settles. Compare related group labels and larger text. Report unrun
   physical/Android/native-build checks explicitly; tests do not prove geometry.
 
-## Review decisions
+## Approval and implementation
 
-Recommend **headings and counts without new collapse controls**, within both
-existing sections, with missing-value groups last. Approve this scope before
-implementation. If collapsing is desired now, revise this plan first to define
-search reveal, counts, persistence and accessible controls together.
+Felipe approved the proposed scope and directly requested implementation on
+October 30. Headings/counts are shown within To buy and Purchased for Category
+and Store modes only. New group collapse is deferred; Purchased keeps its
+accepted collapse/search-reveal behavior. Missing-value groups come last.
+
+- Added the pure `shopping-list-groups.ts` helper under the Shopping feature.
+  It uses real category/Store IDs, preserves each row object, sorts by displayed
+  group name then item name, and distinguishes colliding Food/Household category
+  labels using the full loaded list. Same-named Stores retain separate IDs.
+- Metadata fallbacks keep every row visible. A Store ID with no label appears
+  as Unknown store; absent Store IDs appear under No store last. Categories
+  without a usable name/ID use the applicable uncategorized label, retaining an
+  existing ID when present; missing item type uses generic Uncategorized.
+- Both sections share the existing card/row rendering path. Small semibold
+  secondary labels follow the existing group-label treatment; category emoji
+  use EmojiText. Accessible headers announce name/count without implying an
+  action. Separators stop at each group's final row and cards retain one border.
+- No hook/API, schema, dependencies, keyboard ownership, or native-sheet changes.
+  Normal sorts, filter/search state, exact row mutations, swipe controls and
+  household-wide cleanup are preserved.
+
+## Validation results — October 30, 2026
+
+- **256 tests across 6 targeted mobile suites pass**, no skips: grouping helper,
+  Shopping screen/hook/swipe, actual-router navigation and API client. The final
+  affected 3 suites pass 174 tests; the other 3 passed 82 in the coordinated run
+  and were unchanged afterward.
+- Helper/screen coverage includes identity separation, Food/Household label
+  collisions, alphabetical names with IDs deliberately out of order, missing
+  metadata, source-row preservation, actual Shopping Store vs Catalog default,
+  fallback groups last, counts, emoji, per-card separators, flat modes, search
+  and Store intersections, Purchased reveal/restoration, checkoff movement,
+  metadata refresh and whole-household cleanup under a narrowed visible list.
+- Actual-router coverage selects Category/Store, checks/unchecks a row, edits
+  its Store while preserving ID/amount/unit, refreshes a renamed category under
+  search, and clears hidden purchased rows without clearing needed entries.
+  Existing navigation/scope/keyboard and swipe regression cases remain passing.
+- TypeScript, Expo lint and whitespace checks pass. Initial validation found
+  one test querying a decorative emoji intentionally hidden from accessibility;
+  corrected the query to include hidden decorative elements. Final review moved
+  ordering after category qualification so displayed labels determine order,
+  with a reversed-ID regression. Relevant checks were rerun successfully.
+- Consulted [Expo SDK 58](https://docs.expo.dev/versions/v58.0.0/) and
+  [React Native Text/accessibility](https://reactnative.dev/docs/text), checked
+  against the installed SDK 58 / RN 0.88 baseline. No new library was needed.
+- **Unrun:** full mobile suite, database/API suites (UI-only change), hosted CI,
+  physical iPhone/Android checks, native builds and deployment. Earlier full
+  results remain historical. Mac trial runtime/data and other worktrees were
+  untouched. Tests do not establish native spacing, reachability or swipe feel.
+
+## Device review before acceptance
+
+Choose Category and Store in Sort. Check headings/counts in both sections,
+category emoji, alphabetical ordering and missing-category/No store placement.
+Check several items quickly, collapse Purchased, search for a purchased match,
+clear search and verify the prior collapse returns. Try Store + search, edit
+an entry's Store, refresh and clear purchased while some rows are hidden. Swipe
+short/full distances and inspect group/card borders. On long/short lists and
+larger text, confirm the final row and clear actions stay above navigation and
+the keyboard after scrolling settles. No added group collapse controls are
+expected in this version.

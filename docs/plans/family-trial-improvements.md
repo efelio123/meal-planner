@@ -155,7 +155,7 @@ individual slices, even when they depend on the same bug fixes.
 | F01 | Reorder recipe ingredients using a far-right three-dot/drag affordance; persist their order on create and edit. | Bounded follow-up. API already persists ingredient positions; validate stable row identity, gesture behavior, and reload order. Confirm handle interaction before implementation. |
 | F02 | Choose a recipe measurement unit from one complete list; remove the separate Volume/Mass/Count picker. | Implemented and accepted in review October 29 on `codex/recipe-unit-list`. Optional API-backed picker infers dimension and preserves existing data/shopping preferences. 7 targeted suites / 184 tests, types and lint pass; broader device/Android coverage not inferred. See `recipe-measurement-unit-list.md`. |
 | F03 | Clear only purchased Shopping entries while retaining needed ones. | Approved and implemented October 29 on `codex/clear-purchased-items`. All-store scope, one confirmation, distinct purchased/all actions and atomic server-current-status deletion with removed-ID reconciliation. 218 mobile / 25 API tests, types and lint pass; Felipe accepts the reviewed change October 29, without implying every device/Android check. See `clear-purchased-shopping-items.md`. |
-| F04 | Category and Store sorting show labelled sections, optionally collapsible. Alphabetical/Recently added show no such headings. | Plan proposed October 29 in `shopping-group-headings.md`, awaiting review. Recommend headings/counts inside To buy/Purchased, missing-value groups last, existing search/filter/swipes intact; defer new group collapse. No implementation yet. |
+| F04 | Category and Store sorting show labelled sections, optionally collapsible. Alphabetical/Recently added show no such headings. | Approved and implemented October 30 on `codex/shopping-group-headings`. Headings/counts inside To buy/Purchased, identity-based groups with missing values last, no new collapse controls. 256 targeted tests across 6 suites, types and lint pass; physical review pending. See `shopping-group-headings.md`. |
 | F05 | Search the Shopping list to find and check items quickly. | Approved and implemented October 29 on `codex/shopping-list-search`. Name search respects Store/sort, reveals Purchased matches and preserves the query across actions; F03 remains household-wide. Initial 274 targeted tests pass; phone review reports a keyboard gap. Follow-up moves clearance inside native safe areas: 179 targeted tests, types and lint pass. Felipe accepts reviewed search and spacing October 29 after `23140e9`; broader device/Android cases are not inferred. See `shopping-list-search.md`. |
 | F06 | Swipe a planned meal left to reveal Delete; continue the swipe to delete, matching Shopping exactly. | Bounded follow-up; reuse accepted circular trash action and swipe behavior. A swipe/cancel must not open meal editing. Keep actual threshold semantics consistent. |
 | F07 | Meal-slot recipe selection includes Leftovers and Eating out, with optional meal/restaurant text displayed in Plan. | Separate schema/API feature. Proposed non-recipe entry types; exclude them from ingredient-shopping calculations unless a later explicit feature changes this. Preserve old recipe entries. |
@@ -268,9 +268,9 @@ Resolve when the corresponding feature is scheduled:
   deployment remain separate.
 - F01: direct long-press/drag on a trailing handle versus an ellipsis menu
   exposing reorder mode. Provide accessible non-drag reorder actions too.
-- F04: `shopping-group-headings.md` recommends headings/counts only for this
-  pass; group collapsing is deferred, while Purchased retains its accepted
-  search-reveal behavior. Awaiting approval.
+- F04 resolved October 30: approved headings/counts without new collapse.
+  Implemented under `shopping-group-headings.md`; Purchased retains its accepted
+  search-reveal behavior. Physical review remains pending.
 - B13: obtain a reference screenshot if source inspection is insufficient to
   identify which category variants look wrong; compare related forms as well.
 - F07/F09/F10: optional text versus recipe association for leftovers, section
