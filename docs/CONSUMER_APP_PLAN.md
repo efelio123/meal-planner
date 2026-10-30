@@ -183,6 +183,12 @@ acceptance are not inferred. No API/schema, dependency, keyboard-layout, Mac
 runtime/data or deployment changes.
 See `docs/plans/shopping-group-collapse.md`. Broader device cases are not inferred.
 
+Next proposed slice is F01 recipe ingredient reordering, planned in
+`docs/plans/recipe-ingredient-reordering.md`: trailing hold/drag handle with
+tap-to-reveal Up/Down, stable per-occurrence UI keys and the existing ordered
+Save contract. Proposes a pinned sortable dependency plus compatibility and
+single-scroll checks. Awaiting interaction/dependency review; planning only.
+
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
 New ingredients now inherit the Catalog recipe unit, including Food created
