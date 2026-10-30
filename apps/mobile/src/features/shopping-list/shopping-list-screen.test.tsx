@@ -249,7 +249,170 @@ describe('Shopping list screen', () => {
     expect(screen.getByTestId('screen').props.automaticallyAdjustKeyboardInsets).toBe(false);
   });
 
-  it('adds noninteractive category headings and counts in both sections, reusing natural-metric emoji and row borders', async () => {
+  it('collapses and expands a group while retaining its label, count and section totals', async () => {
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [{ ...item('milk', 'Milk'), category_id: 'd', category_name: 'Dairy' }] });
+    await render(<ShoppingListScreen />);
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    const button = screen.getByRole('button', { name: 'Dairy, 1 item' });
+    expect(button.props.accessibilityState.expanded).toBe(true);
+    await fireEvent.press(button);
+    expect(screen.getByRole('button', { name: 'Dairy, 1 item' }).props.accessibilityState.expanded).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull();
+    expect(screen.getByTestId('shopping-to-buy-count').props.children).toBe(1);
+    expect(screen.queryByText('Nothing to buy yet. Add items from your Catalog.')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Dairy, 1 item' }));
+    expect(screen.getByRole('checkbox', { name: 'Mark Milk purchased' })).toBeTruthy();
+  });
+
+  it('keeps choices independent across sections, modes, flat sorts and missing-value groups', async () => {
+    const dairy = { category_id: 'd', category_name: 'Dairy' };
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [{ ...item('milk', 'Milk'), ...dairy }, { ...item('eggs', 'Eggs', true), ...dairy }] });
+    await render(<ShoppingListScreen />);
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    await fireEvent.press(within(screen.getByTestId('shopping-group-needed-category:d')).getByRole('button', { name: 'Dairy, 1 item' }));
+    expect(screen.getByRole('button', { name: 'Edit Eggs' })).toBeTruthy();
+    await act(async () => mockChoiceSelect.get('Sort')!('store'));
+    expect(screen.getByRole('button', { name: 'Edit Milk' })).toBeTruthy();
+    await fireEvent.press(within(screen.getByTestId('shopping-group-needed-store:none')).getByRole('button', { name: 'No store, 1 item' }));
+    expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull();
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    expect(within(screen.getByTestId('shopping-group-needed-category:d')).getByRole('button', { name: 'Dairy, 1 item' }).props.accessibilityState.expanded).toBe(false);
+    expect(screen.getByRole('button', { name: 'Edit Eggs' })).toBeTruthy();
+    await act(async () => mockChoiceSelect.get('Sort')!('recent'));
+    expect(screen.getByRole('button', { name: 'Edit Milk' })).toBeTruthy();
+  });
+
+  it('allows collapsing during search, keeps that query’s choices across updates, and restores normal choices', async () => {
+    const milk = { ...item('milk', 'Milk'), category_id: 'd', category_name: 'Dairy' };
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [milk] });
+    const view = await render(<ShoppingListScreen />);
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Dairy, 1 item' }));
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'mi');
+    expect(screen.getByRole('button', { name: 'Edit Milk' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Dairy, 1 item' }));
+    expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), '  MI  ');
+    await act(async () => screen.getByTestId('screen').props.refreshControl.props.onRefresh());
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [{ ...milk, category_name: 'Chilled' }] });
+    await view.rerender(<ShoppingListScreen />);
+    expect(screen.getByRole('button', { name: 'Chilled, 1 item' }).props.accessibilityState.expanded).toBe(false);
+    await act(async () => mockChoiceSelect.get('Sort')!('name-asc'));
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'milk');
+    expect(screen.getByRole('button', { name: 'Edit Milk' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear search' }));
+    expect(screen.getByRole('button', { name: 'Chilled, 1 item' }).props.accessibilityState.expanded).toBe(false);
+    await fireEvent.press(screen.getByRole('button', { name: 'Chilled, 1 item' }));
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'milk');
+    await fireEvent.press(screen.getByRole('button', { name: 'Chilled, 1 item' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear search' }));
+    expect(screen.getByRole('button', { name: 'Chilled, 1 item' }).props.accessibilityState.expanded).toBe(true);
+  });
+
+  it('retains hidden group preferences across filters and removal/reappearance, while new groups open', async () => {
+    const milk = { ...item('milk', 'Milk'), category_id: 'd', category_name: 'Dairy', store_id: 'market', store_name: 'Market' };
+    const soap = { ...item('soap', 'Soap'), category_id: 'clean', category_name: 'Cleaning', store_id: 'corner', store_name: 'Corner' };
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [milk, soap] });
+    const view = await render(<ShoppingListScreen />);
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Dairy, 1 item' }));
+    await act(async () => mockChoiceSelect.get('Store')!('corner'));
+    expect(screen.queryByText('Dairy')).toBeNull();
+    await act(async () => mockChoiceSelect.get('Store')!('all'));
+    expect(screen.getByRole('button', { name: 'Dairy, 1 item' }).props.accessibilityState.expanded).toBe(false);
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [soap] });
+    await view.rerender(<ShoppingListScreen />);
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [milk, soap, { ...item('bread', 'Bread'), category_id: 'pantry', category_name: 'Pantry' }] });
+    await view.rerender(<ShoppingListScreen />);
+    expect(screen.getByRole('button', { name: 'Dairy, 1 item' }).props.accessibilityState.expanded).toBe(false);
+    expect(screen.getByRole('button', { name: 'Pantry, 1 item' }).props.accessibilityState.expanded).toBe(true);
+  });
+
+  it.each(['household', 'session'])('resets normal and search collapse choices after a %s change', async (change) => {
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [{ ...item('milk', 'Milk'), category_id: 'd', category_name: 'Dairy' }] });
+    const view = await render(<ShoppingListScreen />);
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Dairy, 1 item' }));
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'milk');
+    await fireEvent.press(screen.getByRole('button', { name: 'Dairy, 1 item' }));
+    mockScopeValue = change === 'household' ? '["user-1","session-1","household-2"]' : '["user-1","session-2","household-1"]';
+    await view.rerender(<ShoppingListScreen />);
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    expect(screen.getByRole('button', { name: 'Dairy, 1 item' }).props.accessibilityState.expanded).toBe(true);
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'milk');
+    expect(screen.getByRole('button', { name: 'Dairy, 1 item' }).props.accessibilityState.expanded).toBe(true);
+  });
+
+  it.each(['success', 'failure', 'cancel'])('resets both collapse sets only after successful full clear (%s)', async (outcome) => {
+    const clear = outcome === 'failure' ? jest.fn().mockRejectedValue(new Error('Clear failed')) : jest.fn().mockResolvedValue(1);
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), clear, items: [{ ...item('milk', 'Milk'), category_id: 'd', category_name: 'Dairy' }] });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+    await render(<ShoppingListScreen />);
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Dairy, 1 item' }));
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'milk');
+    await fireEvent.press(screen.getByRole('button', { name: 'Dairy, 1 item' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear entire list' }));
+    const buttons = alert.mock.calls.at(-1)![2]!;
+    await act(async () => buttons.find((button) => button.style === (outcome === 'cancel' ? 'cancel' : 'destructive'))?.onPress?.());
+    if (outcome === 'cancel') expect(clear).not.toHaveBeenCalled(); else expect(clear).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Dairy, 1 item' }).props.accessibilityState.expanded).toBe(outcome === 'success');
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear search' }));
+    expect(screen.getByRole('button', { name: 'Dairy, 1 item' }).props.accessibilityState.expanded).toBe(outcome === 'success');
+    alert.mockRestore();
+  });
+
+  it('keeps a checked item hidden in an explicitly collapsed Purchased destination until its header opens', async () => {
+    const dairy = { category_id: 'd', category_name: 'Dairy' };
+    const milk = { ...item('milk', 'Milk'), ...dairy };
+    const eggs = { ...item('eggs', 'Eggs', true), ...dairy };
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [milk, eggs] });
+    const view = await render(<ShoppingListScreen />);
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    await fireEvent.press(within(screen.getByTestId('shopping-group-purchased-category:d')).getByRole('button', { name: 'Dairy, 1 item' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Milk purchased' }));
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [{ ...milk, is_checked: true }, eggs] });
+    await view.rerender(<ShoppingListScreen />);
+    expect(screen.queryByTestId('shopping-group-needed-category:d')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Dairy, 2 items' }).props.accessibilityState.expanded).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Dairy, 2 items' }));
+    expect(screen.getByRole('checkbox', { name: 'Mark Milk not purchased' })).toBeTruthy();
+  });
+
+  it('keeps same-named category choices independent and preserves them during purchased-only cleanup', async () => {
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [
+      { ...item('rice', 'Rice'), category_id: 'food-pantry', category_name: 'Pantry' },
+      { ...item('paper', 'Paper'), catalog_item_type: 'household', category_id: 'household-pantry', category_name: 'Pantry' }, item('eggs', 'Eggs', true),
+    ] });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => { buttons?.find((button) => button.style === 'destructive')?.onPress?.(); });
+    await render(<ShoppingListScreen />);
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Pantry (Food), 1 item' }));
+    expect(screen.getByRole('button', { name: 'Edit Paper' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Edit Rice' })).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear purchased items' }));
+    expect(await screen.findByText('1 purchased item removed.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pantry (Food), 1 item' }).props.accessibilityState.expanded).toBe(false);
+    expect(screen.getByRole('button', { name: 'Pantry (Household), 1 item' }).props.accessibilityState.expanded).toBe(true);
+    alert.mockRestore();
+  });
+
+  it('closes a revealed swipe when a group is collapsed without invoking a row action', async () => {
+    mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [{ ...item('milk', 'Milk'), category_id: 'd', category_name: 'Dairy' }] });
+    await render(<ShoppingListScreen />);
+    await act(async () => mockChoiceSelect.get('Sort')!('category'));
+    await act(async () => screen.getByTestId('shopping-swipe-milk').props.onReveal());
+    await fireEvent.press(screen.getByRole('button', { name: 'Dairy, 1 item' }));
+    expect(screen.queryByRole('button', { name: 'Remove Milk from Shopping' })).toBeNull();
+    expect(mockedShoppingList().toggle).not.toHaveBeenCalled();
+    expect(mockedShoppingList().remove).not.toHaveBeenCalled();
+    expect(mockPresent).not.toHaveBeenCalled();
+  });
+
+  it('adds accessible category toggles and counts in both sections, reusing natural-metric emoji and row borders', async () => {
     const dairy = { category_id: 'dairy', category_name: 'Dairy', category_emoji: '🥛' };
     mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [
       { ...item('milk', 'Milk'), ...dairy }, { ...item('butter', 'Butter'), ...dairy }, { ...item('eggs', 'Eggs', true), ...dairy },
@@ -257,10 +420,10 @@ describe('Shopping list screen', () => {
     ] });
     await render(<ShoppingListScreen />);
     await act(async () => mockChoiceSelect.get('Sort')!('category'));
-    expect(screen.getByRole('header', { name: 'Dairy, 2 items' })).toBeTruthy();
-    expect(screen.getByRole('header', { name: 'Dairy, 1 item' })).toBeTruthy();
-    expect(screen.getByRole('header', { name: 'Cleaning, 1 item' })).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /^Dairy/ })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Dairy, 2 items' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Dairy, 1 item' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Cleaning, 1 item' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Dairy, 2 items' }).props.accessibilityState.expanded).toBe(true);
     expect(screen.getAllByText('🥛', { includeHiddenElements: true })).toHaveLength(2);
     expect(screen.getByTestId('shopping-swipe-butter').props.separatorColor).toBe('#ccc');
     expect(screen.getByTestId('shopping-swipe-milk').props.separatorColor).toBeNull();
@@ -285,8 +448,8 @@ describe('Shopping list screen', () => {
     await act(async () => mockChoiceSelect.get('Sort')!('store'));
     expect(screen.getAllByTestId(/^shopping-group-needed-/).map((group) => group.props.testID)).toEqual(['shopping-group-needed-store:corner', 'shopping-group-needed-store:market', 'shopping-group-needed-store:none']);
     await act(async () => mockChoiceSelect.get('Store')!('market'));
-    expect(screen.getByRole('header', { name: 'Market, 1 item' })).toBeTruthy();
-    expect(screen.queryByRole('header', { name: 'No store, 1 item' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Market, 1 item' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'No store, 1 item' })).toBeNull();
     await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'rice');
     expect(screen.queryAllByTestId(/^shopping-group-/)).toHaveLength(0);
     expect(screen.getByText('No items match your search.')).toBeTruthy();
@@ -302,10 +465,10 @@ describe('Shopping list screen', () => {
     await act(async () => mockChoiceSelect.get('Sort')!('category'));
     await fireEvent.press(screen.getByRole('button', { name: /^Purchased/ }));
     await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'paper');
-    expect(screen.getByRole('header', { name: 'Pantry (Household), 1 item' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pantry (Household), 1 item' })).toBeTruthy();
     expect(screen.queryByText('Pantry (Food)')).toBeNull();
     await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'rice');
-    expect(screen.getByRole('header', { name: 'Pantry (Food), 1 item' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Pantry (Food), 1 item' })).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Clear search' }));
     expect(screen.getByRole('button', { name: /^Purchased/ }).props.accessibilityState.expanded).toBe(false);
     expect(screen.queryByText('Pantry (Food)')).toBeNull();
@@ -326,7 +489,7 @@ describe('Shopping list screen', () => {
     await act(async () => screen.getByTestId('screen').props.refreshControl.props.onRefresh());
     mockedShoppingList.mockReturnValue({ ...mockedShoppingList(), items: [{ ...milk, is_checked: true, category_name: 'Chilled' }] });
     await view.rerender(<ShoppingListScreen />);
-    expect(screen.getByRole('header', { name: 'Chilled, 1 item' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Chilled, 1 item' })).toBeTruthy();
     expect(screen.queryByText('Dairy')).toBeNull();
     expect(screen.getByLabelText('Search shopping list').props.value).toBe('milk');
     expect(screen.getByRole('button', { name: 'Sort: Category' })).toBeTruthy();

@@ -618,6 +618,47 @@ describe('signed-in startup routing', () => {
     expect(api.shoppingList).toHaveBeenCalledTimes(1);
   });
 
+  it('allows group collapse during search and preserves separate choices through edit and tab return', async () => {
+    let rows = [shoppingRow({ category_id: 'd', category_name: 'Dairy' }), shoppingRow({ id: 'eggs', name: 'Eggs', category_id: 'd', category_name: 'Dairy', is_checked: true })];
+    jest.mocked(api.shoppingList).mockImplementation(async () => ({ shopping_list: { ...shoppingListResponse().shopping_list, items: [...rows] } }));
+    jest.mocked(api.shoppingListItem).mockImplementation(async (_token, _household, id) => ({ item: rows.find((row) => row.id === id)! }));
+    jest.mocked(api.updateShoppingListItem).mockImplementation(async (_token, _household, id, values) => {
+      rows = rows.map((row) => row.id === id ? { ...row, ...values } : row);
+      return { item: rows.find((row) => row.id === id)! };
+    });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Milk');
+    await fireEvent.press(screen.getByRole('button', { name: 'Sort: Recently added' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Category' }));
+    const neededToggle = () => within(screen.getByTestId('shopping-group-needed-category:d')).getByRole('button', { name: 'Dairy, 1 item' });
+    await fireEvent.press(neededToggle());
+    expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'milk');
+    expect(screen.getByRole('button', { name: 'Edit Milk' })).toBeTruthy();
+    await fireEvent.press(neededToggle());
+    expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'mi');
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit Milk' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled());
+    await fireEvent.changeText(screen.getByLabelText('Amount'), '3');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
+    expect(screen.getByLabelText('Search shopping list').props.value).toBe('mi');
+    await fireEvent.press(neededToggle());
+    await navigateTo(rendered, '/recipes');
+    await navigateTo(rendered, '/shopping');
+    expect(neededToggle().props.accessibilityState.expanded).toBe(false);
+    await fireEvent.press(screen.getByRole('button', { name: 'Clear search' }));
+    expect(neededToggle().props.accessibilityState.expanded).toBe(false);
+    await fireEvent.press(neededToggle());
+    await fireEvent.press(within(screen.getByTestId('shopping-group-purchased-category:d')).getByRole('button', { name: 'Dairy, 1 item' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Milk purchased' }));
+    await screen.findByRole('button', { name: 'Dairy, 2 items' });
+    expect(screen.getByRole('button', { name: 'Dairy, 2 items' }).props.accessibilityState.expanded).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Edit Milk' })).toBeNull();
+    expect(rows.find((row) => row.id === 'shopping-milk')).toEqual(expect.objectContaining({ amount: '3', is_checked: true }));
+  });
+
   it('groups actual Shopping routes through checkoff, Store editing, category refresh and hidden purchased cleanup', async () => {
     let rows = [
       shoppingRow({ category_id: 'dairy', category_name: 'Dairy', category_emoji: '🥛', amount: '2', shopping_unit_code: 'bag', unit_kind: 'built_in', unit_label: 'Bag', store_id: 'market', store_name: 'Market', catalog_preferred_store_id: 'warehouse' }),
@@ -645,10 +686,10 @@ describe('signed-in startup routing', () => {
     await screen.findByText('Milk');
     await fireEvent.press(screen.getByRole('button', { name: 'Sort: Recently added' }));
     await fireEvent.press(await screen.findByRole('button', { name: 'Category' }));
-    await screen.findByRole('header', { name: 'Pantry, 1 item' });
+    await screen.findByRole('button', { name: 'Pantry, 1 item' });
     expect(within(screen.getByTestId('shopping-group-needed-category:dairy')).getByRole('button', { name: 'Edit Milk' })).toBeTruthy();
     await fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Milk purchased' }));
-    await screen.findByRole('header', { name: 'Dairy, 2 items' });
+    await screen.findByRole('button', { name: 'Dairy, 2 items' });
     expect(screen.queryByTestId('shopping-group-needed-category:dairy')).toBeNull();
     await fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Milk not purchased' }));
     await screen.findByTestId('shopping-group-needed-category:dairy');
@@ -661,7 +702,7 @@ describe('signed-in startup routing', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' })).toBeEnabled());
     await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
-    await screen.findByRole('header', { name: 'Warehouse, 2 items' });
+    await screen.findByRole('button', { name: 'Warehouse, 2 items' });
     expect(screen.queryByTestId('shopping-group-needed-store:market')).toBeNull();
     expect(rows.find((row) => row.id === 'shopping-milk')).toEqual(expect.objectContaining({ amount: '2', shopping_unit_code: 'bag', store_id: 'warehouse', is_checked: false }));
     await fireEvent.changeText(screen.getByLabelText('Search shopping list'), 'milk');
@@ -669,7 +710,7 @@ describe('signed-in startup routing', () => {
     await fireEvent.press(await screen.findByRole('button', { name: 'Category' }));
     rows = rows.map((row) => row.category_id === 'dairy' ? { ...row, category_name: 'Chilled' } : row);
     await act(async () => within(screen.getByTestId('screen-inline-keyboard-area')).getByTestId('screen').props.refreshControl.props.onRefresh());
-    await screen.findByRole('header', { name: 'Chilled, 1 item' });
+    await screen.findByRole('button', { name: 'Chilled, 1 item' });
     expect(screen.queryByText('Dairy')).toBeNull();
     expect(screen.getByLabelText('Search shopping list').props.value).toBe('milk');
     await fireEvent.press(screen.getByRole('button', { name: 'Clear purchased items' }));
@@ -677,7 +718,7 @@ describe('signed-in startup routing', () => {
     expect(api.clearPurchasedShoppingItems).toHaveBeenCalledWith(expect.any(Function), 'household-a');
     expect(api.clearShoppingList).not.toHaveBeenCalled();
     expect(rows.map((row) => row.id)).toEqual(['shopping-milk', 'oats']);
-    expect(screen.getByRole('header', { name: 'Chilled, 1 item' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Chilled, 1 item' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sort: Category' })).toBeTruthy();
     expect(screen.getByLabelText('Search shopping list').props.value).toBe('milk');
     alert.mockRestore();

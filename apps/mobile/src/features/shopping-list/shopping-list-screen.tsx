@@ -37,6 +37,8 @@ export default function ShoppingListScreen() {
   const [storeFilter, setStoreFilter] = useState('all');
   const [sort, setSort] = useState<SortKey>('recent');
   const [purchasedExpanded, setPurchasedExpanded] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set());
+  const [collapsedSearchGroups, setCollapsedSearchGroups] = useState<Set<string>>(() => new Set());
   const [actionError, setActionError] = useState<string | null>(null);
   const [clearNotice, setClearNotice] = useState<string | null>(null);
   const bulkDisabled = loading || Boolean(clearing) || pendingItemIds.size > 0;
@@ -59,6 +61,8 @@ export default function ShoppingListScreen() {
     scopeRef.current = scope;
     scopeVersion.current += 1;
     setSearch('');
+    setCollapsedGroups(new Set());
+    setCollapsedSearchGroups(new Set());
     searchInput.current?.blur();
     setSearchFocused(false);
     Keyboard.dismiss();
@@ -148,6 +152,20 @@ export default function ShoppingListScreen() {
   const query = search.trim().toLocaleLowerCase();
   const searching = query.length > 0;
   const showPurchased = searching || purchasedExpanded;
+  const changeSearch = (value: string) => {
+    closeSwipeForSearch();
+    if (value.trim().toLocaleLowerCase() !== query) setCollapsedSearchGroups(new Set());
+    setSearch(value);
+  };
+  const toggleGroup = (key: string) => {
+    setOpenSwipeId(null);
+    const setCollapsed = searching ? setCollapsedSearchGroups : setCollapsedGroups;
+    setCollapsed((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
   const filtered = items.filter((item) => (activeStoreFilter === 'all' || (activeStoreFilter === 'none' ? !item.store_id : item.store_id === activeStoreFilter))
     && item.name.toLocaleLowerCase().includes(query));
   const compareName = (a: ShoppingListItem, b: ShoppingListItem) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
@@ -179,7 +197,10 @@ export default function ShoppingListScreen() {
       setActionError(null); setClearNotice(null);
       try {
         const count = await (mode === 'purchased' ? clearPurchased() : clear());
-        if (isCurrent()) setClearNotice(mode === 'all' ? 'Shopping list cleared.' : count === 0 ? 'No purchased items to clear.' : `${count} purchased ${count === 1 ? 'item' : 'items'} removed.`);
+        if (isCurrent()) {
+          if (mode === 'all') { setCollapsedGroups(new Set()); setCollapsedSearchGroups(new Set()); }
+          setClearNotice(mode === 'all' ? 'Shopping list cleared.' : count === 0 ? 'No purchased items to clear.' : `${count} purchased ${count === 1 ? 'item' : 'items'} removed.`);
+        }
       } catch (reason) {
         if (isCurrent()) setActionError(reason instanceof Error ? reason.message : 'We couldn’t clear the list. Please try again.');
       }
@@ -248,18 +269,23 @@ export default function ShoppingListScreen() {
   const renderSectionRows = (sectionItems: ShoppingListItem[], section: 'needed' | 'purchased') => {
     if (!sectionItems.length) return null;
     if (sort !== 'category' && sort !== 'store') return <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(sectionItems)}</View>;
-    return <View style={styles.itemGroups}>{groupShoppingItems(sectionItems, sort, items).map((group) => (
-      <View key={group.key} testID={`shopping-group-${section}-${group.key}`} style={styles.itemGroup}>
-        <View accessible accessibilityRole="header" accessibilityLabel={`${group.label}, ${group.items.length} ${group.items.length === 1 ? 'item' : 'items'}`} style={styles.groupHeading}>
+    return <View style={styles.itemGroups}>{groupShoppingItems(sectionItems, sort, items).map((group) => {
+      const key = JSON.stringify([sort, section, group.key]);
+      const expanded = !(searching ? collapsedSearchGroups : collapsedGroups).has(key);
+      return <View key={group.key} testID={`shopping-group-${section}-${group.key}`} style={styles.itemGroup}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`${group.label}, ${group.items.length} ${group.items.length === 1 ? 'item' : 'items'}`}
+          accessibilityState={{ expanded }} onPress={() => toggleGroup(key)} style={({ pressed }) => [styles.groupHeading, { opacity: pressed ? 0.82 : 1 }]}>
           <View style={styles.groupHeadingCopy}>
             {group.emoji ? <EmojiText size={18} accessibilityElementsHidden importantForAccessibility="no">{group.emoji}</EmojiText> : null}
             <ThemedText themeColor="textSecondary" style={styles.groupLabel}>{group.label}</ThemedText>
           </View>
-          <ThemedText themeColor="textSecondary" style={styles.groupCount}>{group.items.length}</ThemedText>
-        </View>
-        <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(group.items)}</View>
-      </View>
-    ))}</View>;
+          <View style={styles.purchasedHeaderRight}><ThemedText themeColor="textSecondary" style={styles.groupCount}>{group.items.length}</ThemedText>
+            <ExpansionChevron expanded={expanded} testID={`shopping-expansion-${section}-${group.key}`} />
+          </View>
+        </Pressable>
+        {expanded ? <View style={[styles.group, { backgroundColor: theme.surface, borderColor: theme.border }]}>{renderRows(group.items)}</View> : null}
+      </View>;
+    })}</View>;
   };
 
   return <Screen layout="tab-root" inlineKeyboardActive={searchFocused} contentAlignment="top" onRefresh={() => { setOpenSwipeId(null); return refresh(); }}
@@ -281,8 +307,8 @@ export default function ShoppingListScreen() {
         <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={19} tintColor={theme.inputPlaceholder} />
         <ThemedInput ref={searchInput} accessibilityLabel="Search shopping list" autoCapitalize="none" autoCorrect={false} placeholder="Search shopping list" returnKeyType="search" submitBehavior="blurAndSubmit" value={search}
           onFocus={() => { closeSwipeForSearch(); setSearchFocused(true); }} onBlur={() => setSearchFocused(false)} onSubmitEditing={dismissSearch}
-          onChangeText={(value) => { closeSwipeForSearch(); setSearch(value); }} style={styles.searchInput} />
-        {search.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={4} onPress={() => { closeSwipeForSearch(); setSearch(''); }} style={styles.clearSearch}>
+          onChangeText={changeSearch} style={styles.searchInput} />
+        {search.length > 0 ? <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={4} onPress={() => changeSearch('')} style={styles.clearSearch}>
           <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' }} size={21} tintColor={theme.inputPlaceholder} />
         </Pressable> : null}
       </View>
@@ -323,7 +349,7 @@ export default function ShoppingListScreen() {
 const styles = StyleSheet.create({
   itemGroups: { gap: 14 },
   itemGroup: { gap: 6 },
-  groupHeading: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'space-between', paddingHorizontal: 4, paddingTop: 4 },
+  groupHeading: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'space-between', minHeight: 44, paddingHorizontal: 4, paddingVertical: 6 },
   groupHeadingCopy: { alignItems: 'center', flexDirection: 'row', flex: 1, gap: 8, minWidth: 0 },
   groupLabel: { flexShrink: 1, fontSize: 13, fontWeight: '600' },
   groupCount: { fontSize: 13 },
