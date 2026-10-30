@@ -1,7 +1,9 @@
 # Shopping Category and Store headings — F04
 
 Status: approved and implemented October 30, 2026. Felipe directly assigned
-implementation to the chat agent. Physical review remains pending. No API,
+implementation to the chat agent. Felipe accepted the reviewed headings
+October 30 and requested collapsible headers as a separate follow-up. Individual
+device cases and Android acceptance are not inferred. No API,
 schema, dependency, deployment or live-data changes.
 
 Planning branch: `codex/shopping-group-headings-plan`, from clean `49b7848`
@@ -167,3 +169,9 @@ short/full distances and inspect group/card borders. On long/short lists and
 larger text, confirm the final row and clear actions stay above navigation and
 the keyboard after scrolling settles. No added group collapse controls are
 expected in this version.
+
+
+October 30 review: Felipe reports "That looks good" and accepts the reviewed
+headings, then requests header-tap collapsing. Follow-up behavior is proposed
+in `shopping-group-collapse.md`; search reveal, scoped memory and accessible
+controls need review before extending this headings-only implementation.

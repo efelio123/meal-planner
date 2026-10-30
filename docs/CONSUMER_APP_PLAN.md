@@ -170,6 +170,11 @@ filters, swipe actions and household-wide cleanup are preserved. Six targeted
 mobile suites / 256 tests, TypeScript and lint pass; physical review remains
 pending. No API/schema, dependency, keyboard-layout, live Mac or deployment
 changes. See `docs/plans/shopping-group-headings.md` for results and phone checks.
+Felipe subsequently accepts the reviewed headings October 30 and requests
+header-tap collapsing. The follow-up is proposed in
+`docs/plans/shopping-group-collapse.md`: independent group/section choices,
+screen-scoped memory and automatic reveal during search. Awaiting review;
+no collapse implementation changes yet. Broader device cases are not inferred.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
