@@ -186,11 +186,12 @@ See `docs/plans/shopping-group-collapse.md`. Broader device cases are not inferr
 Next proposed slice is F01 recipe ingredient reordering, planned in
 `docs/plans/recipe-ingredient-reordering.md`. Felipe revised the interaction to
 a far-right three-horizontal-line handle with animated dragging, no visible
-Up/Down buttons and no tap menu. Both reference attachments arrived as one-frame
-JPEGs, so exact motion matching awaits GIF/video. Stable per-occurrence UI keys,
-the existing ordered Save contract and a pinned sortable dependency remain
-proposed. Awaiting interaction/animation/dependency review; explicitly plan
-edits only, with no implementation yet.
+Up/Down buttons and no tap menu. Initial attachments were static JPEGs, but his
+subsequent source URL provides a verified 71-frame GIF; the plan now documents
+its lifted row/shadow, neighbour reflow and drop settling. Stable per-occurrence
+UI keys, the ordered Save contract and a pinned sortable dependency remain
+proposed. Awaiting interaction/dependency review; explicitly plan edits only,
+with no implementation yet.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

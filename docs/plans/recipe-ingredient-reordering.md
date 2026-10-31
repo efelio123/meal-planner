@@ -1,7 +1,7 @@
 # Recipe ingredient reordering — F01
 
-Status: revised October 30, 2026 per Felipe's visual references; awaiting review
-and a moving animation reference. Felipe explicitly requested plan edits only.
+Status: revised October 30, 2026 per Felipe's handle image and working GIF;
+awaiting interaction/dependency review. Felipe requested plan edits only.
 No application,
 API, schema, dependency installation, configuration, deployment or data changes.
 
@@ -16,7 +16,7 @@ No push/merge, native rebuild, Mac runtime/data changes or paid resources.
 Arrange recipe ingredients in the desired order during creation or editing,
 then preserve that order after Save and reload without changing their details.
 
-## Design references and animation status
+## Design references and reviewed animation
 
 Felipe's October 30 attachments supersede the original three-dot/tap-menu idea:
 
@@ -24,10 +24,18 @@ Felipe's October 30 attachments supersede the original three-dot/tap-menu idea:
   softly rounded and neutral-colored, aligned at the far right of each row.
   Retain the app's theme and ingredient content; the reference's white surface
   and sample names are not a request to restyle the whole editor.
-- **Pasted Image 2.jpg:** arrived as a single-frame JPEG (as did Photo 1), so no
-  movement, activation delay, easing or drop animation can be observed. Exact
-  animation matching remains pending a GIF/video. Do not claim the animation
-  was reviewed or invent its timing from the still image.
+- **Pasted Image 2.jpg:** the original upload and its re-upload arrived as
+  single-frame JPEGs, so those files could not show motion.
+- **Working animation:** Felipe subsequently provided
+  [the source GIF](https://sarunw.com/images/swiftui-list-reorder-long-press.gif).
+  It is an actual 71-frame, 808x683 GIF. Sampled frames across its progression
+  confirm a held row lifting above the list with a shadow, following the drag,
+  neighbouring rows shifting to make space and the released row settling back.
+  John moves from first to third; Bar later moves above Foo. Use this motion
+  with Photo 1's handle: the GIF does not display that handle. Do not copy its
+  simulated phone chrome, mouse pointer, blue touch circle or light palette.
+  Match the visible lift/reflow/drop phases; tune exact timings on-device rather
+  than claiming frame sampling establishes precise easing constants.
 
 ## Proposed interaction
 
@@ -36,24 +44,24 @@ Felipe's October 30 attachments supersede the original three-dot/tap-menu idea:
    three-stroke style using a consistent themed symbol, with a 44-point touch
    target and an accessible label including ingredient name and position.
    Duplicate ingredient names must remain distinguishable.
-2. **Press and drag the handle** to move an ingredient vertically. Activation
-   is handle-only; ordinary scrolling elsewhere remains normal. Exact hold/
-   activation timing will be checked against the moving reference when supplied.
-   A plain tap does not open a menu or reveal any controls.
+2. **Hold the handle until the row lifts, then drag** to move an ingredient
+   vertically, following the GIF's activation/lift sequence. Activation remains
+   handle-only; ordinary scrolling elsewhere stays normal. Tune the hold delay
+   during phone review. A plain tap opens no menu and reveals no controls.
 3. **No visible Move up/Move down buttons, no tap-to-reveal panel and no reorder
    menu.** Keep the row visually simple as requested. Supply nonvisual
    move-earlier/later accessibility actions and keyboard equivalents where
    supported, using the same movement helper, without introducing visible
    alternatives. Announce the ingredient's new position and retain accessible
    focus on its handle where feasible.
-4. **Animate the reorder interaction.** Provisional behavior: the active row
-   follows the finger with subtle lift/insertion feedback, neighbouring rows
-   slide smoothly into the available space, and the row settles into position
-   on release. Avoid abrupt jumps or dramatic zoom/bounce. These are proposed
-   behaviors, not an assertion about the unseen animation; refine them to match
-   the GIF/video before treating motion design as accepted. Respect reduced
-   motion without disabling reordering. Support variable-height names/notes and
-   edge auto-scroll without changing the row's content height during a drag.
+4. **Match the reviewed GIF's reorder animation:** lift the active row above
+   the list with a soft shadow and modest separation/emphasis, keep it tracking
+   the finger, smoothly shift neighbouring rows to show the insertion position,
+   then settle it into the row slot and remove the lift/shadow on release.
+   No abrupt jump, exaggerated zoom or added bounce. Compare actual motion with
+   the linked GIF during device review. Respect reduced motion without disabling
+   reordering. Support variable-height names/notes and edge auto-scroll without
+   changing the row's content height during a drag.
 5. Keep Edit/Remove and the current ingredient-details sheet. Drag release or
    cancellation must not edit, remove, add or save an ingredient. Reordering
    changes **only the current draft**, persisted by recipe Save, not per move.
@@ -150,8 +158,8 @@ regression-tested, preserving the accepted keyboard-gap correction.
 - Phone review: actual handle drag vs ordinary scroll, variable-height rows,
   edge auto-scroll in both directions, long/short lists, nonvisual movement actions,
   keyboard dismissal, interruptions/tab return and last field/action reachability.
-  Compare the three-line handle with Photo 1 and the motion with the supplied
-  GIF/video once available. Confirm moved values survive saved reloads. Run current appearance; report Android, native builds, hosted CI and
+  Compare the three-line handle with Photo 1 and lift/reflow/drop motion with
+  the linked, reviewed GIF. Confirm moved values survive saved reloads. Run current appearance; report Android, native builds, hosted CI and
   other unperformed cases as unrun. Mocked drag tests cannot prove native feel.
 
 ## References and review decisions
@@ -165,13 +173,15 @@ Primary references checked October 30:
 [release history](https://github.com/MatiPl01/react-native-sortables/releases).
 
 Recommend the referenced three-line drag handle with animated movement and no
-visible Up/Down controls or tap menu. The named dependency/compatibility check
-remains proposed. Exact motion and activation timing await a moving reference;
-Felipe explicitly said not to implement yet. Review the revised interaction,
-animation reference and dependency scope before implementation.
+visible Up/Down controls or tap menu. Use the linked GIF's observed lift,
+neighbour reflow and settling phases, tuning exact hold/easing on-device. The
+named dependency/compatibility check remains proposed. Felipe said not to
+implement yet; review the revised interaction and dependency scope first.
 
 Revision history: the initial proposal used trailing dots and tap-to-reveal
 Up/Down. Felipe replaced that design with three horizontal lines and drag-only
 visible interaction. Nonvisual accessibility/keyboard movement remains possible
-without adding visible buttons. Both supplied files were verified as JPEGs
-with one frame; a GIF/video is still needed to assess the requested animation.
+without adding visible buttons. Initial uploads were one-frame JPEGs; Felipe
+then provided the source URL above, verified as a 71-frame GIF and inspected
+across its animation frames. Motion is now documented, with implementation
+still explicitly on hold.
