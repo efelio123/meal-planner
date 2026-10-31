@@ -232,6 +232,14 @@ checklist/Android/browser coverage is not inferred. No API/schema, dependency,
 Mac trial, native build or deployment changes. Local servers remain running.
 See `docs/plans/shopping-tab-badge.md` for lifecycle decisions and review checks.
 
+Next proposed slice is F07 Leftovers/Eating out, documented in
+`docs/plans/meal-plan-special-entries.md` on `codex/meal-plan-special-entries-plan`.
+Add optional meal/restaurant text to non-recipe planned occurrences, reuse native
+Add/Edit and swipe deletion, and exclude them from shopping calculations. This
+needs an additive migration and typed API/mobile entries; preserve existing
+recipe plans and require a later coordinated phone/API trial rollout. Plan only,
+awaiting review; no application/schema/live-data changes are made by planning.
+
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
 New ingredients now inherit the Catalog recipe unit, including Food created
