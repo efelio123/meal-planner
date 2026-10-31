@@ -1,8 +1,9 @@
 # Release prerequisite: SDK 58 patch alignment
 
-Status: proposed October 31, 2026; explicit dependency approval pending.
+Status: approved October 31, 2026. Felipe explicitly says Go ahead to this patch set.
 Owner: this chat agent, continuing the authorized family trial release on
-`codex/family-trial-release`. No package edits yet.
+`codex/family-trial-release`. Dependencies are prepared in an isolated checkout so
+the existing Expo server can retain its current dependency tree.
 
 ## Goal and evidence
 
@@ -69,5 +70,13 @@ Expo Doctor release logs. Official [Expo upgrade guidance](https://docs.expo.dev
 recommends aligning dependencies and checking with Doctor; consult the installed
 SDK and [SDK 58 changelog](https://github.com/expo/expo/blob/sdk-58/packages/expo/CHANGELOG.md)
 when implementing. [RN 0.88.1 release](https://github.com/react/react-native/releases/tag/v0.88.1)
-is the proposed patch, not a new RN minor. The only open decision is approval of
-this exact patch set before dependency changes, as required by root AGENTS.md.
+is the proposed patch, not a new RN minor. Felipe approved this exact patch set before dependency changes, as required by
+root AGENTS.md. No additional direct manifest upgrades are included.
+
+## Execution record
+
+The 14 targets resolved exactly in an isolated Windows checkout. Original manifest
+range conventions are preserved and npm ci succeeded. The running Expo checkout
+keeps its existing node_modules; it is not the validation dependency tree. Full
+normal/cold suites, types/lint, compatibility/Doctor, native JS exports and audit
+comparison are in progress. Hosted CI and native phone builds remain pending.
