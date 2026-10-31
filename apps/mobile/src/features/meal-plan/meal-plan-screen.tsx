@@ -1,3 +1,6 @@
+import { PlanningDayStrip } from './planning-day-strip';
+import { PlanningDateSheet } from './planning-date-sheet';
+import { currentWindow, nearestVisibleDay, rangeLabel } from './planning-dates';
 import { mealDraftPayload } from './meal-entry';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -13,7 +16,7 @@ import { useMealPlanContext } from './meal-plan-context';
 import { useTheme } from '@/hooks/use-theme';
 import type { MealPlanEntry, MealSlot } from '@/lib/api';
 import { MealPlanAddSheet, MealPlanEditSheet } from './meal-plan-sheets';
-import { addCalendarDays, dateLabel, dayNumber, MEAL_SLOTS, shoppingReviewWeekStart, shortDayLabel } from './meal-plan-utils';
+import { addCalendarDays, dateLabel, MEAL_SLOTS, shoppingReviewWeekStart } from './meal-plan-utils';
 import { useMealPlan } from './use-meal-plan';
 
 function entryKey(entry: MealPlanEntry) { return `${entry.id}:${entry.edit_revision}`; }
@@ -23,17 +26,24 @@ export function MealPlanScreen() {
   const router = useRouter();
   const flow = useNativeSheetFlow();
   const mealPlanContext = useMealPlanContext();
-  const { householdId, scope, weekOffset, week, loading, refreshing, error, refresh, changeWeek, setTodayWeek, create, update, remove, pendingRemovalIds, blockedRemovalIds } = useMealPlan();
+  const { householdId, scope, windowKey, week, loading, refreshing, error, refresh, changeWeek, changeStart, preferredWeekday, preferenceError, setTodayWeek, create, update, remove, pendingRemovalIds, blockedRemovalIds } = useMealPlan();
   const [daySelection, setDaySelection] = useState<{ scope: string; day: string | null }>({ scope: '', day: null });
   const lastFocus = useRef(false);
   const latestRefresh = useRef(refresh);
   useEffect(() => { latestRefresh.current = refresh; }, [refresh]);
-  const dates = useMemo(() => week ? Array.from({ length: 7 }, (_, index) => addCalendarDays(week.week_start, index)) : [], [week]);
+  const visibleStart = typeof windowKey === 'string' ? windowKey : week?.week_start ?? null;
+  const visibleEnd = visibleStart ? addCalendarDays(visibleStart, 6) : null;
+  const dates = useMemo(() => visibleStart ? Array.from({ length: 7 }, (_, index) => addCalendarDays(visibleStart, index)) : [], [visibleStart]);
   const selectedDay = daySelection.scope === scope ? daySelection.day : null;
-  const activeDay = selectedDay && dates.includes(selectedDay) ? selectedDay : week?.local_today && dates.includes(week.local_today) ? week.local_today : dates[0] ?? null;
+  const localToday = week?.local_today;
+  const activeDay = useMemo(() => {
+    if (!visibleStart || !visibleEnd) return null;
+    if (selectedDay) return nearestVisibleDay(selectedDay, visibleStart, visibleEnd);
+    return localToday && dates.includes(localToday) ? localToday : visibleStart;
+  }, [dates, localToday, selectedDay, visibleEnd, visibleStart]);
   const entries = week?.entries ?? [];
 
-  const interaction = useMemo(() => ({ scope, weekOffset, activeDay }), [activeDay, scope, weekOffset]);
+  const interaction = useMemo(() => ({ scope, windowKey, activeDay }), [activeDay, scope, windowKey]);
   const currentInteraction = useRef(interaction);
   const latestWeek = useRef(week);
   const latestWrites = useRef({ loading, refreshing, pendingRemovalIds, blockedRemovalIds });
@@ -133,7 +143,7 @@ export function MealPlanScreen() {
     if (!householdId || !week || currentInteraction.current !== interaction || !screenFocused.current) return;
     closeSwipe();
     const id = flow.present(
-      <MealPlanAddSheet householdId={householdId} weekOffset={weekOffset} dates={dates} initialDate={day} initialSlot={slot} onSave={async (draft) => {
+      <MealPlanAddSheet householdId={householdId} windowStart={week.week_start} dates={dates} initialDate={day} initialSlot={slot} onSave={async (draft) => {
         await create(mealDraftPayload(draft));
         if (mealPlanContext.scope === scope) setDaySelection({ scope, day: draft.plannedFor });
       }} />,
@@ -156,13 +166,23 @@ export function MealPlanScreen() {
     router.push({ pathname: '/(app)/(tabs)/plan/sheet/edit', params: { sheetId: id } } as never);
   }, [closeSwipe, dates, flow, householdId, isCurrentMeal, openSwipeKey, refresh, remove, router, update, week]);
 
-  const weekText = week ? (() => {
-    const startMonth = dateLabel(week.week_start, { month: 'long' });
-    const endMonth = dateLabel(week.week_end, { month: 'long' });
-    return startMonth === endMonth
-      ? `${startMonth} ${dateLabel(week.week_start, { day: 'numeric' })}–${dateLabel(week.week_end, { day: 'numeric' })}`
-      : `${dateLabel(week.week_start, { month: 'long', day: 'numeric' })}–${dateLabel(week.week_end, { month: 'long', day: 'numeric' })}`;
-  })() : '';
+  const weekText = visibleStart && visibleEnd ? rangeLabel(visibleStart, visibleEnd) : '';
+  const chooseStart = useCallback((start: string) => {
+    closeSwipe();
+    if (activeDay) setDaySelection({ scope, day: nearestVisibleDay(activeDay, start, addCalendarDays(start, 6)) });
+    changeStart(start);
+  }, [activeDay, changeStart, closeSwipe, scope]);
+  const openStartCalendar = () => {
+    if (!week || loading) return;
+    closeSwipe();
+    const startedInteraction = currentInteraction.current;
+    const id = flow.present(<PlanningDateSheet title="Week starting" initialDate={week.week_start} onCancel={() => router.back()} onDone={(start) => {
+      if (currentInteraction.current !== startedInteraction) return;
+      if (start !== week.week_start) chooseStart(start);
+      router.back();
+    }} />, { detents: [0.7, 0.96] });
+    router.push({ pathname: '/(app)/(tabs)/plan/sheet/date', params: { sheetId: id } } as never);
+  };
   const daysWithEntries = new Set(entries.map((entry) => entry.planned_for));
   const activeDayEntries = entries.filter((entry) => entry.planned_for === activeDay);
   const reviewStart = shoppingReviewWeekStart(week, loading, error);
@@ -170,7 +190,7 @@ export function MealPlanScreen() {
   const openShoppingReview = () => {
     if (!reviewStart || currentInteraction.current !== interaction || !screenFocused.current) return;
     closeSwipe();
-    router.push({ pathname: '/(app)/(tabs)/plan/shopping-review', params: { weekStart: reviewStart } } as never);
+    router.push({ pathname: '/(app)/(tabs)/plan/shopping-review', params: { weekStart: reviewStart, weekEnd: week?.week_end } } as never);
   };
 
   return <Screen layout="tab-root" contentAlignment="top" testID="meal-plan-screen" onRefresh={refreshPlan} refreshing={refreshing}
@@ -186,22 +206,20 @@ export function MealPlanScreen() {
     <View style={styles.page}>
       <TabPageHeader title="Plan" actions={<Pressable accessibilityRole="button" onPress={() => { closeSwipe(); setDaySelection({ scope, day: null }); void setTodayWeek(); }} style={styles.todayAction}><ThemedText themeColor="link">Today</ThemedText></Pressable>} />
       <View style={styles.weekHeader}>
-        <View><ThemedText themeColor="textSecondary" style={styles.eyebrow}>THIS WEEK</ThemedText><ThemedText style={styles.weekText}>{weekText || 'This week'}</ThemedText></View>
+        <Pressable style={{ flex: 1 }} accessibilityRole="button" accessibilityLabel="Choose planning start date" accessibilityActions={[{ name: 'decrement', label: 'Previous day window' }, { name: 'increment', label: 'Next day window' }]} onAccessibilityAction={(event) => {
+          if (!week || loading) return;
+          if (event.nativeEvent.actionName === 'decrement') chooseStart(addCalendarDays(week.week_start, -1));
+          if (event.nativeEvent.actionName === 'increment') chooseStart(addCalendarDays(week.week_start, 1));
+        }} disabled={!week || loading} onPress={openStartCalendar}>
+          <ThemedText themeColor="textSecondary" style={styles.eyebrow}>{week && week.week_start === currentWindow(week.local_today, preferredWeekday) ? 'THIS WEEK' : 'DATE RANGE'}</ThemedText><ThemedText style={styles.weekText}>{weekText || 'Loading dates'}</ThemedText>
+        </Pressable>
         <View style={styles.weekNavigation}>
-          <Pressable accessibilityLabel="Previous week" accessibilityRole="button" onPress={() => { closeSwipe(); setDaySelection({ scope, day: null }); changeWeek(-1); }} style={styles.iconButton}><SymbolView name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }} size={20} tintColor={theme.text} /></Pressable>
-          <Pressable accessibilityLabel="Next week" accessibilityRole="button" onPress={() => { closeSwipe(); setDaySelection({ scope, day: null }); changeWeek(1); }} style={styles.iconButton}><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={20} tintColor={theme.text} /></Pressable>
+          <Pressable accessibilityLabel="Previous week" accessibilityRole="button" onPress={() => { closeSwipe(); if (activeDay && visibleStart && visibleEnd) setDaySelection({ scope, day: nearestVisibleDay(activeDay, addCalendarDays(visibleStart, -7), addCalendarDays(visibleEnd, -7)) }); changeWeek(-1); }} style={styles.iconButton}><SymbolView name={{ ios: 'chevron.left', android: 'chevron_left', web: 'chevron_left' }} size={20} tintColor={theme.text} /></Pressable>
+          <Pressable accessibilityLabel="Next week" accessibilityRole="button" onPress={() => { closeSwipe(); if (activeDay && visibleStart && visibleEnd) setDaySelection({ scope, day: nearestVisibleDay(activeDay, addCalendarDays(visibleStart, 7), addCalendarDays(visibleEnd, 7)) }); changeWeek(1); }} style={styles.iconButton}><SymbolView name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }} size={20} tintColor={theme.text} /></Pressable>
         </View>
       </View>
-      {week ? <View testID="meal-plan-week-strip" style={styles.dayRail}>
-        {dates.map((day) => {
-          const active = activeDay === day;
-          return <Pressable key={day} accessibilityRole="button" accessibilityLabel={`${shortDayLabel(day)} ${dateLabel(day, { month: 'long', day: 'numeric' })}`} accessibilityState={{ selected: active }} onPress={() => { closeSwipe(); setDaySelection({ scope, day }); }} style={[styles.day, active && { backgroundColor: theme.primary }]}>
-            <ThemedText themeColor={active ? undefined : 'textSecondary'} style={[styles.dayLabel, active && { color: theme.primaryText }]}>{shortDayLabel(day)}</ThemedText>
-            <ThemedText style={[styles.dayNumber, active && { color: theme.primaryText }]}>{dayNumber(day)}</ThemedText>
-            <View testID={`meal-plan-day-dot-${day}`} style={[styles.dayDot, { backgroundColor: active ? theme.primaryText : daysWithEntries.has(day) ? theme.primary : 'transparent' }]} />
-          </Pressable>;
-        })}
-      </View> : null}
+      {visibleStart ? <PlanningDayStrip start={visibleStart} activeDay={activeDay} plannedDates={daysWithEntries} disabled={loading || Boolean(error)} onSelect={(day) => { closeSwipe(); setDaySelection({ scope, day }); }} onStartChange={chooseStart} /> : null}
+      {preferenceError ? <ThemedText accessibilityRole="alert" themeColor="error">{preferenceError}</ThemedText> : null}
       <Pressable accessibilityLabel="Review shopping needs" accessibilityRole="button" disabled={reviewUnavailable} onPress={openShoppingReview} style={[styles.reviewBanner, { backgroundColor: theme.surfaceSelected, borderColor: theme.border }, reviewUnavailable && styles.disabledBanner]}>
         <View style={[styles.reviewIcon, { backgroundColor: theme.primary }]}><SymbolView name={{ ios: 'cart', android: 'shopping_cart', web: 'shopping_cart' }} size={22} tintColor={theme.primaryText} /></View>
         <View style={styles.reviewCopy}><ThemedText style={styles.reviewTitle}>Review shopping needs</ThemedText><ThemedText themeColor="textSecondary">Choose ingredients to add to Shopping</ThemedText></View>
@@ -218,7 +236,7 @@ export function MealPlanScreen() {
             <ThemedText accessibilityRole="header" style={styles.mealHeading}>{slot.label}</ThemedText>
             {entry ? <MealPlanCard key={`${scope}:${entryKey(entry)}:${swipeResetVersion}`} entry={entry} slotLabel={slot.label}
               active={openSwipeKey === entryKey(entry)} pending={pendingRemovalIds.has(entry.id)} blocked={blockedRemovalIds.has(entry.id)} swipeEnabled={!loading && !refreshing}
-              onEdit={editEntry} onStart={beginSwipe} onEnd={endSwipe} onReveal={revealSwipe} onClose={closeMealSwipe} onRemove={removeFromSwipe} /> : <Pressable accessibilityRole="button" accessibilityLabel={`Add ${slot.label}`} onPress={() => addEntry(activeDay, slot.id)} style={[styles.emptyMeal, { borderColor: theme.border }]}>
+              onEdit={editEntry} onStart={beginSwipe} onEnd={endSwipe} onReveal={revealSwipe} onClose={closeMealSwipe} onRemove={removeFromSwipe} /> : <Pressable accessibilityRole="button" accessibilityLabel={`Add ${slot.label}`} disabled={loading || Boolean(error)} onPress={() => addEntry(activeDay, slot.id)} style={[styles.emptyMeal, { borderColor: theme.border }]}>
               <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={19} tintColor={theme.link} /><ThemedText themeColor="link">Add {slot.label.toLocaleLowerCase()}</ThemedText>
             </Pressable>}
           </View>;

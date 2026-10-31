@@ -42,7 +42,7 @@ export type MealPlanEntryInput = { planned_for: string; meal_slot: MealSlot } & 
   | { entry_type?: 'recipe'; recipe_id: string; detail?: null }
   | { entry_type: 'leftovers' | 'eating_out'; recipe_id: null; detail: string | null }
 );
-export type MealPlanWeek = { time_zone: string; local_today: string; week_start: string; week_end: string; week_offset: number; entries: MealPlanEntry[] };
+export type MealPlanWeek = { time_zone: string; local_today: string; week_start: string; week_end: string; week_offset: number | null; entries: MealPlanEntry[] };
 export type MealPlanNeed = {
   need_key: string; catalog_item_id: string; name: string; amount: string | null;
   recipe_unit_code: string | null; recipe_unit_dimension: 'volume' | 'mass' | 'count' | null;
@@ -53,6 +53,7 @@ export type MealPlanNeed = {
 export type MealPlanShoppingReview = { week_start: string; week_end: string; review_token: string; needs: MealPlanNeed[] };
 export type AddReviewedMealPlanNeedsInput = {
   week_start: string;
+  week_end?: string;
   review_token: string;
   request_id: string;
   selected_need_keys: string[];
@@ -264,16 +265,16 @@ export const api = {
     request<{ removed_count: number }>(getToken, `/v1/households/${householdId}/shopping-list`, { method: 'DELETE' }),
   clearPurchasedShoppingItems: (getToken: GetToken, householdId: string) =>
     request<ClearPurchasedShoppingItemsResult>(getToken, `/v1/households/${householdId}/shopping-list/purchased-items`, { method: 'DELETE' }),
-  mealPlan: (getToken: GetToken, householdId: string, weekOffset = 0) =>
-    request<MealPlanWeek>(getToken, `/v1/households/${householdId}/meal-plan?week_offset=${weekOffset}`, { method: 'GET' }),
+  mealPlan: (getToken: GetToken, householdId: string, window: number | string = 0) =>
+    request<MealPlanWeek>(getToken, `/v1/households/${householdId}/meal-plan?${typeof window === 'number' ? `week_offset=${window}` : `start_date=${encodeURIComponent(window)}`}`, { method: 'GET' }),
   createMealPlanEntry: (getToken: GetToken, householdId: string, values: MealPlanEntryInput) =>
     request<{ entry: MealPlanEntry }>(getToken, `/v1/households/${householdId}/meal-plan/entries`, { method: 'POST', body: JSON.stringify(values) }),
   updateMealPlanEntry: (getToken: GetToken, householdId: string, entryId: string, values: MealPlanEntryInput & { expected_revision: number }) =>
     request<{ entry: MealPlanEntry }>(getToken, `/v1/households/${householdId}/meal-plan/entries/${entryId}`, { method: 'PATCH', body: JSON.stringify(values) }),
   deleteMealPlanEntry: (getToken: GetToken, householdId: string, entryId: string, revision: number) =>
     request<void>(getToken, `/v1/households/${householdId}/meal-plan/entries/${entryId}?expected_revision=${revision}`, { method: 'DELETE' }),
-  mealPlanShoppingReview: (getToken: GetToken, householdId: string, weekStart: string) =>
-    request<MealPlanShoppingReview>(getToken, `/v1/households/${householdId}/meal-plan/shopping-review?week_start=${weekStart}`, { method: 'GET' }),
+  mealPlanShoppingReview: (getToken: GetToken, householdId: string, weekStart: string, weekEnd?: string) =>
+    request<MealPlanShoppingReview>(getToken, `/v1/households/${householdId}/meal-plan/shopping-review?week_start=${encodeURIComponent(weekStart)}${weekEnd ? `&week_end=${encodeURIComponent(weekEnd)}` : ''}`, { method: 'GET' }),
   addMealPlanNeedsToShopping: (getToken: GetToken, householdId: string, values: AddReviewedMealPlanNeedsInput) =>
     request<{ items: { id: string; name: string }[]; replayed: boolean }>(getToken, `/v1/households/${householdId}/meal-plan/shopping`, { method: 'POST', body: JSON.stringify(values) }),
   catalogUnits: (getToken: GetToken, householdId: string) =>

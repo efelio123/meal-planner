@@ -47,6 +47,17 @@ def _week_start(value: str) -> date:
     return week_start
 
 
+def _review_range(start: str, end: str | None) -> tuple[date, date]:
+    first = _week_start(start) if end is None else _date(start)
+    try:
+        last = first + timedelta(days=6) if end is None else _date(end)
+    except OverflowError as error:
+        raise _invalid("Use a valid calendar date range.") from error
+    if not 1 <= (last - first).days + 1 <= 31:
+        raise _invalid("Choose a shopping period of 1 to 31 days, with the end on or after the start.")
+    return first, last
+
+
 def _week_range(local_today: date, week_offset: int = 0) -> tuple[date, date]:
     monday = local_today - timedelta(days=local_today.weekday()) + timedelta(weeks=week_offset)
     return monday, monday + timedelta(days=6)
@@ -83,14 +94,21 @@ def _normalize_amount_overrides(selected_need_keys: list[str], amount_overrides:
     return normalized
 
 
-def get_week(user: CurrentUser, household_id: str, week_offset: int = 0, engine: Engine | None = None) -> dict:
+def get_week(user: CurrentUser, household_id: str, week_offset: int | None = None, engine: Engine | None = None, *, start_date: str | None = None) -> dict:
+    if start_date is not None and week_offset is not None:
+        raise _invalid("Choose a start date or a week offset, not both.")
+    explicit_start = _date(start_date) if start_date is not None else None
+    if explicit_start is not None and explicit_start > date.max - timedelta(days=6):
+        raise _invalid("Choose a start date with seven available calendar days.")
+    offset = week_offset or 0
     with (engine or get_engine()).connect() as connection:
         rows = connection.execute(text("""
             WITH authorized_week AS (
                 SELECT authorized_household.*,
-                    (authorized_household.local_today
+                    COALESCE(CAST(:start_date AS date),
+                        (authorized_household.local_today
                         - (EXTRACT(ISODOW FROM authorized_household.local_today)::integer - 1)
-                        + CAST(:week_offset AS integer) * 7)::date AS week_start
+                        + CAST(:week_offset AS integer) * 7)::date) AS week_start
                 FROM (
                     SELECT h.id, h.time_zone,
                         (timezone(h.time_zone, CURRENT_TIMESTAMP))::date AS local_today
@@ -115,7 +133,7 @@ def get_week(user: CurrentUser, household_id: str, week_offset: int = 0, engine:
                 ON recipe.household_id = entry.household_id AND recipe.id = entry.recipe_id
             ORDER BY entry.planned_for,
                 array_position(ARRAY['breakfast','lunch','dinner'], entry.meal_slot)
-        """), {"household_id": household_id, "user_id": user.id, "week_offset": week_offset}).mappings().all()
+        """), {"household_id": household_id, "user_id": user.id, "week_offset": offset, "start_date": explicit_start}).mappings().all()
         if not rows:
             raise _not_found()
         household = rows[0]
@@ -127,7 +145,7 @@ def get_week(user: CurrentUser, household_id: str, week_offset: int = 0, engine:
         "local_today": today.isoformat(),
         "week_start": monday.isoformat(),
         "week_end": sunday.isoformat(),
-        "week_offset": week_offset,
+        "week_offset": offset if explicit_start is None else None,
         "entries": [_entry(row) for row in rows if row["id"] is not None],
     }
 
@@ -226,8 +244,8 @@ def delete_entry(user: CurrentUser, household_id: str, entry_id: str, expected_r
             raise _conflict("MEAL_PLAN_REVISION_CONFLICT", "This planned meal changed on another device. Refresh before removing it.")
 
 
-def _review_snapshot(connection, household_id: str, week_start: date) -> dict:
-    week_end = week_start + timedelta(days=6)
+def _review_snapshot(connection, household_id: str, week_start: date, explicit_end: date | None = None) -> dict:
+    week_end = explicit_end if explicit_end is not None else week_start + timedelta(days=6)
     rows = connection.execute(text("""
         SELECT entry.id::text AS entry_id, entry.planned_for, entry.meal_slot,
             entry.edit_revision AS entry_revision,
@@ -303,29 +321,35 @@ def _review_snapshot(connection, household_id: str, week_start: date) -> dict:
             need["amount"] = _amount_text(need["amount"])
         needs.append(need)
     needs.sort(key=lambda item: (item["name"].casefold(), item["unit_label"] or "", item["need_key"]))
-    canonical = json.dumps({"week_start": week_start.isoformat(), "sources": sources, "shopping": [dict(row) for row in shopping]}, sort_keys=True, default=str, separators=(",", ":"))
+    identity = {"week_start": week_start.isoformat(), "sources": sources, "shopping": [dict(row) for row in shopping]}
+    # Keep legacy tokens byte-for-byte; explicit ranges bind both endpoints.
+    if explicit_end is not None:
+        identity["week_end"] = explicit_end.isoformat()
+    canonical = json.dumps(identity, sort_keys=True, default=str, separators=(",", ":"))
     review_token = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     return {"week_start": week_start.isoformat(), "week_end": week_end.isoformat(), "review_token": review_token, "needs": needs}
 
 
-def get_shopping_review(user: CurrentUser, household_id: str, week_start: str, engine: Engine | None = None) -> dict:
-    monday = _week_start(week_start)
+def get_shopping_review(user: CurrentUser, household_id: str, week_start: str, engine: Engine | None = None, *, week_end: str | None = None) -> dict:
+    first, last = _review_range(week_start, week_end)
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
-        return _review_snapshot(connection, household_id, monday)
+        return _review_snapshot(connection, household_id, first, last if week_end is not None else None)
 
 
-def add_reviewed_needs(user: CurrentUser, household_id: str, week_start: str, review_token: str, request_id: str, selected_need_keys: list[str], engine: Engine | None = None, amount_overrides: dict[str, str] | None = None) -> dict:
-    monday = _week_start(week_start)
+def add_reviewed_needs(user: CurrentUser, household_id: str, week_start: str, review_token: str, request_id: str, selected_need_keys: list[str], engine: Engine | None = None, amount_overrides: dict[str, str] | None = None, *, week_end: str | None = None) -> dict:
+    first, last = _review_range(week_start, week_end)
     keys = sorted(set(selected_need_keys))
     if not keys:
         raise _invalid("Select at least one item to add.")
     normalized_overrides = _normalize_amount_overrides(keys, amount_overrides)
     request_identity = {
-        "week_start": monday.isoformat(),
+        "week_start": first.isoformat(),
         "review_token": review_token,
         "keys": keys,
     }
+    if week_end is not None:
+        request_identity["week_end"] = last.isoformat()
     if normalized_overrides:
         request_identity["amount_overrides"] = {key: _amount_text(value) for key, value in sorted(normalized_overrides.items())}
     request_hash = hashlib.sha256(json.dumps(request_identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -346,7 +370,7 @@ def add_reviewed_needs(user: CurrentUser, household_id: str, week_start: str, re
             """), {"household_id": household_id, "request_id": request_id}).mappings().all()
             return {"items": [dict(row) for row in inserted], "replayed": True}
 
-        snapshot = _review_snapshot(connection, household_id, monday)
+        snapshot = _review_snapshot(connection, household_id, first, last if week_end is not None else None)
         if snapshot["review_token"] != review_token:
             raise _conflict("MEAL_PLAN_REVIEW_STALE", "The plan or Shopping list changed. Refresh this review before adding items.")
         available = {item["need_key"]: item for item in snapshot["needs"]}

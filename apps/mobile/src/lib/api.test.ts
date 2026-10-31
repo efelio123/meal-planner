@@ -412,3 +412,16 @@ describe('mobile API client', () => {
     ]);
   });
 });
+
+
+it('sends explicit planning dates and both shopping-review endpoints without a legacy offset', async () => {
+  const fetcher = jest.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({}), { status: 200 }));
+  fetcher.mockClear();
+  const token = jest.fn().mockResolvedValue('range-token');
+  await api.mealPlan(token, 'home-1', '2026-12-24');
+  await api.mealPlanShoppingReview(token, 'home-1', '2026-12-24', '2027-01-06');
+  expect(String(fetcher.mock.calls[0][0])).toContain('/meal-plan?start_date=2026-12-24');
+  expect(String(fetcher.mock.calls[0][0])).not.toContain('week_offset');
+  expect(String(fetcher.mock.calls[1][0])).toContain('week_start=2026-12-24&week_end=2027-01-06');
+  fetcher.mockRestore();
+});

@@ -129,6 +129,7 @@ class UpdateMealPlanEntryRequest(CreateMealPlanEntryRequest):
 
 class AddReviewedMealPlanNeedsRequest(BaseModel):
     week_start: str = Field(min_length=10, max_length=10)
+    week_end: str | None = Field(default=None, min_length=10, max_length=10)
     review_token: str = Field(min_length=64, max_length=64)
     request_id: UUID
     selected_need_keys: list[str] = Field(min_length=1, max_length=500)
@@ -510,8 +511,8 @@ def clear_purchased_shopping_items(household_id: UUID, user: User) -> dict:
 
 
 @app.get("/v1/households/{household_id}/meal-plan", tags=["meal-plan"])
-def get_meal_plan(household_id: UUID, user: User, week_offset: int = Query(default=0, ge=-520, le=520)) -> dict:
-    return meal_planning.get_week(user, str(household_id), week_offset)
+def get_meal_plan(household_id: UUID, user: User, week_offset: int | None = Query(default=None, ge=-520, le=520), start_date: str | None = Query(default=None, min_length=10, max_length=10)) -> dict:
+    return meal_planning.get_week(user, str(household_id), week_offset, start_date=start_date)
 
 
 @app.post("/v1/households/{household_id}/meal-plan/entries", status_code=status.HTTP_201_CREATED, tags=["meal-plan"])
@@ -531,8 +532,8 @@ def delete_meal_plan_entry(household_id: UUID, entry_id: UUID, user: User, expec
 
 
 @app.get("/v1/households/{household_id}/meal-plan/shopping-review", tags=["meal-plan"])
-def get_meal_plan_shopping_review(household_id: UUID, user: User, week_start: str = Query(min_length=10, max_length=10)) -> dict:
-    return meal_planning.get_shopping_review(user, str(household_id), week_start)
+def get_meal_plan_shopping_review(household_id: UUID, user: User, week_start: str = Query(min_length=10, max_length=10), week_end: str | None = Query(default=None, min_length=10, max_length=10)) -> dict:
+    return meal_planning.get_shopping_review(user, str(household_id), week_start, week_end=week_end)
 
 
 @app.post("/v1/households/{household_id}/meal-plan/shopping", status_code=status.HTTP_201_CREATED, tags=["meal-plan"])
@@ -545,4 +546,5 @@ def post_meal_plan_shopping(household_id: UUID, payload: AddReviewedMealPlanNeed
         str(payload.request_id),
         payload.selected_need_keys,
         amount_overrides=payload.amount_overrides,
+        week_end=payload.week_end,
     )

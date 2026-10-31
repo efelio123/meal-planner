@@ -11,6 +11,8 @@ import { catalogEmojiSheetKeyboardBehavior } from '@/features/catalog/catalog-em
 import { useResetToHouseholdStartup } from '@/features/profile/use-reset-to-household-startup';
 
 jest.setTimeout(30000);
+// Native persistence is outside this routing harness; the preference hook has dedicated storage tests.
+jest.mock('@react-native-async-storage/async-storage', () => ({ getItem: jest.fn().mockResolvedValue(null), setItem: jest.fn().mockResolvedValue(undefined) }));
 // The native tab's system label is not a rendered text node in Jest. Observe
 // the real tab consumer; native badge wiring is covered by native-tabs-config.
 let mockTabBadge: { accessibilityLabel: string } | null = null;

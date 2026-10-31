@@ -259,11 +259,21 @@ interaction on his phone October 31 at `f6a969a`, including compact choices and
 immediate special-meal Add. Individual checklist cases and Android coverage are
 not inferred. No API/schema/database, dependency or server-process change.
 
-F11 personal planning windows and custom shopping ranges are proposed next in
-`docs/plans/personal-planning-ranges.md`, on `codex/personal-planning-ranges`.
-The proposal includes a day-snapping seven-day strip, a per-user device-local
-weekday preference and inclusive 1-31-day review ranges, preserving legacy API
-request replay. Awaiting Felipe's approval; no implementation/runtime changes.
+F11 personal planning windows and custom shopping ranges are approved and
+implemented directly October 31 on `codex/personal-planning-ranges`. The seven-day
+strip snaps by day, with weekly arrows, precise calendar selection and Today
+aligned to a per-user device-local weekday. Shopping review defaults to that
+window and supports From/Through periods of 1-31 inclusive days. Applying a new
+range resets selections/manual amounts; canceling preserves them. Explicit API
+endpoints bind review tokens and request hashes, retaining legacy retry behavior.
+No schema or dependency change. Full mobile: 69 suites / 714 tests; full API:
+187 tests on verified disposable PostgreSQL, all without skips. After a subsequent
+compiler-oriented selected-day memoization rewrite, all 105 Plan tests, types,
+mobile/API lint, whitespace and iOS JS export pass; the full mobile result predates
+only that rewrite. Local API restarted for phone review and Expo remains running.
+Physical acceptance and broader device/CI/native checks remain pending. Mac trial
+data/runtime and installed phones are unchanged. See
+`docs/plans/personal-planning-ranges.md` for behavior, validation and boundaries.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

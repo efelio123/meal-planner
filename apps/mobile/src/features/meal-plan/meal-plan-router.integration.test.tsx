@@ -1,3 +1,4 @@
+import { calendarDay } from './planning-dates';
 // SDK 58 initializes the full route tree asynchronously; cold imports on Windows
 // exceed Jest's unit-test default. This is not an app startup performance check.
 import type { PropsWithChildren } from 'react';
@@ -97,6 +98,8 @@ const mockedStorage = jest.mocked(AsyncStorage);
 async function waitForLoadedPlan() {
   await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenCalled());
   await waitFor(() => expect(screen.getByText('Breakfast')).toBeTruthy());
+  const strip = screen.queryByTestId('meal-plan-week-strip');
+  if (strip) await fireEvent(strip, 'layout', { nativeEvent: { layout: { width: 350, height: 90, x: 0, y: 0 } } });
 }
 
 describe('meal planning through the Expo Router', () => {
@@ -110,7 +113,7 @@ describe('meal planning through the Expo Router', () => {
     mockedStorage.removeItem.mockResolvedValue();
     mockedApi.me.mockResolvedValue(me);
     mockedApi.shoppingList.mockResolvedValue({ shopping_list: { id: 'list-1', household_id: household.id, items: [] } });
-    mockedApi.mealPlan.mockImplementation(async (_token, _householdId, weekOffset = 0) => ({ ...emptyWeek(), week_offset: weekOffset }));
+    mockedApi.mealPlan.mockImplementation(async (_token, _householdId, window = 0) => ({ ...emptyWeek(), week_start: typeof window === 'string' ? window : calendarDay('2026-10-05', window * 7), week_end: calendarDay(typeof window === 'string' ? window : calendarDay('2026-10-05', window * 7), 6), week_offset: typeof window === 'number' ? window : null }));
     mockedApi.recipes.mockResolvedValue({ recipes: [recipe()] });
     mockedApi.createMealPlanEntry.mockResolvedValue({ entry: { id: 'entry-1', planned_for: '2026-10-05', meal_slot: 'breakfast', recipe_id: 'recipe-soup', edit_revision: 1 } });
     mockedApi.updateMealPlanEntry.mockResolvedValue({ entry: { id: 'entry-1', planned_for: '2026-10-05', meal_slot: 'breakfast', recipe_id: 'recipe-soup', edit_revision: 2 } });
@@ -292,10 +295,10 @@ describe('meal planning through the Expo Router', () => {
     await waitForLoadedPlan();
 
     const weekStrip = screen.getByTestId('meal-plan-week-strip');
-    expect(StyleSheet.flatten(weekStrip.props.style)).toMatchObject({ flexDirection: 'row', width: '100%' });
+    expect(StyleSheet.flatten(weekStrip.props.style)).toMatchObject({ overflow: 'hidden', width: '100%' });
     const days = within(weekStrip).getAllByRole('button');
     expect(days).toHaveLength(7);
-    days.forEach((day) => expect(StyleSheet.flatten(day.props.style)).toMatchObject({ flex: 1, minWidth: 0 }));
+    days.forEach((day) => expect(StyleSheet.flatten(day.props.style)).toMatchObject({ width: 50 }));
 
     await fireEvent.press(days[6]);
     expect(screen.getByText('Sunday, October 11')).toBeTruthy();
@@ -415,7 +418,7 @@ describe('meal planning through the Expo Router', () => {
     }] };
     let entryCreated = false;
     mockedApi.mealPlan.mockImplementation(async (_token, _householdId, weekOffset = 0) => ({
-      ...(entryCreated ? withNewEntry : emptyWeek()), week_offset: weekOffset,
+      ...(entryCreated ? withNewEntry : emptyWeek()), week_offset: typeof weekOffset === 'number' ? weekOffset : null,
     }));
     mockedApi.createMealPlanEntry.mockImplementation(async () => {
       entryCreated = true;
@@ -497,7 +500,7 @@ describe('meal planning through the Expo Router', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
     expect(await screen.findByText('Review what to buy')).toBeTruthy();
     await waitFor(() => expect(screen.getAllByText('1.5 Cup').length).toBeGreaterThan(0));
-    await waitFor(() => expect(screen.getAllByText('Soup · Mon').length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText('Soup · Oct 5, 2026').length).toBeGreaterThan(0));
     expect(screen.getAllByRole('checkbox')).toHaveLength(2);
     expect(screen.getByText('Already on Shopping')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Edit Beans on Shopping' })).toBeTruthy();
@@ -562,7 +565,7 @@ describe('meal planning through the Expo Router', () => {
     expect(await screen.findByText('3 Pound to buy · 3 Pound needed')).toBeTruthy();
 
     await fireEvent.press(screen.getByRole('button', { name: 'Show Chicken meal sources' }));
-    expect(await screen.findByText('Fri · Chicken stew')).toBeTruthy();
+    expect(await screen.findByText('Oct 9, 2026 · Chicken stew')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Edit amount to buy for Chicken' }));
     expect(await screen.findByRole('header', { name: 'Amount to buy' })).toBeTruthy();
     const amountInput = screen.getByLabelText('Amount to buy');
@@ -573,9 +576,9 @@ describe('meal planning through the Expo Router', () => {
     expect(rendered.getPathname()).toBe('/plan/shopping-review');
     expect(await screen.findByText('1 Pound to buy · 3 Pound needed')).toBeTruthy();
     expect(screen.getByText('Used in 3 meals')).toBeTruthy();
-    expect(screen.getByText('Mon · Chicken tacos')).toBeTruthy();
-    expect(screen.getByText('Wed · Chicken salad')).toBeTruthy();
-    expect(screen.getByText('Fri · Chicken stew')).toBeTruthy();
+    expect(screen.getByText('Oct 5, 2026 · Chicken tacos')).toBeTruthy();
+    expect(screen.getByText('Oct 7, 2026 · Chicken salad')).toBeTruthy();
+    expect(screen.getByText('Oct 9, 2026 · Chicken stew')).toBeTruthy();
 
     await fireEvent.press(screen.getByRole('button', { name: 'Add 1 selected to Shopping' }));
     await waitFor(() => expect(mockedApi.addMealPlanNeedsToShopping).toHaveBeenCalledWith(expect.any(Function), household.id, expect.objectContaining({
@@ -716,7 +719,7 @@ describe('meal planning through the Expo Router', () => {
     await screen.findByText('Plan');
     await waitForLoadedPlan();
     await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
-    expect((await screen.findAllByText('Soup · Mon')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Soup · Oct 5, 2026')).length).toBeGreaterThan(0);
     await fireEvent.press(screen.getByRole('button', { name: 'Add 1 selected to Shopping' }));
     await waitFor(() => expect(mockedApi.addMealPlanNeedsToShopping).toHaveBeenCalledTimes(1));
 
@@ -879,4 +882,85 @@ describe('meal planning through the Expo Router', () => {
     expect(rendered.getPathname()).toBe('/plan');
     expect(mockedApi.mealPlan).toHaveBeenCalledTimes(3);
   });
+  it('slides by a day and defaults shopping review to the new seven-day window', async () => {
+    mockedApi.mealPlanShoppingReview.mockImplementation(async (_token, _home, start, end) => ({ week_start: start, week_end: end!, review_token: 'a'.repeat(64), needs: [] }));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    const scroll = screen.getByTestId('planning-day-scroll');
+    await fireEvent(scroll, 'scrollBeginDrag', { nativeEvent: { contentOffset: { x: 700, y: 0 } } });
+    await fireEvent(scroll, 'scroll', { nativeEvent: { contentOffset: { x: 750, y: 0 } } });
+    await fireEvent(scroll, 'scrollEndDrag', { nativeEvent: { contentOffset: { x: 750, y: 0 } } });
+    await fireEvent(scroll, 'momentumScrollEnd', { nativeEvent: { contentOffset: { x: 750, y: 0 } } });
+    await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenLastCalledWith(expect.any(Function), household.id, '2026-10-06'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Review shopping needs' }));
+    await waitFor(() => expect(mockedApi.mealPlanShoppingReview).toHaveBeenLastCalledWith(expect.any(Function), household.id, '2026-10-06', '2026-10-12'));
+  });
+
+  it('cancels date drafts without changing amounts, then applies a new range and clears adjustments', async () => {
+    mockedApi.mealPlanShoppingReview.mockImplementation(async (_token, _home, start, end) => ({
+      week_start: start, week_end: end!, review_token: 'b'.repeat(64), needs: [{
+        need_key: 'rice', catalog_item_id: 'food-rice', name: 'Rice', amount: '3',
+        recipe_unit_code: 'cup', recipe_unit_dimension: 'volume', unit_label: 'Cup', custom_unit_label: null,
+        sources: [{ planned_for: start, meal_slot: 'dinner', recipe_name: 'Soup', amount: '3', unit_label: 'Cup', note: null }], existing_matches: [], default_selected: true,
+      }],
+    }));
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit amount to buy for Rice' }));
+    await fireEvent.changeText(await screen.findByLabelText('Amount to buy'), '1');
+    await fireEvent.press(screen.getByRole('button', { name: 'Done editing amount' }));
+    await screen.findByText('1 Cup to buy · 3 Cup needed');
+    await fireEvent.press(screen.getByRole('button', { name: 'Change shopping end date' }));
+    const calendar = within(await screen.findByTestId('planning-date-sheet'));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Wednesday, October 14' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Cancel date change' }));
+    expect(screen.getByText('1 Cup to buy · 3 Cup needed')).toBeTruthy();
+    expect(mockedApi.mealPlanShoppingReview).toHaveBeenCalledTimes(1);
+    await fireEvent.press(screen.getByRole('button', { name: 'Change shopping end date' }));
+    const nextCalendar = within(await screen.findByTestId('planning-date-sheet'));
+    await fireEvent.press(nextCalendar.getByRole('button', { name: 'Wednesday, October 14' }));
+    await fireEvent.press(nextCalendar.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(mockedApi.mealPlanShoppingReview).toHaveBeenLastCalledWith(expect.any(Function), household.id, '2026-10-05', '2026-10-14'));
+    await screen.findByText('3 Cup to buy · 3 Cup needed');
+    await act(async () => { router.back(); });
+    expect(rendered.getPathname()).toBe('/plan');
+    expect(screen.getByText('October 5 – October 11, 2026')).toBeTruthy();
+  });
+
+  it('chooses an exact Plan start in the shared calendar and preserves a selected day still in view', async () => {
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(within(screen.getByTestId('meal-plan-week-strip')).getAllByRole('button')[4]);
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose planning start date' }));
+    const calendar = within(await screen.findByTestId('planning-date-sheet'));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Thursday, October 8' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenLastCalledWith(expect.any(Function), household.id, '2026-10-08'));
+    expect(await screen.findByText('Friday, October 9')).toBeTruthy();
+    await waitFor(() => expect(mockedStorage.setItem).toHaveBeenCalledWith('meal-planner:planning-weekday:user-a', '4'));
+  });
+
+  it('rejects a 32-day date draft and ignores a delayed review for the previous range', async () => {
+    const old = deferred<Awaited<ReturnType<typeof api.mealPlanShoppingReview>>>();
+    mockedApi.mealPlanShoppingReview.mockReturnValueOnce(old.promise).mockImplementation(async (_token, _home, start, end) => ({ week_start: start, week_end: end!, review_token: 'c'.repeat(64), needs: [] }));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    await waitFor(() => expect(mockedApi.mealPlanShoppingReview).toHaveBeenCalledTimes(1));
+    await fireEvent.press(screen.getByRole('button', { name: 'Change shopping end date' }));
+    const calendar = within(await screen.findByTestId('planning-date-sheet'));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Next month' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Thursday, November 5' }));
+    expect(calendar.getByRole('button', { name: 'Done' })).toBeDisabled();
+    await fireEvent.press(calendar.getByRole('button', { name: 'Previous month' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Wednesday, October 14' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(mockedApi.mealPlanShoppingReview).toHaveBeenCalledTimes(2));
+    await screen.findByText('No recipe ingredients are planned for these dates.');
+    await act(async () => { old.resolve({ week_start: '2026-10-05', week_end: '2026-10-11', review_token: 'd'.repeat(64), needs: [] }); await old.promise; });
+    expect(screen.getByText('October 5 – October 14, 2026')).toBeTruthy();
+    expect(screen.queryByText('October 5 – October 11, 2026')).toBeNull();
+  });
+
 });

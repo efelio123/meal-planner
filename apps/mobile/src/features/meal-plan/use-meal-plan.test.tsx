@@ -1,7 +1,10 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 import { ApiError, api, type MealPlanEntry, type MealPlanWeek } from '@/lib/api';
 import { useMealPlan } from './use-meal-plan';
 import { addCalendarDays } from './meal-plan-utils';
+
+jest.mock('@react-native-async-storage/async-storage', () => ({ getItem: jest.fn().mockResolvedValue(null), setItem: jest.fn().mockResolvedValue(undefined) }));
 
 let mockHouseholdId = 'household-a';
 let mockUserId = 'user-a';
@@ -15,11 +18,11 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function week(offset: number, today: string): MealPlanWeek {
-  const weekStart = addCalendarDays('2026-10-05', offset * 7);
+function week(offset: number | string, today: string): MealPlanWeek {
+  const weekStart = typeof offset === 'string' ? offset : addCalendarDays('2026-10-05', offset * 7);
   return {
     time_zone: 'America/Phoenix', local_today: today, week_start: weekStart, week_end: addCalendarDays(weekStart, 6),
-    week_offset: offset, entries: [],
+    week_offset: typeof offset === 'number' ? offset : null, entries: [],
   };
 }
 
@@ -98,7 +101,7 @@ describe('useMealPlan request scope', () => {
     await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenCalledTimes(1));
 
     await act(async () => { hook.result.current.changeWeek(1); });
-    await waitFor(() => expect(hook.result.current.weekOffset).toBe(1));
+    await waitFor(() => expect(hook.result.current.windowKey).toBe(1));
     await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(hook.result.current.week?.week_offset).toBe(1));
     await act(async () => { old.resolve(week(0, '2026-10-05')); await old.promise; });
@@ -119,13 +122,13 @@ describe('useMealPlan request scope', () => {
     await act(async () => { pendingMutation = hook.result.current.create({ planned_for: '2026-10-05', meal_slot: 'dinner', recipe_id: 'recipe-a' }); });
     await waitFor(() => expect(mockedApi.createMealPlanEntry).toHaveBeenCalledTimes(1));
     await act(async () => { hook.result.current.changeWeek(1); });
-    expect(hook.result.current.weekOffset).toBe(1);
-    await waitFor(() => expect(hook.result.current.week?.week_offset).toBe(1));
+    expect(hook.result.current.windowKey).toBe('2026-10-12');
+    await waitFor(() => expect(hook.result.current.week?.week_start).toBe('2026-10-12'));
     await act(async () => { mutation.resolve({ entry: { id: 'entry-a' } }); await pendingMutation; });
 
-    expect(hook.result.current.week?.week_offset).toBe(1);
+    expect(hook.result.current.week?.week_start).toBe('2026-10-12');
     expect(mockedApi.mealPlan).toHaveBeenCalledTimes(2);
-    expect(mockedApi.mealPlan).toHaveBeenLastCalledWith(expect.any(Function), 'household-a', 1);
+    expect(mockedApi.mealPlan).toHaveBeenLastCalledWith(expect.any(Function), 'household-a', '2026-10-12');
   });
 });
 
@@ -250,4 +253,50 @@ describe('confirmed meal removal and recovery', () => {
     expect(hook.result.current.week?.entries[0].id).toBe('new-view');
     expect(mockedApi.mealPlan).toHaveBeenCalledTimes(2);
   });
+});
+
+
+describe('personal absolute planning windows', () => {
+  beforeEach(() => {
+    jest.clearAllMocks(); mockHouseholdId = 'household-a'; mockUserId = 'user-a'; mockSessionId = 'session-a';
+    jest.mocked(AsyncStorage.getItem).mockResolvedValue(null);
+    jest.mocked(AsyncStorage.setItem).mockResolvedValue(undefined);
+    mockedApi.mealPlan.mockImplementation(async (_token, _home, window = 0) => week(window, '2026-10-07'));
+  });
+  it('aligns household-local today to the saved weekday, with explicit dates for arrows and Today', async () => {
+    jest.mocked(AsyncStorage.getItem).mockResolvedValue('4');
+    const hook = await renderHook(() => useMealPlan());
+    await waitFor(() => expect(hook.result.current.week?.week_start).toBe('2026-10-01'));
+    await act(async () => { hook.result.current.changeWeek(1); });
+    await waitFor(() => expect(hook.result.current.week?.week_start).toBe('2026-10-08'));
+    expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+    await act(async () => { await hook.result.current.setTodayWeek(); });
+    await waitFor(() => expect(hook.result.current.week?.week_start).toBe('2026-10-01'));
+  });
+  it('ignores an older absolute-window read and saves only the starting weekday', async () => {
+    const hook = await renderHook(() => useMealPlan());
+    await waitFor(() => expect(hook.result.current.week).not.toBeNull());
+    const stale = deferred<MealPlanWeek>();
+    mockedApi.mealPlan.mockReturnValueOnce(stale.promise);
+    await act(async () => { hook.result.current.changeStart('2026-10-08'); });
+    await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenLastCalledWith(expect.any(Function), 'household-a', '2026-10-08'));
+    await act(async () => { hook.result.current.changeStart('2026-10-09'); });
+    await waitFor(() => expect(hook.result.current.week?.week_start).toBe('2026-10-09'));
+    await act(async () => { stale.resolve(week('2026-10-08', '2026-10-07')); await stale.promise; });
+    expect(hook.result.current.week?.week_start).toBe('2026-10-09');
+    await waitFor(() => expect(AsyncStorage.setItem).toHaveBeenLastCalledWith('meal-planner:planning-weekday:user-a', '5'));
+  });
+  it('advances from the newly requested window while its first read is still pending', async () => {
+    const hook = await renderHook(() => useMealPlan());
+    await waitFor(() => expect(hook.result.current.week).not.toBeNull());
+    const old = deferred<MealPlanWeek>(); mockedApi.mealPlan.mockReturnValueOnce(old.promise);
+    await act(async () => { hook.result.current.changeStart('2026-10-08'); });
+    await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenLastCalledWith(expect.any(Function), 'household-a', '2026-10-08'));
+    expect(hook.result.current.week).toBeNull();
+    await act(async () => { hook.result.current.changeWeek(1); });
+    await waitFor(() => expect(hook.result.current.week?.week_start).toBe('2026-10-15'));
+    await act(async () => { old.resolve(week('2026-10-08', '2026-10-07')); await old.promise; });
+    expect(hook.result.current.week?.week_start).toBe('2026-10-15');
+  });
+
 });

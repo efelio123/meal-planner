@@ -6,14 +6,10 @@ export const MEAL_SLOTS: { id: MealSlot; label: string }[] = [
   { id: 'dinner', label: 'Dinner' },
 ];
 
-export function addCalendarDays(dateValue: string, days: number) {
-  const date = new Date(`${dateValue}T12:00:00`);
-  date.setDate(date.getDate() + days);
-  return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, '0')}-${`${date.getDate()}`.padStart(2, '0')}`;
-}
+export { calendarDay as addCalendarDays } from './planning-dates';
 
 export function dateLabel(dateValue: string, options: Intl.DateTimeFormatOptions = { weekday: 'long', month: 'long', day: 'numeric' }) {
-  return new Intl.DateTimeFormat(undefined, options).format(new Date(`${dateValue}T12:00:00`));
+  return new Intl.DateTimeFormat(undefined, { ...options, timeZone: 'UTC' }).format(new Date(`${dateValue}T12:00:00Z`));
 }
 
 export function shortDayLabel(dateValue: string) {
@@ -54,7 +50,7 @@ export function preserveShoppingAmountOverrides(
   overrides: Record<string, string>,
   nextReview: MealPlanShoppingReview,
 ): Record<string, string> {
-  if (!previousReview) return {};
+  if (!previousReview || previousReview.week_start !== nextReview.week_start || previousReview.week_end !== nextReview.week_end) return {};
   const previousNeeds = new Map(previousReview.needs.map((need) => [need.need_key, need]));
   const nextNeeds = new Map(nextReview.needs.map((need) => [need.need_key, need]));
   return Object.fromEntries(Object.entries(overrides).filter(([key, value]) => {

@@ -1,6 +1,8 @@
 # Personal planning windows and shopping date ranges - F11
 
-Status: proposed October 31, 2026; awaiting Felipe's approval. Planning only.
+Status: approved October 31, 2026. Felipe confirmed the 31-day limit, device-local
+per-user preference and resetting adjustments when applying a different range,
+and explicitly requested direct implementation by this agent.
 Branch: `codex/personal-planning-ranges`, from clean accepted tip `36713f8`.
 This retains the accepted family-trial fixes and F07 work; it is not based on
 older main and does not authorize merging, deployment or changing trial data.
@@ -172,13 +174,12 @@ headers, Back, drafts, larger text and full-width seven-day fit at rest. Follow
   remains separately coordinated with fresh backup and compatible installed
   phone builds. No data reset, paid service, push or merge is approved here.
 
-## Decisions for Felipe's review
+## Approved decisions
 
-Propose device-local per-user weekday persistence, Today aligned to that weekday,
-1-31 inclusive shopping days, and clearing review selections/amount adjustments
-when applying a different range. These are proposals, not previously confirmed
-requirements. No blocking investigation remains before review; revise this plan
-before implementation if Felipe chooses different behavior.
+Felipe approves device-local per-user weekday persistence, Today aligned to that
+weekday, 1-31 inclusive shopping days, and clearing review selections/amount
+adjustments when applying a different range. He explicitly requests direct
+implementation October 31 after clarification of persistence and reset behavior.
 
 ## Official references checked during planning
 
@@ -190,3 +191,64 @@ gesture-handler 3.3.0 and Reanimated 4.7.1. No package changes proposed.
   scrolling and snapping; verify APIs against installed 0.88 before implementation.
 - [SDK 58 AsyncStorage](https://docs.expo.dev/versions/v58.0.0/sdk/async-storage/):
   installed 2.2.0 matches its recommendation and is included in Expo Go.
+
+
+## Implementation and validation - October 31, 2026
+
+- Plan now supports explicit seven-day date windows, a bounded native horizontal
+  date strip with day snapping/recentering, and a shared month-calendar sheet for
+  precise starts. Seven complete days are accessible at rest; canceled pans do
+  not select days. Visible dates remain stable while a new window loads, without
+  relabeling old meals. Weekly arrows advance from the requested window even
+  while its read is pending. Today uses API household-local today and the saved
+  weekday. The selected day is retained or clamped to the nearest visible date.
+- The starting weekday is persisted per user on this device, with ordered writes,
+  stale hydration/user guards and nonblocking storage errors. Window/read/write
+  ownership includes the current household/session and absolute dates. Native
+  recipe creation retains the absolute return window and its draft.
+- Review has From/Through calendar controls, inclusive day count and full source
+  dates. Applying a different valid range clears selected needs, expansions and
+  manual amounts before loading the new snapshot; Cancel/same-date Done preserves
+  them. Range identity protects late reads and amount-sheet returns. A synchronous
+  scoped request lock prevents duplicate submission and locks range changes while
+  Add is pending. Existing Shopping invalidation and badge reconciliation remain.
+- API explicit-start reads preserve legacy offsets. Explicit-end review/Add uses
+  1-31 inclusive dates and binds both endpoints in tokens and request hashes.
+  Omitted-end requests preserve the historical Monday/seven-day token/hash path,
+  including replay of a preexisting successful request record. No schema, data
+  rewrite, new library, native dependency or permission changes were needed.
+- The shared tab-root, tab-stack and measured native-sheet layouts remain the
+  frame owners. Calendar content scrolls independently of its header/Done action;
+  range selectors reuse shared disclosure chevrons. No custom sheet gestures,
+  guessed tab padding or route-directory support code was added.
+
+Validation: full mobile suite passed 69 suites / 714 tests, no skips. A subsequent
+selected-day memoization-only correction for React Compiler passed all 9 Plan
+suites / 105 tests, TypeScript, mobile lint, whitespace and iOS JS export. The full
+714-test result predates only that compiler-oriented calculation rewrite; do not
+claim it was rerun afterward. All 187 API tests passed with no skips on verified
+local `meal_planner_disposable_test` at `meal_plan_special_entries`; API Ruff also
+passes. API source did not change after that full PostgreSQL pass. No tests ran
+against development or Mac trial data.
+
+Initial validation caught the new RN ScrollView ref type, declaration ordering,
+a missing native-storage mock in the startup routing harness, stale weekday-only
+source expectations and a reused response fixture. Later checks caught the
+React Compiler memoization diagnostic introduced by stable loading geometry;
+explicit immutable selected-day dependencies resolved it. One export invocation
+used the API working directory; it failed before bundling and was corrected to
+the mobile directory. Final successful results supersede these failed attempts.
+
+Only the identified local worktree API was restarted (launcher PID 4300), after
+its database-backed tests passed. LAN health and OpenAPI start_date/week_end
+parameters were verified; Expo stayed running and its packager status is healthy.
+No migration, database data, Mac trial runtime, installed native app, hosted
+resource, push or merge changed. Physical iPhone/Android geometry, drag feel,
+accessibility-device review, hosted CI and native rebuilds remain unrun. Felipe
+owns phone acceptance; automated route tests do not establish native geometry.
+
+Phone review: slide to a Thursday-Wednesday week; check arrows and Today; tap the
+range for an exact start; return from Add/Create recipe; review 1, 14 and 31 days;
+check Cancel versus Apply after adjusting an amount; verify the saved weekday
+on reopen and independence from the other phone. Retest meal swipes and Shopping
+badge/checkoffs alongside these changes. Mac rollout remains separately scoped.

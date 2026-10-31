@@ -46,9 +46,9 @@ function DayPickerSheet({ dates, selected, onSelect }: { dates: string[]; select
   </View>;
 }
 
-export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, initialSlot, onSave }: {
+export function MealPlanAddSheet({ householdId, windowStart, dates, initialDate, initialSlot, onSave }: {
   householdId: string;
-  weekOffset: number;
+  windowStart: string;
   dates: string[];
   initialDate: string;
   initialSlot: MealSlot;
@@ -135,7 +135,7 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
     setActionError(null);
     selectType('recipe');
     pendingRecipeCreate.current = captureSelection();
-    context.beginRecipeCreate({ scope, sheetId, plannedFor: draft.plannedFor, mealSlot: draft.mealSlot, weekOffset });
+    context.beginRecipeCreate({ scope, sheetId, plannedFor: draft.plannedFor, mealSlot: draft.mealSlot, windowStart });
     Keyboard.dismiss();
     router.push('/(app)/(tabs)/plan/recipe-create' as never);
   };
