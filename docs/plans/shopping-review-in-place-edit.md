@@ -159,3 +159,10 @@ change is introduced. This is a small self-contained repair, not a new feature.
 All 3 targeted suites / 72 tests, types, lint, whitespace and iOS JS export pass.
 Earlier full/broad results predate this follow-up. PostgreSQL/full mobile and
 physical-device acceptance were not rerun; no runtime, data or dependency change.
+
+
+Phone review: Felipe reports "Okay this looks good" after `0777deb`. The reviewed
+leading-decimal amount-entry fix is accepted on his phone. This does not imply
+completion of every in-place navigation checklist case, Android testing, hosted
+CI, native rebuilds or trial deployment. No runtime or data changes accompany
+this acceptance record.
