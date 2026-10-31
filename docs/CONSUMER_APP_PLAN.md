@@ -227,7 +227,8 @@ return preserves the accepted list behavior.
 
 F13 validation: 64 mobile suites / 665 tests, TypeScript, lint, whitespace and iOS
 JS export pass; import-only test polish has 13 additional passing targeted tests.
-Physical phone/Android/browser review remains pending. No API/schema, dependency,
+Felipe accepts the reviewed badge on his phone October 31 at `5bebb90`; broader
+checklist/Android/browser coverage is not inferred. No API/schema, dependency,
 Mac trial, native build or deployment changes. Local servers remain running.
 See `docs/plans/shopping-tab-badge.md` for lifecycle decisions and review checks.
 

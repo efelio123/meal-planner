@@ -3,7 +3,7 @@
 Status: approved October 31, 2026 with "Loooks good, implement it"; assigned
 directly to this chat. Implementation branch: `codex/shopping-tab-badge`, from
 planning commit `65c8e50`. Implementation and automated validation are complete;
-physical phone review remains pending.
+Felipe accepts the reviewed badge on his phone October 31, 2026.
 Planning branch: `codex/shopping-tab-badge-plan`, from clean `d606bdb`, which
 records phone acceptance of planned-meal swipe deletion. Preserve that accepted
 branch chain. Felipe explicitly approved direct implementation on the focused
@@ -199,3 +199,12 @@ TypeScript and lint; application code did not change after the full pass/export.
 Initial failed passes exposed test fixtures that assumed the previous focus policy,
 used removed test helpers, or resolved a web import to the native file. Those
 fixtures were repaired and the complete pass above supersedes the failed runs.
+
+
+## Phone acceptance - October 31, 2026
+
+Felipe confirms "Badge looks great, next" after reviewing `5bebb90` locally.
+F13 is accepted at that reviewed phone scope. Individual larger-text, offline,
+Android, browser, accessibility or cross-phone checklist cases are not inferred.
+This acceptance record changes documentation only; automated validation above
+remains the last implementation result and was not rerun for this record.
