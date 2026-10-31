@@ -54,7 +54,19 @@ Current limitations that make the private system unsuitable for public consumers
 
 The Mac Mini deployment should remain the functioning family dashboard and a development laboratory. It should not become the public consumer production server.
 
-## Current consumer-app progress (October 4, 2026)
+## Current consumer-app progress (October 31, 2026)
+
+Release checkpoint: the accepted family-trial improvements and approved SDK 58
+patches are prepared on `codex/family-trial-release` in PR #15. Application commit
+`bb55042` passes hosted Mobile/API CI, including all 187 API tests with no skips.
+Isolated final mobile normal/cold runs each pass 735 tests with no skips, plus
+types/lint, Expo compatibility, Doctor 20/20 and native JS exports. The fresh Mac
+backup was restore-verified, and a migration rehearsal preserved every original
+value in all 18 data tables. An unsigned native Release build succeeds. This is
+not yet a deployed trial update: Xcode account/profile recovery, Render auto-
+deploy inspection before merge, final physical light/dark review and both phone
+installs remain pending. Live Mac API/database and existing phone apps are
+unchanged. See `docs/plans/family-trial-release.md` for exact gates and recovery.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

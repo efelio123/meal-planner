@@ -8,8 +8,8 @@ from clean `8a2890e`; unrelated website and Android checkouts remain untouched.
 
 Ship the accumulated accepted bug fixes, SDK 58, Shopping improvements, recipe
 ordering, special planned meals and personal planning/review ranges. Latest
-Shopping return and decimal fixes are included. No new product feature or package
-upgrade is included. Restore the already requested Meal Planner display name and
+Shopping return and decimal fixes are included. No new product feature is included. The separately approved SDK 58 patch
+alignment is documented in `release-sdk58-patch-alignment.md`. Restore the already requested Meal Planner display name and
 Clerk appleSignIn=false setting found in the Mac's working trial override; this
 preserves free Personal Team signing and existing email authentication. SDK 58
 already includes scene support; its installed build-properties documentation says
@@ -88,13 +88,48 @@ The full API release pass is 187 tests, no skips, plus Ruff and migration-head
 verification on local disposable PostgreSQL. Mobile normal pass is 70 suites /
 735 tests, no skips; the cold pass also passed 70 suites / 735 tests with no skips. Types/lint and iOS/Android JS exports
 pass. Expo compatibility/Doctor fail only for 14 recommended patches; see
-`release-sdk58-patch-alignment.md`. Explicit package approval is pending before
-changes. These results do not cover a future aligned dependency tree.
+`release-sdk58-patch-alignment.md`. Felipe subsequently approved the exact 14-patch set. These historical results
+predate alignment; see the final results below.
 
 
 The prior trial API image has a recovery tag, and the existing API health check
 still returns ok. The native backup excludes regenerable Pods/build folders;
 the original native project remains in place and was not regenerated. No live
-migration or API restart has occurred. Final phone light/dark report and exact
-SDK patch-set approval remain pending. Installed app updates, hosted CI/merge
-and final trial deployment wait for those prerequisites.
+migration or API restart has occurred. The SDK patch set was subsequently approved and applied. Final phone
+light/dark review remains pending. No installed app update or live deployment
+has occurred.
+
+
+### Validated release candidate and remaining gates
+
+Application candidate `bb55042` is pushed in PR #15. Hosted CI run
+`41246001451` passes Mobile and API; the API result is 187 tests with zero skips.
+Final isolated Windows normal/cold serial mobile runs each pass 70 suites / 735
+tests with zero skips; types/lint, Expo compatibility, Doctor 20/20 and both native
+JS exports pass. An earlier Windows npm argument-forwarding issue caused parallel
+test timeouts; direct Jest serial invocations pass without test changes.
+
+A private migration rehearsal restored the verified Mac archive into an explicitly
+separate temporary database, applied `meal_plan_special_entries` with the new API
+image and verified all original values/counts across 18 data tables. The check DB
+was removed; live trial revision remains `household_shopping_catalog_items`.
+Running Alembic through uv initially hit its image cache permissions; using the
+image's installed .venv/bin/alembic succeeds. Use that executable for rollout.
+New API image `meal-planner-trial-api:family-bb55042` and a private API-only Compose
+override are prepared but not activated. Keep the existing Compose project and
+volume, and take another current backup immediately before live migration.
+
+An isolated Mac checkout at `/Users/felipe/meal-planner-releases/family-20261031`
+preserves the original trial checkout/native project. npm ci, iOS prebuild, Pods
+and unsigned Release compilation succeed. Embedded JS/private URL, Scene
+lifecycle, display name/bundle ID and Personal Team-compatible entitlements were
+verified. Signed build fails with Xcode No Accounts/no development profile; Felipe
+was asked to restore the existing Apple Account/Personal Team in Xcode. No paid
+account or new signing setup is proposed. No app was installed on either phone.
+
+Main merge is still gated on inspecting Render auto-deploy/migration implications;
+the dashboard requires Felipe's sign-in. Final complete-loop light/dark review is
+also outstanding. These are pending user actions, not passing tests. Existing
+Expo dependencies/server, Mac live API/data, native project and home-server
+containers remain undisturbed. Resume signing, final phone review, staging-safe
+merge and API-only trial rollout when those prerequisites are available.

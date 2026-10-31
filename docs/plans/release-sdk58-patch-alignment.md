@@ -77,6 +77,19 @@ root AGENTS.md. No additional direct manifest upgrades are included.
 
 The 14 targets resolved exactly in an isolated Windows checkout. Original manifest
 range conventions are preserved and npm ci succeeded. The running Expo checkout
-keeps its existing node_modules; it is not the validation dependency tree. Full
-normal/cold suites, types/lint, compatibility/Doctor, native JS exports and audit
-comparison are in progress. Hosted CI and native phone builds remain pending.
+keeps its existing node_modules; it is not the validation dependency tree. Final serial normal and cache-disabled suites each pass 70 suites / 735 tests
+with zero skips, plus types/lint, Expo compatibility, Doctor 20/20 and iOS/Android
+JS exports. The first Windows npm-script runs did not forward the serial flag
+and timed out in one picker test; invoking Jest directly with the intended flags
+passed both complete runs without changing tests or timeouts.
+
+Application candidate `bb55042` passed hosted CI run `41246001451`, both Mobile
+and API (187 PostgreSQL tests, zero skips). Audit reports zero critical, one high,
+45 moderate and one low. The high advisory affects unchanged Zod 3.25.76 under
+eslint-plugin-react-hooks; no unrelated audit upgrades were made.
+
+The isolated Mac native Release build succeeds unsigned. Embedded JS and the
+private API URL, correct display name/bundle ID, scene lifecycle and absence of
+Apple sign-in entitlement were verified. Signing reports Xcode No Accounts/no
+development profile and needs Felipe to restore the existing Apple Account in
+Xcode. No phone installs or final physical light/dark acceptance are claimed.
