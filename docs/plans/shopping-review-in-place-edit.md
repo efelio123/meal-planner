@@ -1,10 +1,10 @@
 # Edit existing Shopping items without leaving review
 
-Status: proposed October 31, 2026; awaiting approval before implementation.
+Status: approved October 31, 2026. Felipe explicitly requests direct implementation.
 Branch: `codex/personal-planning-ranges`, clean at `3692a74` before this plan.
 Follow-up to `personal-planning-ranges.md`. Felipe says the reviewed range UI
-looks good and reports this existing navigation problem. Broader device checks
-and this repair are not yet accepted or implemented.
+looks good and reports this existing navigation problem. The reviewed range UI is accepted at that scope. This repair is implemented;
+phone acceptance and broader device checks remain pending.
 
 ## Goal and current defect
 
@@ -81,6 +81,67 @@ separately authorized work.
 
 ## Open questions
 
-None needed to define the proposed behavior. Approve this focused navigation
-repair before implementation; changing the selected review range continues to
+None. Felipe approved this focused navigation repair; changing the selected review range continues to
 use F11's separately approved reset behavior.
+
+
+## Implementation - October 31, 2026
+
+The shared Shopping details editor accepts an explicit Plan/Shopping route owner,
+retaining Shopping as its default. Plan has thin native sheet, Catalog edit and
+choice-management wrappers around existing shared screens. Store/Unit pickers,
+Create/Manage/Edit and Catalog's nested choices stay on the Plan stack. No editor,
+Catalog form, command owner or sheet gesture implementation is duplicated.
+
+A small review-owned loader resolves the exact Shopping item authoritatively
+before initializing the shared editor. It retains the resolved draft while
+nested native pages hide/reveal it and handles missing/load-failure rows in place.
+Legacy rows without a Catalog link show an explicit close/retry state rather than
+silently switching tabs; the ordinary Shopping editor already requires that link.
+Save/Remove use existing shared Shopping commands and preserve purchased state.
+Pending mutation and active/scope guards reject duplicate or late navigation.
+Ordinary removal remains immediate, including while metadata is loading.
+
+The retained review uses actual sheet removal plus focus to revalidate on return,
+including Cancel after nested edits. A single reconciliation helper preserves
+unchanged eligible selections/deselections, adjusted amounts and expansions,
+applies defaults to newly eligible needs and removes newly matched selections.
+It clears unsafe overrides with an explanatory notice. Range changes still reset
+as approved for F11. A failed refresh retains the draft and blocks Add pending
+Retry with a fresh review token. No scroll reset or review route reconstruction
+is introduced; native scroll geometry still requires phone review.
+
+Official references checked against the existing Expo Router 58 / React 19.3
+implementation: [Router modals](https://docs.expo.dev/router/advanced/modals/)
+and [Activity lifecycle](https://react.dev/reference/react/Activity). In particular,
+hiding a retained screen can disconnect its effects without discarding its state;
+initial-load effects must not reset selections merely on reveal.
+
+
+## Validation and review handoff
+
+Final affected coverage: 32 suites / 497 tests pass, with no skipped cases across
+the broad validation and complete Plan-router rerun. The broad rerun passed the
+other 31 suites / 447 tests; its one remaining failure was a new test using Save
+store instead of the existing Create label. After correcting only test labels,
+all 50 Plan-router cases passed. This supersedes an earlier single-case probe
+whose other 49 cases were unrun. TypeScript, mobile lint, whitespace and iOS JS
+export pass. Full mobile and PostgreSQL suites were not rerun for this frontend
+repair; the F11 full results are historical, not validation of these later edits.
+
+Coverage includes same-review Save/Cancel/Remove with a custom range, unrelated
+manual amount/deselection/expansion retained, purchased state preserved, fresh
+review Add, missing matched item, failed Save and revalidation/Retry, late Save
+after Cancel, nested Store manage/edit/create, new Unit retained, and Catalog
+edit with its own Store picker. Existing Shopping/Recipes/Catalog routing and
+native sheet options also pass. The initial run caught an unintended wait for
+metadata before ordinary removal; its immediate behavior was restored. Other
+initial failures were test fixture timing/queries and the new layout router mock.
+
+Expo and LAN API health were verified. Neither server was restarted, no database
+or API/schema/dependency changed, and no Mac trial runtime, installed app, hosted
+CI, push/merge or deployment was changed. Native iPhone/Android geometry, drag,
+keyboard and exact scroll-position retention remain for physical review. Felipe
+owns this follow-up acceptance: edit multiple Already on Shopping rows, try Save,
+Cancel, Remove and a nested Store/Catalog page, and confirm the review stays open
+with the same dates and unaffected choices.

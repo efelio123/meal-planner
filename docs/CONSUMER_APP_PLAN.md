@@ -275,6 +275,17 @@ Physical acceptance and broader device/CI/native checks remain pending. Mac tria
 data/runtime and installed phones are unchanged. See
 `docs/plans/personal-planning-ranges.md` for behavior, validation and boundaries.
 
+October 31 F11 review follow-up: Felipe accepts the reviewed range UI and reports
+that editing an existing Shopping match closes review and changes tabs. The
+approved repair is implemented on the same feature branch: shared Shopping edit
+and nested Store/Unit/Catalog screens now stay on Plan, and return reconciliation
+preserves unaffected review dates/choices/amounts with a fresh token. All 497
+affected tests across 32 suites pass (broad pass plus complete router rerun),
+with types, lint, whitespace and iOS JS export. No API/schema/dependency or server
+restart; full mobile/PostgreSQL results above remain historical. Phone review of
+the navigation repair remains pending. See
+`docs/plans/shopping-review-in-place-edit.md` for exact coverage and limits.
+
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
 New ingredients now inherit the Catalog recipe unit, including Food created

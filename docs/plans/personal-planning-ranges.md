@@ -260,5 +260,7 @@ Felipe says the reviewed date-range UI looks good, then reports that Already on
 Shopping -> Edit closes the review and switches tabs. This is the existing
 explicit dismissAll/navigation behavior, not a missing saved preference. The
 proposed in-place reuse and nested-navigation repair is documented separately
-in `shopping-review-in-place-edit.md`; awaiting approval. Do not infer completion
+in `shopping-review-in-place-edit.md`; Felipe subsequently approved direct
+implementation. It now reuses the editor above review, preserving nested return
+paths and unaffected review choices. Phone acceptance of that repair is pending. Do not infer completion
 of every F11 device checklist case from the positive review report.

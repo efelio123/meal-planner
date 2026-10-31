@@ -32,7 +32,7 @@ async function loadChoices(getToken: GetToken, householdId: string, kind: Catalo
   return (await api.catalogUnits(getToken, householdId)).shopping_units.household.map((unit) => ({ id: unit.id!, name: unit.label, created_at: '', updated_at: '' }));
 }
 
-export function CatalogChoiceManagement({ layout, routeBase = 'catalog' }: { layout: StackScreenLayout; routeBase?: 'catalog' | 'recipes' | 'shopping' }) {
+export function CatalogChoiceManagement({ layout, routeBase = 'catalog' }: { layout: StackScreenLayout; routeBase?: 'catalog' | 'recipes' | 'shopping' | 'plan' }) {
   const params = useLocalSearchParams<{ kind: string; itemType?: string; shoppingTarget?: string; shoppingCatalogItemId?: string }>();
   const kind = isKind(params.kind) ? params.kind : null;
   const itemType = params.itemType === 'food' || params.itemType === 'household' ? params.itemType : undefined;
@@ -84,7 +84,7 @@ export function CatalogChoiceManagement({ layout, routeBase = 'catalog' }: { lay
   }, [refreshChoices, revision]);
 
   const title = kind === 'category' ? 'Categories' : kind === 'store' ? 'Stores' : 'Shopping units';
-  const base = routeBase === 'recipes' ? 'recipes/catalog-choices' : routeBase === 'shopping' ? 'shopping/choices' : 'catalog/choices';
+  const base = routeBase === 'recipes' ? 'recipes/catalog-choices' : routeBase === 'shopping' ? 'shopping/choices' : routeBase === 'plan' ? 'plan/shopping-choices' : 'catalog/choices';
   const routeQuery = [
     itemType ? `itemType=${encodeURIComponent(itemType)}` : null,
     params.shoppingTarget === 'details' ? 'shoppingTarget=details' : null,

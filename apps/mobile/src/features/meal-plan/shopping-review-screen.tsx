@@ -1,8 +1,10 @@
+import { ReviewShoppingItemSheet } from './review-shopping-item-sheet';
+import { reconcileShoppingReview } from './review-reconciliation';
 import { PlanningDateSheet } from './planning-date-sheet';
 import { calendarDay, isCalendarDate, rangeDays, rangeError, rangeLabel } from './planning-dates';
 import { useShoppingList } from '@/features/shopping-list/use-shopping-list';
 import { useAuth } from '@clerk/expo';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { PrimaryButton } from '@/components/themed-controls';
@@ -14,7 +16,7 @@ import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-contex
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, api, type GetToken, type MealPlanNeed, type MealPlanShoppingReview } from '@/lib/api';
 import { useMealPlanContext } from './meal-plan-context';
-import { dateLabel, formatAmount, newMealRequestId, preserveShoppingAmountOverrides } from './meal-plan-utils';
+import { dateLabel, formatAmount, newMealRequestId } from './meal-plan-utils';
 import { ShoppingAmountSheet } from './shopping-amount-sheet';
 
 export function ShoppingReviewScreen() {
@@ -44,9 +46,16 @@ export function ShoppingReviewScreen() {
   const [review, setReview] = useState<MealPlanShoppingReview | null>(null);
   const reviewRef = useRef<MealPlanShoppingReview | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const selectedRef = useRef(selected);
   const [amountOverrides, setAmountOverrides] = useState<Record<string, string>>({});
   const amountOverridesRef = useRef<Record<string, string>>({});
   const [expanded, setExpanded] = useState<string[]>([]);
+  const expandedRef = useRef(expanded);
+  const editorIntent = useRef<object | null>(null);
+  const [editingShoppingItem, setEditingShoppingItem] = useState(false);
+  const pendingEditorReturn = useRef<string | null>(null);
+  const reviewFocused = useRef(false);
+  useLayoutEffect(() => { selectedRef.current = selected; expandedRef.current = expanded; }, [expanded, selected]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +67,7 @@ export function ShoppingReviewScreen() {
   useLayoutEffect(() => {
     if (scopeRef.current === scope) return;
     scopeRef.current = scope;
+    editorIntent.current = null; pendingEditorReturn.current = null; setEditingShoppingItem(false);
     submittingRequest.current = null;
     generation.current += 1;
     confirmationVersion.current += 1;
@@ -79,12 +89,14 @@ export function ShoppingReviewScreen() {
     try {
       const result = await api.mealPlanShoppingReview(() => latestToken.current(), householdId, start, end);
       if (!mounted.current || generation.current !== version || scopeRef.current !== startedScope) return;
-      const preservedOverrides = preserveShoppingAmountOverrides(reviewRef.current, amountOverridesRef.current, result);
+      const reconciled = reconcileShoppingReview(reviewRef.current, selectedRef.current, amountOverridesRef.current, expandedRef.current, result);
       reviewRef.current = result;
       setReview(result);
-      amountOverridesRef.current = preservedOverrides;
-      setAmountOverrides(preservedOverrides);
-      setSelected(result.needs.filter((need) => need.default_selected).map((need) => need.need_key));
+      amountOverridesRef.current = reconciled.overrides;
+      setAmountOverrides(reconciled.overrides);
+      selectedRef.current = reconciled.selected; setSelected(reconciled.selected);
+      expandedRef.current = reconciled.expanded; setExpanded(reconciled.expanded);
+      if (reconciled.adjustedAmountsChanged) setNotice('Some required ingredients changed. Review their amounts before adding them.');
       setRequestId(newMealRequestId());
       setReviewNeedsRefresh(false);
     } catch (reason) {
@@ -101,9 +113,40 @@ export function ShoppingReviewScreen() {
   }, [end, householdId, invalidRange, start]);
 
   useEffect(() => {
+    if (reviewRef.current) return;
     const timer = setTimeout(() => { void load(); }, 0);
     return () => clearTimeout(timer);
   }, [load]);
+  const latestLoad = useRef(load);
+  useLayoutEffect(() => { latestLoad.current = load; }, [load]);
+  const reconcileEditorReturn = useCallback(() => {
+    if (!mounted.current || !reviewFocused.current || pendingEditorReturn.current !== scopeRef.current) return;
+    pendingEditorReturn.current = null;
+    void latestLoad.current();
+  }, []);
+  useFocusEffect(useCallback(() => {
+    reviewFocused.current = true;
+    reconcileEditorReturn();
+    return () => { reviewFocused.current = false; };
+  }, [reconcileEditorReturn]));
+  const editShoppingMatch = (need: MealPlanNeed) => {
+    const match = need.existing_matches[0];
+    if (!match || !householdId || loading || submittingRequest.current || editorIntent.current) return;
+    const intent = {};
+    const startedScope = scopeRef.current;
+    editorIntent.current = intent; setEditingShoppingItem(true);
+    setReviewNeedsRefresh(true);
+    const id = sheetFlow.present(<ReviewShoppingItemSheet itemId={match.item_id} />, {
+      detents: [0.68, 0.94], initialDetent: 1,
+      onDismiss: () => {
+        if (editorIntent.current !== intent || scopeRef.current !== startedScope) return;
+        editorIntent.current = null; setEditingShoppingItem(false);
+        pendingEditorReturn.current = startedScope;
+        reconcileEditorReturn();
+      },
+    });
+    router.push({ pathname: '/(app)/(tabs)/plan/sheet/shopping-item', params: { sheetId: id } } as never);
+  };
   const needs = useMemo(() => review?.needs ?? [], [review]);
   const selectedNeeds = useMemo(() => needs.filter((need) => selected.includes(need.need_key)), [needs, selected]);
   const selectableNeeds = needs.filter((need) => need.existing_matches.length === 0);
@@ -246,12 +289,7 @@ export function ShoppingReviewScreen() {
           <View style={[styles.needList, { backgroundColor: theme.surface }]}>{needs.filter((need) => need.existing_matches.length > 0).map((need, index) => <View key={`existing-${need.need_key}`} style={[styles.existingRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
             <View style={styles.needInfo}><ThemedText style={styles.needName}>{need.name}</ThemedText><ThemedText themeColor="textSecondary" numberOfLines={2}>{[need.sources[0] ? `${need.sources[0].recipe_name} · ${dateLabel(need.sources[0].planned_for, { month: 'short', day: 'numeric', year: 'numeric' })}` : null, 'Already on Shopping'].filter(Boolean).join(' · ')}</ThemedText></View>
             <ThemedText style={styles.amount}>{formatAmount(need.amount, need.unit_label)}</ThemedText>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${need.name} on Shopping`} style={visualStyles.sheetAction} onPress={() => {
-              const match = need.existing_matches[0];
-              if (!match) return;
-              router.dismissAll();
-              router.navigate({ pathname: '/(app)/(tabs)/shopping', params: { editItemId: match.item_id } } as never);
-            }}><ThemedText themeColor="link">Edit</ThemedText></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${need.name} on Shopping`} disabled={submitting || loading || editingShoppingItem} style={visualStyles.sheetAction} onPress={() => editShoppingMatch(need)}><ThemedText themeColor="link">Edit</ThemedText></Pressable>
           </View>)}</View>
         </> : null}
         {notice ? <ThemedText accessibilityRole="alert" themeColor="textSecondary">{notice}</ThemedText> : null}

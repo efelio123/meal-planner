@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { AppState, Platform, StyleSheet } from 'react-native';
-import { ApiError, api, type CatalogItem, type MealPlanEntry, type MealPlanWeek, type Recipe } from '@/lib/api';
+import { ApiError, api, type CatalogItem, type MealPlanEntry, type MealPlanWeek, type Recipe, type ShoppingListItem } from '@/lib/api';
 
 jest.mock('react-native-sortables', () => jest.requireActual('../recipes/testing/sortables-mock'));
 jest.setTimeout(30000);
@@ -80,7 +80,9 @@ jest.mock('@/lib/api', () => {
     me: jest.fn(), shoppingList: jest.fn(), mealPlan: jest.fn(), createMealPlanEntry: jest.fn(),
     updateMealPlanEntry: jest.fn(), deleteMealPlanEntry: jest.fn(), mealPlanShoppingReview: jest.fn(),
     addMealPlanNeedsToShopping: jest.fn(), recipes: jest.fn(), recipe: jest.fn(), createRecipe: jest.fn(),
-    catalogItems: jest.fn(), catalogUnits: jest.fn(),
+    catalogItems: jest.fn(), catalogUnits: jest.fn(), catalogItem: jest.fn(), catalogStores: jest.fn(), catalogCategories: jest.fn(),
+    shoppingListItem: jest.fn(), updateShoppingListItem: jest.fn(), deleteShoppingListItem: jest.fn(),
+    createCatalogStore: jest.fn(), updateCatalogStore: jest.fn(), createCatalogShoppingUnit: jest.fn(), updateCatalogItem: jest.fn(),
   } };
 });
 jest.mock('@/components/animated-icon', () => ({ AnimatedSplashOverlay: () => null }));
@@ -120,6 +122,10 @@ describe('meal planning through the Expo Router', () => {
     mockedApi.deleteMealPlanEntry.mockResolvedValue(undefined);
     mockedApi.addMealPlanNeedsToShopping.mockReset();
     mockedApi.addMealPlanNeedsToShopping.mockResolvedValue({ items: [], replayed: false });
+    mockedApi.catalogItem.mockReset().mockResolvedValue({ item: food });
+    mockedApi.catalogStores.mockReset().mockResolvedValue({ stores: [] });
+    mockedApi.catalogCategories.mockReset().mockResolvedValue({ categories: [] });
+    mockedApi.shoppingListItem.mockReset(); mockedApi.updateShoppingListItem.mockReset(); mockedApi.deleteShoppingListItem.mockReset();
     mockedApi.catalogItems.mockResolvedValue({ items: [food] });
     mockedApi.catalogUnits.mockResolvedValue({ shopping_units: { built_in: [], household: [] }, recipe_measurement_units: [] });
     mockedApi.createRecipe.mockResolvedValue({ recipe: recipe({ id: 'recipe-new', name: 'New Household Soup' }) });
@@ -445,8 +451,9 @@ describe('meal planning through the Expo Router', () => {
     expect(rendered.getPathname()).toBe('/plan/recipe-create');
     await fireEvent.changeText(screen.getByLabelText('Recipe name'), 'New Household Soup');
     await fireEvent.press(screen.getAllByRole('button', { name: 'Add ingredient' })[0]);
-    expect(await screen.findByText('Milk')).toBeTruthy();
-    await fireEvent.press(screen.getByText('Milk'));
+    const foodResults = within(await screen.findByTestId('recipe-food-results'));
+    expect(await foodResults.findByText('Milk')).toBeTruthy();
+    await fireEvent.press(foodResults.getByText('Milk'));
     await fireEvent.changeText(await screen.findByLabelText('Ingredient amount'), '1');
     await fireEvent.press(screen.getAllByRole('button', { name: 'Add ingredient' })[0]);
     await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
@@ -961,6 +968,149 @@ describe('meal planning through the Expo Router', () => {
     await act(async () => { old.resolve({ week_start: '2026-10-05', week_end: '2026-10-11', review_token: 'd'.repeat(64), needs: [] }); await old.promise; });
     expect(screen.getByText('October 5 – October 14, 2026')).toBeTruthy();
     expect(screen.queryByText('October 5 – October 11, 2026')).toBeNull();
+  });
+
+  function prepareReviewShoppingEdit() {
+    let item: ShoppingListItem | null = { id: 'shopping-milk', name: 'Milk', catalog_item_id: food.id, catalog_item_type: 'food', is_checked: true, checked_at: '2026-10-05', checked_by_user_id: user.id, created_by_user_id: user.id, created_at: '', amount: '2', store_id: null };
+    let reviewCount = 0;
+    const extraUnits: { id: string; label: string }[] = [];
+    let currentFood = food;
+    mockedApi.catalogItem.mockImplementation(async () => ({ item: currentFood }));
+    mockedApi.catalogUnits.mockImplementation(async () => ({ shopping_units: { built_in: [], household: [...extraUnits] }, recipe_measurement_units: [] }));
+    const stores = [{ id: 'store-1', name: 'Market', created_at: '', updated_at: '' }];
+    mockedApi.catalogStores.mockImplementation(async () => ({ stores: [...stores] }));
+    mockedApi.shoppingList.mockImplementation(async () => ({ shopping_list: { id: 'list-1', household_id: household.id, items: item ? [item] : [] } }));
+    mockedApi.shoppingListItem.mockImplementation(async () => { if (!item) throw new ApiError(404, 'Item missing'); return { item }; });
+    mockedApi.updateShoppingListItem.mockImplementation(async (_token, _home, _id, values) => { item = { ...item!, ...values }; return { item }; });
+    mockedApi.deleteShoppingListItem.mockImplementation(async () => { item = null; });
+    mockedApi.mealPlanShoppingReview.mockImplementation(async (_token, _home, start, end) => ({ week_start: start, week_end: end!, review_token: (++reviewCount).toString().padStart(64, 'a'), needs: [
+      { need_key: 'milk', catalog_item_id: food.id, name: 'Milk', amount: '1', recipe_unit_code: null, recipe_unit_dimension: null, unit_label: null, custom_unit_label: null, sources: [{ planned_for: start, meal_slot: 'breakfast', recipe_name: 'Soup', amount: '1', unit_label: null, note: null }], existing_matches: item ? [{ kind: 'exact', item_id: item.id, name: item.name }] : [], default_selected: !item },
+      { need_key: 'rice', catalog_item_id: 'rice', name: 'Rice', amount: '3', recipe_unit_code: 'cup', recipe_unit_dimension: 'volume', unit_label: 'Cup', custom_unit_label: null, sources: [
+        { planned_for: start, meal_slot: 'dinner', recipe_name: 'Soup', amount: '1', unit_label: 'Cup', note: null },
+        { planned_for: start, meal_slot: 'lunch', recipe_name: 'Bowl', amount: '2', unit_label: 'Cup', note: null },
+      ], existing_matches: [], default_selected: true },
+      { need_key: 'beans', catalog_item_id: 'beans', name: 'Beans', amount: '1', recipe_unit_code: null, recipe_unit_dimension: null, unit_label: null, custom_unit_label: null, sources: [], existing_matches: [], default_selected: true },
+    ] }));
+    mockedApi.createCatalogStore.mockImplementation(async (_token, _home, name) => { const store = { id: 'new-store', name, created_at: '', updated_at: '' }; stores.push(store); return { store }; });
+    mockedApi.updateCatalogStore.mockImplementation(async (_token, _home, id, name) => { const store = stores.find((row) => row.id === id)!; store.name = name; return { store }; });
+    mockedApi.createCatalogShoppingUnit.mockImplementation(async (_token, _home, name) => { extraUnits.push({ id: 'new-unit', label: name }); return { unit: { id: 'new-unit', name, created_at: '', updated_at: '' } }; });
+    mockedApi.updateCatalogItem.mockImplementation(async (_token, _home, _id, values) => { currentFood = { ...currentFood, ...values }; return { item: currentFood }; });
+    return { getItem: () => item };
+  }
+  async function openMatchedShoppingEdit() {
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk on Shopping' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' })).not.toBeDisabled());
+    return within(screen.getByTestId('shopping-item-details-sheet'));
+  }
+
+  it.each(['save', 'cancel', 'remove'] as const)('returns from Shopping %s to the same review with unaffected drafts intact', async (action) => {
+    const state = prepareReviewShoppingEdit();
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Change shopping end date' }));
+    const calendar = within(await screen.findByTestId('planning-date-sheet'));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Wednesday, October 14' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Done' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit amount to buy for Rice' }));
+    await fireEvent.changeText(await screen.findByLabelText('Amount to buy'), '1');
+    await fireEvent.press(screen.getByRole('button', { name: 'Done editing amount' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Remove Beans' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Show Rice meal sources' }));
+    const editor = await openMatchedShoppingEdit();
+    expect(rendered.getPathname()).toBe('/plan/sheet/shopping-item');
+    if (action === 'save') { await fireEvent.changeText(editor.getByLabelText('Amount'), '4'); await fireEvent.press(editor.getByRole('button', { name: 'Save changes' })); }
+    else await fireEvent.press(editor.getByRole('button', { name: action === 'cancel' ? 'Cancel' : 'Remove from Shopping' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/shopping-review'));
+    await waitFor(() => expect(mockedApi.mealPlanShoppingReview).toHaveBeenLastCalledWith(expect.any(Function), household.id, '2026-10-05', '2026-10-14'));
+    await waitFor(() => expect(screen.getByRole('button', { name: action === 'remove' ? 'Add 2 selected to Shopping' : 'Add 1 selected to Shopping' })).not.toBeDisabled());
+    expect(screen.getByText('1 Cup to buy · 3 Cup needed')).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Select Beans' })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Hide Rice meal sources' })).toBeTruthy();
+    if (action === 'cancel') expect(mockedApi.updateShoppingListItem).not.toHaveBeenCalled();
+    if (action === 'save') { expect(state.getItem()?.is_checked).toBe(true); expect(state.getItem()?.amount).toBe('4'); }
+    await fireEvent.press(screen.getByRole('button', { name: action === 'remove' ? 'Add 2 selected to Shopping' : 'Add 1 selected to Shopping' }));
+    await waitFor(() => expect(mockedApi.addMealPlanNeedsToShopping).toHaveBeenCalledWith(expect.any(Function), household.id, expect.objectContaining({ week_end: '2026-10-14', amount_overrides: { rice: '1' } })));
+  });
+
+  it('keeps Store manage/create/edit, Unit create and Catalog edit on the Plan stack', async () => {
+    prepareReviewShoppingEdit();
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan(); await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    let editor = await openMatchedShoppingEdit();
+    await fireEvent.changeText(editor.getByLabelText('Amount'), '5');
+    await fireEvent.press(editor.getByRole('button', { name: 'Store (optional): Not selected' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Manage stores' }));
+    expect(rendered.getPathname()).toBe('/plan/shopping-choices/store');
+    await fireEvent.press(await screen.findByText('Market'));
+    await waitFor(() => expect(screen.getByLabelText('store name')).toHaveProp('value', 'Market'));
+    await fireEvent.changeText(screen.getByLabelText('store name'), 'Market edited');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/shopping-choices/store'));
+    await act(async () => { router.back(); });
+    expect(rendered.getPathname()).toBe('/plan/sheet/shopping-choice');
+    await fireEvent.press(await screen.findByRole('button', { name: 'Create store' }));
+    expect(rendered.getPathname()).toBe('/plan/shopping-choices/store/create');
+    await fireEvent.changeText(await screen.findByLabelText('store name'), 'New market');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/sheet/shopping-item'));
+    editor = within(screen.getByTestId('shopping-item-details-sheet'));
+    await waitFor(() => expect(editor.getByRole('button', { name: 'Store (optional): New market' })).toBeTruthy());
+    expect(editor.getByLabelText('Amount')).toHaveProp('value', '5');
+    await fireEvent.press(editor.getByRole('button', { name: 'Unit: Not selected' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add unit' }));
+    expect(rendered.getPathname()).toBe('/plan/shopping-choices/shopping-unit/create');
+    await fireEvent.changeText(await screen.findByLabelText('shopping unit name'), 'Crate');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/sheet/shopping-item'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Unit: Crate' })).toBeTruthy());
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk in Catalog' }));
+    expect(rendered.getPathname()).toBe('/plan/catalog-item/food-milk');
+    await waitFor(() => expect(screen.getByLabelText('Item name')).toHaveProp('value', 'Milk'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Preferred store (optional): Not selected' }));
+    expect(rendered.getPathname()).toBe('/plan/sheet/shopping-choice');
+    await fireEvent.press(await screen.findByRole('button', { name: 'New market' }));
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'Milk renamed');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/sheet/shopping-item'));
+    await fireEvent.press(within(screen.getByTestId('shopping-item-details-sheet')).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/shopping-review'));
+  });
+
+  it('keeps editor save failures retryable and blocks Add until return revalidation succeeds', async () => {
+    prepareReviewShoppingEdit();
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan(); await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    const editor = await openMatchedShoppingEdit();
+    mockedApi.updateShoppingListItem.mockRejectedValueOnce(new Error('offline'));
+    await fireEvent.press(editor.getByRole('button', { name: 'Save changes' }));
+    await editor.findByText('We couldn’t save this Shopping item. Please try again.');
+    expect(rendered.getPathname()).toBe('/plan/sheet/shopping-item');
+    mockedApi.mealPlanShoppingReview.mockRejectedValueOnce(new Error('review offline'));
+    await fireEvent.press(editor.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/shopping-review'));
+    await screen.findByText('We couldn’t load shopping needs. Please try again.');
+    expect(screen.getByRole('button', { name: 'Add 2 selected to Shopping' })).toBeDisabled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add 2 selected to Shopping' })).not.toBeDisabled());
+  });
+
+  it('handles a removed matched item in place and does not navigate after a canceled pending save', async () => {
+    prepareReviewShoppingEdit();
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan(); await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    mockedApi.shoppingListItem.mockRejectedValueOnce(new ApiError(404, 'Item missing'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk on Shopping' }));
+    await screen.findByText('This item is no longer on Shopping. Close this editor to refresh your review.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancel Shopping edit' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit Milk on Shopping' })).not.toBeDisabled());
+    const editor = await openMatchedShoppingEdit();
+    const pending = deferred<Awaited<ReturnType<typeof api.updateShoppingListItem>>>();
+    mockedApi.updateShoppingListItem.mockReturnValueOnce(pending.promise);
+    await fireEvent.press(editor.getByRole('button', { name: 'Save changes' }));
+    await fireEvent.press(editor.getByRole('button', { name: 'Cancel' }));
+    await act(async () => { pending.resolve({ item: { id: 'shopping-milk', name: 'Milk', catalog_item_id: food.id, is_checked: true, checked_at: null, checked_by_user_id: null, created_by_user_id: user.id, created_at: '' } }); await pending.promise; });
+    expect(rendered.getPathname()).toBe('/plan/shopping-review');
   });
 
 });

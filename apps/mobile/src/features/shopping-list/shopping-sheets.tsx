@@ -193,7 +193,7 @@ export function ShoppingCatalogPickerSheet({ items, onAdd }: { items: ShoppingLi
   </View>;
 }
 
-function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemove }: { catalogItem: ShoppingCatalogSummary; existingItem?: ShoppingListItem; onChanged: () => void; onRemove: (item: ShoppingListItem) => Promise<void> }) {
+export function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemove, routeBase = 'shopping' }: { catalogItem: ShoppingCatalogSummary; existingItem?: ShoppingListItem; onChanged: () => void; onRemove: (item: ShoppingListItem) => Promise<void>; routeBase?: 'shopping' | 'plan' }) {
   const { add, update } = useShoppingList();
   const theme = useTheme();
   const router = useRouter();
@@ -226,6 +226,9 @@ function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemo
   const [preferenceNotice, setPreferenceNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(existingItem));
   const [saving, setSaving] = useState(false);
+  const active = useRef(true);
+  const pendingMutation = useRef(false);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -301,21 +304,24 @@ function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemo
   const selectedStore = storesChoices.find((store) => store.id === storeId)?.label ?? '';
   const amountValidationError = shoppingAmountError(amount);
   const routeToChoices = (kind: CatalogChoiceKind, mode: 'create' | 'manage', query = '') => {
+    if (pendingMutation.current) return;
     Keyboard.dismiss();
     const suffix = mode === 'create' ? '/create' : '';
-    router.push({ pathname: `/(app)/(tabs)/shopping/choices/${kind}${suffix}`, params: {
+    router.push({ pathname: `/(app)/(tabs)/${routeBase === 'plan' ? 'plan/shopping-choices' : 'shopping/choices'}/${kind}${suffix}`, params: {
       shoppingTarget: 'details', shoppingCatalogItemId: catalogItem.id, returnToChoicePicker: '1',
       ...(mode === 'create' ? namePrefillParams(query, namePrefillScope(userId, sessionId, householdId)) : {}),
     } } as never);
   };
   const editCatalogItem = () => {
+    if (pendingMutation.current) return;
     Keyboard.dismiss();
-    router.push({ pathname: '/(app)/(tabs)/shopping/catalog-item/[itemId]', params: { itemId: catalogItem.id } } as never);
+    router.push({ pathname: `/(app)/(tabs)/${routeBase}/catalog-item/[itemId]`, params: { itemId: catalogItem.id } } as never);
   };
 
   const save = async () => {
-    if (!householdId || scopeChanged || saving || loading || loadError || amountValidationError || (existingItem && !detail)) return;
+    if (!active.current || pendingMutation.current || !householdId || scopeChanged || saving || loading || loadError || amountValidationError || (existingItem && !detail)) return;
     const started = scopeRef.current;
+    pendingMutation.current = true;
     setSaving(true); setError(null);
     const selectedUnitId = unitId.startsWith('built:') ? unitId.slice(6) : unitId.startsWith('custom:') ? unitId.slice(7) : '';
     const values: ShoppingListItemInput = {
@@ -329,35 +335,36 @@ function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemo
     try {
       if (existingItem) await update(existingItem, values);
       else await add(catalogItem.id, values);
-      if (scopeRef.current !== started) return;
+      if (!active.current || scopeRef.current !== started) return;
       onChanged();
       router.back();
     } catch (reason) {
-      if (scopeRef.current === started) setError(reason instanceof ApiError ? reason.message : 'We couldn’t save this Shopping item. Please try again.');
-    } finally { if (scopeRef.current === started) setSaving(false); }
+      if (active.current && scopeRef.current === started) setError(reason instanceof ApiError ? reason.message : 'We couldn’t save this Shopping item. Please try again.');
+    } finally { pendingMutation.current = false; if (active.current && scopeRef.current === started) setSaving(false); }
   };
 
   const remove = async () => {
-    if (!existingItem || !householdId || scopeChanged || saving || removing) return;
+    if (!active.current || pendingMutation.current || !existingItem || !householdId || scopeChanged || saving || removing) return;
     const started = scopeRef.current;
+    pendingMutation.current = true;
     setRemoving(true); setError(null);
     try {
       await onRemove(existingItem);
-      if (scopeRef.current !== started) return;
+      if (!active.current || scopeRef.current !== started) return;
       router.back();
     } catch {
-      if (scopeRef.current === started) setError('We couldn’t remove that item. Please try again.');
-    } finally { if (scopeRef.current === started) setRemoving(false); }
+      if (active.current && scopeRef.current === started) setError('We couldn’t remove that item. Please try again.');
+    } finally { pendingMutation.current = false; if (active.current && scopeRef.current === started) setRemoving(false); }
   };
 
   return <ScrollView automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} testID="shopping-item-details-sheet" style={[styles.sheetScroll, { backgroundColor: theme.elevatedSurface }]} contentContainerStyle={styles.sheetContent} automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
     <Header title={existingItem ? 'Edit item' : 'Add to Shopping'} />
     {scopeChanged ? <View style={styles.message}><ThemedText accessibilityRole="alert" themeColor="error">Your household or sign-in changed. Close this sheet and choose an item again.</ThemedText><PrimaryButton onPress={() => router.back()} title="Close" /></View> : <>
       <View style={styles.itemHero}><View style={[styles.itemGlyph, { backgroundColor: theme.screen }]}><ThemedText style={styles.glyphText}>{currentCatalogItem.name.trim().slice(0, 1).toLocaleUpperCase()}</ThemedText></View><View style={styles.rowCopy}><ThemedText style={styles.heroName}>{currentCatalogItem.name}</ThemedText><ThemedText themeColor="textSecondary">{currentCatalogItem.item_type === 'food' ? 'Food' : 'Household'}{currentCatalogItem.category_name ? ` · ${currentCatalogItem.category_name}` : ''}</ThemedText></View></View>
-      {!currentCatalogItem.archived ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${currentCatalogItem.name} in Catalog`} onPress={editCatalogItem} style={styles.editCatalogAction}><ThemedText themeColor="link">Edit Catalog item</ThemedText><DisclosureChevron variant="action" /></Pressable> : null}
-      <View style={styles.amountUnitRow}><View style={styles.amountField}><ThemedText style={styles.fieldLabel}>Amount</ThemedText><ThemedInput accessibilityLabel="Amount" autoCapitalize="none" autoCorrect={false} keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'} onChangeText={setAmount} placeholder="e.g. 2 2/3" selectTextOnFocus value={amount} /></View><View style={styles.unitField}><ChoicePicker label="Unit" searchable choices={shoppingUnits} selectedId={unitId} value={selectedUnit} emptyChoiceLabel="No unit" disabled={loading || loadError} sheetRoute="/shopping/sheet/choice" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Add unit" onOpen={() => Keyboard.dismiss()} onSelect={(id) => { unitOverridden.current = true; unitIdRef.current = id; setUnitId(id); setPreferenceNotice(null); }} onCreate={(query) => routeToChoices('shopping-unit', 'create', query)} /></View></View>
+      {!currentCatalogItem.archived ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${currentCatalogItem.name} in Catalog`} disabled={saving || removing} onPress={editCatalogItem} style={styles.editCatalogAction}><ThemedText themeColor="link">Edit Catalog item</ThemedText><DisclosureChevron variant="action" /></Pressable> : null}
+      <View style={styles.amountUnitRow}><View style={styles.amountField}><ThemedText style={styles.fieldLabel}>Amount</ThemedText><ThemedInput accessibilityLabel="Amount" autoCapitalize="none" autoCorrect={false} keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'} onChangeText={setAmount} placeholder="e.g. 2 2/3" selectTextOnFocus value={amount} /></View><View style={styles.unitField}><ChoicePicker label="Unit" searchable choices={shoppingUnits} selectedId={unitId} value={selectedUnit} emptyChoiceLabel="No unit" disabled={loading || loadError || saving || removing} sheetRoute={routeBase === 'plan' ? '/plan/sheet/shopping-choice' : '/shopping/sheet/choice'} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Add unit" onOpen={() => Keyboard.dismiss()} onSelect={(id) => { unitOverridden.current = true; unitIdRef.current = id; setUnitId(id); setPreferenceNotice(null); }} onCreate={(query) => routeToChoices('shopping-unit', 'create', query)} /></View></View>
       {amountValidationError ? <ThemedText accessibilityRole="alert" themeColor="error">{amountValidationError}</ThemedText> : null}
-      <ChoicePicker label="Store (optional)" searchable choices={storesChoices} selectedId={storeId} value={selectedStore} emptyChoiceLabel="No store" disabled={loading || loadError} sheetRoute="/shopping/sheet/choice" sheetDetents={[0.52, 0.92]} createLabel="Create store" manageLabel="Manage stores" onOpen={() => Keyboard.dismiss()} onSelect={(id) => { storeOverridden.current = true; storeIdRef.current = id; setStoreId(id); setPreferenceNotice(null); }} onCreate={(query) => routeToChoices('store', 'create', query)} onManage={() => routeToChoices('store', 'manage')} />
+      <ChoicePicker label="Store (optional)" searchable choices={storesChoices} selectedId={storeId} value={selectedStore} emptyChoiceLabel="No store" disabled={loading || loadError || saving || removing} sheetRoute={routeBase === 'plan' ? '/plan/sheet/shopping-choice' : '/shopping/sheet/choice'} sheetDetents={[0.52, 0.92]} createLabel="Create store" manageLabel="Manage stores" onOpen={() => Keyboard.dismiss()} onSelect={(id) => { storeOverridden.current = true; storeIdRef.current = id; setStoreId(id); setPreferenceNotice(null); }} onCreate={(query) => routeToChoices('store', 'create', query)} onManage={() => routeToChoices('store', 'manage')} />
       {!existingItem && (initialUnitId || currentCatalogItem.preferred_store_id) ? <ThemedText themeColor="textSecondary">Prefilled from Catalog. Change it for this shopping trip.</ThemedText> : null}
       {preferenceNotice ? <ThemedText accessibilityRole="alert" themeColor="textSecondary">{preferenceNotice}</ThemedText> : null}
       {existingItem ? <View style={[styles.meals, { backgroundColor: theme.surface }]}><ThemedText style={visualStyles.sectionTitle}>Used in meals</ThemedText>{loading ? <ActivityIndicator accessibilityLabel="Loading meal details" color={theme.activity} /> : detail?.used_in_meals?.length ? detail.used_in_meals.map((meal, index) => <ThemedText key={`${meal.planned_for}-${index}`} themeColor="textSecondary">{new Date(`${meal.planned_for}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · {meal.recipe_name}</ThemedText>) : <ThemedText themeColor="textSecondary">No planned meals use this item this week.</ThemedText>}</View> : null}

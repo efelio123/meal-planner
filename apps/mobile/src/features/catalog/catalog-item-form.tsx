@@ -30,7 +30,7 @@ const emptyForm: FormState = { name: '', itemType: 'food', categoryId: '', shopp
 function byName(choices: { id: string; name: string }[]) { return choices.map((choice) => ({ id: choice.id, label: choice.name })); }
 function unitId(choice: CatalogShoppingUnit) { return choice.id ? `custom:${choice.id}` : `built-in:${choice.code}`; }
 
-export function CatalogItemForm({ layout, recipeIngredientMode = false, shoppingOriginMode = false, recipeUnitSheetRoute }: { layout: StackScreenLayout; recipeIngredientMode?: boolean; shoppingOriginMode?: boolean; recipeUnitSheetRoute?: string }) {
+export function CatalogItemForm({ layout, recipeIngredientMode = false, shoppingOriginMode = false, shoppingRouteBase = 'shopping', recipeUnitSheetRoute }: { layout: StackScreenLayout; recipeIngredientMode?: boolean; shoppingOriginMode?: boolean; shoppingRouteBase?: 'shopping' | 'plan'; recipeUnitSheetRoute?: string }) {
   const { getToken, selectedHousehold } = useHouseholdState();
   const theme = useTheme();
   const { sessionId, userId } = useAuth();
@@ -172,11 +172,11 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
   const selectedUnit = shoppingChoices.find((choice) => choice.id === form.shoppingUnitId)?.label ?? '';
   const selectedRecipeUnit = recipeChoices.find((choice) => choice.id === form.recipeUnitCode)?.label ?? '';
   const choiceSheetRoute = recipeIngredientMode ? '/recipes/sheet/choice'
-    : shoppingOriginMode ? '/shopping/sheet/choice' : '/catalog/sheet/choice';
+    : shoppingOriginMode ? (shoppingRouteBase === 'plan' ? '/plan/sheet/shopping-choice' : '/shopping/sheet/choice') : '/catalog/sheet/choice';
   const routeToChoices = (kind: CatalogChoiceKind, mode: 'create' | 'manage', query = '') => {
     const suffix = mode === 'create' ? '/create' : '';
     const base = recipeIngredientMode ? '/(app)/(tabs)/recipes/catalog-choices'
-      : shoppingOriginMode ? '/(app)/(tabs)/shopping/choices' : '/(app)/(tabs)/catalog/choices';
+      : shoppingOriginMode ? (shoppingRouteBase === 'plan' ? '/(app)/(tabs)/plan/shopping-choices' : '/(app)/(tabs)/shopping/choices') : '/(app)/(tabs)/catalog/choices';
     const destination = { pathname: `${base}/${kind}${suffix}`, params: {
       ...(kind === 'category' ? { itemType: form.itemType } : {}),
       ...(mode === 'create' ? namePrefillParams(query, prefillScope) : {}),
