@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: October 29, 2026
+Last updated: October 31, 2026
 
 ## Purpose of this document
 
@@ -244,8 +244,9 @@ refuses downgrade while special entries exist. All 66 mobile suites / 679 tests,
 all 176 API tests on verified disposable PostgreSQL, types, mobile/API lint,
 whitespace and iOS JS export pass. Local development was backed up and migrated
 with legacy plan-data/row-count preservation checks; its API was restarted and
-Expo remains running for review. Physical acceptance and broader device cases are
-pending. Mac trial data/runtime and native apps remain unchanged; coordinated
+Expo remains running for review. Felipe subsequently accepts the reviewed phone
+interaction at the scope recorded below; broader device cases remain unverified.
+Mac trial data/runtime and native apps remain unchanged; coordinated
 trial phone/API upgrade and a fresh Mac backup are still separate. See
 `docs/plans/meal-plan-special-entries.md` for validation and rollout boundaries.
 October 31 follow-up: Felipe requests compact side-by-side choices and one-tap
@@ -253,8 +254,10 @@ addition. Add now submits a blank-detail special occurrence immediately; optiona
 details remain in Edit with explicit Save. Pending, retry and late-dismissal
 navigation guards preserve normal recipe flow. Latest validation: 65 targeted
 Plan tests, types, lint, whitespace and iOS JS export pass. The earlier full
-mobile/API results predate this client-only follow-up. Phone review is pending;
-no API/schema/database, dependency or server-process change.
+mobile/API results predate this client-only follow-up. Felipe accepts the reviewed
+interaction on his phone October 31 at `f6a969a`, including compact choices and
+immediate special-meal Add. Individual checklist cases and Android coverage are
+not inferred. No API/schema/database, dependency or server-process change.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

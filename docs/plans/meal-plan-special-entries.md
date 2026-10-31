@@ -228,3 +228,13 @@ a test; route-lifetime checks and real press events corrected them. Full mobile
 F07 implementation, not rerun/claimed for this client-only follow-up. No API,
 schema, local/Mac database, dependency or server-process changes. Physical compact
 layout/keyboard review remains pending; Expo remains available for Felipe.
+
+
+## Phone acceptance - October 31, 2026
+
+Felipe reports "Okay that looks good now, next" after reviewing `f6a969a`.
+The reviewed F07 interaction, including compact side-by-side choices and immediate
+special-meal addition, is accepted on his phone. This does not establish every
+device-checklist case, Android coverage, hosted CI, native rebuilds or trial
+deployment. Earlier automated results retain their recorded scopes. No runtime
+or database changes accompany this acceptance record.
