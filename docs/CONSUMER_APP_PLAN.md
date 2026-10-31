@@ -201,14 +201,21 @@ Broader physical/Android cases are not inferred; no Mac trial deployment or data
 changes have been made.
 
 
-Next proposed slice: F06 planned-meal swipe deletion, documented in
-`docs/plans/planned-meal-swipe-delete.md` on `codex/planned-meal-swipe-plan`.
-Reuse Shopping's two-stage circular trash action and existing 65% release rule
-through one shared component, while preserving ordinary Edit and stable reveal
-behavior. Keep deletion scoped to one planned occurrence and reconcile confirmed
-removals before refreshing, with safe conflict/failure handling. This is a plan
-awaiting review, with no application/API/dependency changes. F13 Shopping badge
-is the following bounded candidate; rebuilding the trial phones remains separate.
+F06 planned-meal swipe deletion is approved and implemented directly October 30
+on `codex/planned-meal-swipe-delete`, from planning commit `6559fe4`. Plan and
+Shopping share the accepted circular trash action, expanding pill and exact
+`0.65 * max(width, 260)` rule. Stable reveal, canceled/release Edit suppression,
+ordinary editing and action/scroll/navigation cleanup are covered. Removal affects
+one scheduled occurrence, reconciles confirmed IDs before refresh and requires
+fresh data/new action after unconfirmed failures or conflicts. The existing
+Edit-sheet confirmation and web removal path remain.
+
+Final validation: 62 mobile suites / 633 tests, TypeScript, lint, whitespace and
+iOS JS export pass, plus 1 targeted meal-plan integration test against verified
+local disposable PostgreSQL. Physical iPhone/Android swipe review remains pending;
+no API/schema, dependency, Mac trial, native build or deployment changes. See
+`docs/plans/planned-meal-swipe-delete.md` for scope and review checks. F13 Shopping
+badge remains the following bounded candidate, subject to its own plan/approval.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

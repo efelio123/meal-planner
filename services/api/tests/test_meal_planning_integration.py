@@ -195,10 +195,22 @@ async def test_plan_entries_are_household_scoped_unique_and_revision_checked(mea
             other_after_denials = await _as(client, outsider, "GET", f"/v1/households/{other}/meal-plan")
             assert other_after_denials.json()["entries"][0]["id"] == other_entry.json()["entry"]["id"]
             assert other_after_denials.json()["entries"][0]["edit_revision"] == 1
+            stale_delete = await _as(client, owner, "DELETE", f"/v1/households/{household}/meal-plan/entries/{entry['id']}?expected_revision=1")
+            assert stale_delete.status_code == 409
+            assert stale_delete.json()["detail"]["code"] == "MEAL_PLAN_REVISION_CONFLICT"
+            another_occurrence = await _as(client, owner, "POST", entry_path, json={
+                "planned_for": (date.fromisoformat(monday) + timedelta(days=2)).isoformat(),
+                "meal_slot": "dinner", "recipe_id": recipe,
+            })
+            assert another_occurrence.status_code == 201
             deleted = await _as(client, owner, "DELETE", f"/v1/households/{household}/meal-plan/entries/{entry['id']}?expected_revision=2")
             assert deleted.status_code == 204
             listed = await _as(client, owner, "GET", f"/v1/households/{household}/meal-plan")
-            assert listed.json()["entries"] == []
+            assert [item["id"] for item in listed.json()["entries"]] == [another_occurrence.json()["entry"]["id"]]
+            recipe_after = await _as(client, owner, "GET", f"/v1/households/{household}/recipes/{recipe}")
+            assert recipe_after.status_code == 200
+            assert recipe_after.json()["recipe"]["id"] == recipe
+            assert recipe_after.json()["recipe"]["archived_at"] is None
     finally:
         app.dependency_overrides.clear()
         _cleanup(meal_plan_engine, [household, other], [owner, member, outsider, removed])

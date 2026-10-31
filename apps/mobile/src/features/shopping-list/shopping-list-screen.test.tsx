@@ -36,16 +36,16 @@ jest.mock('@/features/catalog/choice-picker', () => {
 jest.mock('@/lib/api', () => ({ api: { catalogItem: jest.fn() } }));
 jest.mock('@/features/shopping-list/use-shopping-list', () => ({ useShoppingList: jest.fn() }));
 jest.mock('@/hooks/use-theme', () => ({ useThemeMode: () => 'light', useTheme: () => ({ activity: '#000', border: '#ccc', disabled: '#999', error: '#b00', elevatedSurface: '#fff', link: '#05a', primary: '#05a', primaryText: '#fff', screen: '#fff', surface: '#fff', surfaceSelected: '#eee', textSecondary: '#555' }) }));
-jest.mock('@/features/shopping-list/shopping-swipe-row', () => {
+jest.mock('@/components/swipe-to-delete-row', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   const { Pressable, View } = jest.requireActual<typeof import('react-native')>('react-native');
   return {
-    ShoppingSwipeRow: ({ active, children, itemId, itemName, onClose, onDragEnd, onDragStart, onRemove, onReveal, separatorColor }: {
-      active: boolean; children: React.ReactNode; itemId: string; itemName: string; separatorColor: string | null;
+    SwipeToDeleteRow: ({ active, children, rowId: itemId, removeAccessibilityLabel, onClose, onDragEnd, onDragStart, onRemove, onReveal, separatorColor }: {
+      active: boolean; children: React.ReactNode; rowId: string; removeAccessibilityLabel: string; separatorColor: string | null;
       onClose: () => void; onDragEnd: () => void; onDragStart: () => void; onRemove: () => Promise<void>; onReveal: () => void;
     }) => React.createElement(View, { testID: `shopping-swipe-${itemId}`, onClose, onDragEnd, onDragStart, onRemove, onReveal, separatorColor } as unknown as React.ComponentProps<typeof View>,
       children,
-      active ? React.createElement(Pressable, { accessibilityRole: 'button', accessibilityLabel: `Remove ${itemName} from Shopping`, onPress: () => { void onRemove().catch(() => undefined); } }) : null,
+      active ? React.createElement(Pressable, { accessibilityRole: 'button', accessibilityLabel: removeAccessibilityLabel, onPress: () => { void onRemove().catch(() => undefined); } }) : null,
     ),
   };
 });

@@ -1,10 +1,12 @@
 # Planned-meal swipe deletion — F06
 
-Status: proposed October 30, 2026; awaiting Felipe's review. This is a plan only.
+Status: approved October 30, 2026 with "Looks good, implement"; assigned directly
+to this chat. Implementation branch: `codex/planned-meal-swipe-delete`, from
+`6559fe4`. Implementation and automated validation are complete; physical review is
+pending, as recorded below.
 Planning branch: `codex/planned-meal-swipe-plan`, from clean `8b472cd` after
 acceptance of ingredient reordering and grab feedback. Preserve that accepted
-branch chain. Implement only after approval on a focused feature branch, with
-ownership/assignment following AGENTS.md. No push, merge, deployment, native
+branch chain. Felipe subsequently approved direct implementation on the focused branch above. No push, merge, deployment, native
 rebuild, Mac database/runtime changes or paid resources are part of this plan.
 
 ## Goal and scope
@@ -121,8 +123,51 @@ Empty Add meal slots keep their existing behavior.
 
 ## Open decisions
 
-No blocking product question is known. Proposed: immediate swipe removal matching
+No blocking product question is known. Approved: immediate swipe removal matching
 Shopping, with the existing Edit-sheet confirmation retained. Approval of this
 plan covers the focused shared-component move and Plan deletion-state repairs;
 F13 badge, leftovers/eating out, personal week ranges and roles remain separate.
-Record approval and implementation assignment before changing application code.
+Approval and direct implementation assignment are recorded above.
+
+
+## Implementation record — October 30, 2026
+
+- Shopping and Plan now share `components/swipe-to-delete-row.tsx` and its release
+  policy. The accepted circle, icon, expanding pill, springs, reveal distance and
+  `0.65 * max(width, 260)` deletion threshold are preserved. Shopping retains its
+  labels, test IDs and screen-owned interaction guards. An activated cancellation
+  ends press suppression; a pan that never activates does not suppress taps.
+- Plan remains a `Screen layout="tab-root"`; no inset or keyboard owner changes.
+  Filled cards use one stationary frame, feature-owned reveal/intent state, and
+  the shared gesture. External resets replace even a partly dragged native row;
+  reveal rerenders do not replace it. Actual vertical movement closes a reveal,
+  while begin-only scrolling does not. Edit-sheet confirmation and web editing
+  remain available.
+- The hook deduplicates per-entry removals, guards captured view/revision scope,
+  reconciles confirmed IDs before reloading, and prevents delayed reads from
+  resurrecting removed occurrences. Unconfirmed deletion failures require a fresh
+  read and a new action; no automatic DELETE retry uses a newer revision. Cached
+  remaining meals, counts and dots stay visible when a reload fails.
+- No API implementation, schema, dependencies, live Mac data/runtime, native
+  build, Expo server, deployment or paid resource changed. The existing API
+  integration test was extended to verify revision checks and that another
+  occurrence and its saved recipe survive deletion.
+
+Physical iPhone/Android checks are unrun by this agent. Felipe owns review of
+short reveal persistence, trash tap, continued full swipe, reverse/canceled swipe,
+ordinary Edit tap, real scrolling, tab/day/week return, long titles/larger text,
+and comparison with Shopping. Automated gesture callbacks and iOS JS export do
+not establish native animation feel, touch competition or final screen geometry.
+The existing native tab-root layout is preserved; keyboard and safe-area device
+review remain unrun. Hosted CI, native builds, light/dark release review and the
+full PostgreSQL suite were not run for this focused slice.
+
+
+Final validation: all 62 mobile suites / 633 tests passed, with no skipped tests,
+plus TypeScript, lint, whitespace checks and iOS JS export. The targeted existing
+meal-plan API integration case passed (1 test), after migration to head and
+identity verification of local `127.0.0.1:5432 / meal_planner_disposable_test`.
+No development or Mac trial database was used. The final route test controls its
+clock after router initialization, so release suppression and later ordinary Edit
+taps are both verified. Earlier failed runs were repaired and superseded by this
+final pass; no broader physical or release acceptance is inferred.

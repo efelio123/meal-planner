@@ -11,7 +11,7 @@ import { ApiError, api, type Me } from '@/lib/api';
 jest.setTimeout(30000);
 
 // Route coverage does not exercise Shopping's native swipe animation.
-jest.mock('@/features/shopping-list/shopping-swipe-row', () => ({ ShoppingSwipeRow: ({ children }: PropsWithChildren) => children }));
+jest.mock('@/components/swipe-to-delete-row', () => ({ SwipeToDeleteRow: ({ children }: PropsWithChildren) => children }));
 
 const mockGetToken = jest.fn().mockResolvedValue('session-token');
 const mockClerkSignOut = jest.fn();

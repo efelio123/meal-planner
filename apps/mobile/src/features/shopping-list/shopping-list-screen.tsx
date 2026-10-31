@@ -16,7 +16,7 @@ import { useMealPlanContextOptional } from '@/features/meal-plan/meal-plan-conte
 import { ShoppingCatalogPickerSheet, openShoppingDetails } from './shopping-sheets';
 import { useShoppingContext } from './shopping-context';
 import { useShoppingList } from './use-shopping-list';
-import { ShoppingSwipeRow } from './shopping-swipe-row';
+import { SwipeToDeleteRow } from '@/components/swipe-to-delete-row';
 import { groupShoppingItems } from './shopping-list-groups';
 
 type SortKey = 'recent' | 'name-asc' | 'name-desc' | 'store' | 'category';
@@ -257,13 +257,13 @@ export default function ShoppingListScreen() {
       {pending ? <ActivityIndicator accessibilityLabel={`Updating ${item.name}`} color={theme.activity} /> : null}
     </View>;
     if (Platform.OS === 'web') return <View key={item.id} style={separatorColor ? { borderBottomColor: separatorColor, borderBottomWidth: StyleSheet.hairlineWidth } : undefined}>{row}</View>;
-    return <ShoppingSwipeRow key={item.id} active={openSwipeId === item.id} enabled={!writesDisabled}
-      itemId={item.id} itemName={item.name} separatorColor={separatorColor} onDragStart={suppressRowPressForDrag} onDragEnd={suppressRowPress}
+    return <SwipeToDeleteRow key={item.id} active={openSwipeId === item.id} enabled={!writesDisabled}
+      rowId={item.id} removeAccessibilityLabel={`Remove ${item.name} from Shopping`} testID={`shopping-swipe-${item.id}`} separatorTestID={`shopping-separator-${item.id}`} separatorColor={separatorColor} onDragStart={suppressRowPressForDrag} onDragEnd={suppressRowPress}
       onReveal={() => { scrollStartedAfterReveal.current = false; scrollDragStartY.current = scrollOffsetY.current; setOpenSwipeId(item.id); }}
       onClose={() => setOpenSwipeId((current) => current === item.id ? null : current)}
       onRemove={async () => { setOpenSwipeId(null); await removeFromSwipe(item); }}>
       {row}
-    </ShoppingSwipeRow>;
+    </SwipeToDeleteRow>;
   });
 
   const renderSectionRows = (sectionItems: ShoppingListItem[], section: 'needed' | 'purchased') => {

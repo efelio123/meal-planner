@@ -13,7 +13,7 @@ import { useResetToHouseholdStartup } from '@/features/profile/use-reset-to-hous
 jest.setTimeout(30000);
 
 // These router tests cover navigation, not the row's native swipe animation.
-jest.mock('@/features/shopping-list/shopping-swipe-row', () => ({ ShoppingSwipeRow: ({ children }: PropsWithChildren) => children }));
+jest.mock('@/components/swipe-to-delete-row', () => ({ SwipeToDeleteRow: ({ children }: PropsWithChildren) => children }));
 
 let mockInitialDestination = 'app';
 let mockInitialSignedIn = true;

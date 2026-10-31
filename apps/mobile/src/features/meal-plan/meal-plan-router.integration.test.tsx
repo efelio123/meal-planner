@@ -5,14 +5,14 @@ import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, StyleSheet } from 'react-native';
+import { AppState, Platform, StyleSheet } from 'react-native';
 import { ApiError, api, type CatalogItem, type MealPlanEntry, type MealPlanWeek, type Recipe } from '@/lib/api';
 
 jest.mock('react-native-sortables', () => jest.requireActual('../recipes/testing/sortables-mock'));
 jest.setTimeout(30000);
 
 // Route coverage does not exercise Shopping's native swipe animation.
-jest.mock('@/features/shopping-list/shopping-swipe-row', () => ({ ShoppingSwipeRow: ({ children }: PropsWithChildren) => children }));
+jest.mock('@/components/swipe-to-delete-row', () => jest.requireActual('../../components/testing/swipe-to-delete-mock'));
 
 const mockGetToken = jest.fn().mockResolvedValue('session-token');
 const household = { id: 'household-a', name: 'Home', time_zone: 'America/Phoenix', role: 'owner' as const };
@@ -111,6 +111,168 @@ describe('meal planning through the Expo Router', () => {
   });
 
   afterEach(() => { Platform.OS = originalPlatform; jest.restoreAllMocks(); });
+
+  const planned = (id: string, slot: MealPlanEntry['meal_slot'], day = '2026-10-05'): MealPlanEntry => ({
+    id, planned_for: day, meal_slot: slot, recipe_id: 'recipe-soup', recipe_name: 'Soup', edit_revision: 1,
+    cover_kind: 'initials', cover_emoji: null, ingredient_count: 1,
+  });
+  async function reveal(id: string) {
+    const card = await screen.findByTestId(`plan-swipe-${id}`);
+    await act(async () => { card.props.onDragStart(); card.props.onDragEnd(); card.props.onReveal(); });
+    return screen.getByTestId(`plan-swipe-${id}`);
+  }
+  it.each(['breakfast', 'lunch', 'dinner'] as const)('swipes %s away without opening Edit or removing another occurrence', async (slot) => {
+    let entries = [{ ...planned('target', slot), archived_at: slot === 'dinner' ? '2026-10-01T00:00:00Z' : null }, planned('tomorrow', slot, '2026-10-06')];
+    mockedApi.mealPlan.mockImplementation(async () => ({ ...emptyWeek(), entries }));
+    mockedApi.deleteMealPlanEntry.mockImplementation(async () => { entries = entries.filter((item) => item.id !== 'target'); });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await reveal('target');
+    const removeLabel = `Remove Soup, ${slot[0].toUpperCase()}${slot.slice(1)}, Monday, October 5 from plan`;
+    expect(await screen.findByRole('button', { name: removeLabel })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: `Edit Soup, ${slot[0].toUpperCase()}${slot.slice(1)}` }));
+    expect(rendered.getPathname()).toBe('/plan');
+    expect(screen.getByRole('button', { name: removeLabel })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: removeLabel }));
+    await waitFor(() => expect(mockedApi.deleteMealPlanEntry).toHaveBeenCalledWith(expect.any(Function), household.id, 'target', 1));
+    await screen.findByRole('button', { name: `Add ${slot[0].toUpperCase()}${slot.slice(1)}` });
+    expect(screen.getByText('0 meals')).toBeTruthy();
+    expect(rendered.getPathname()).toBe('/plan');
+    await fireEvent.press(within(screen.getByTestId('meal-plan-week-strip')).getAllByRole('button')[1]);
+    expect(await screen.findByTestId('plan-swipe-tomorrow')).toBeTruthy();
+    expect(StyleSheet.flatten(screen.getByTestId('meal-plan-day-dot-2026-10-05').props.style).backgroundColor).toBe('transparent');
+  });
+
+  it('keeps a confirmed removal and remaining meal visible when refreshing fails', async () => {
+    mockedApi.mealPlan.mockResolvedValueOnce({ ...emptyWeek(), entries: [planned('target', 'breakfast'), planned('other', 'dinner')] }).mockRejectedValue(new Error('offline'));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await reveal('target');
+    await fireEvent.press(screen.getByRole('button', { name: /Remove Soup, Breakfast/ }));
+    await screen.findByRole('button', { name: 'Retry' });
+    expect(screen.getByRole('button', { name: 'Add Breakfast' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Edit Soup, Dinner' })).toBeTruthy();
+    expect(screen.getByText('1 meal')).toBeTruthy();
+    expect(mockedApi.deleteMealPlanEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a short reveal open through begin-only scrolling, closes after actual scroll, and switches between rows', async () => {
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast'), planned('second', 'dinner')] });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await reveal('first');
+    const page = screen.getByTestId('meal-plan-screen');
+    await act(async () => { page.props.onScrollBeginDrag({ nativeEvent: { contentOffset: { y: 0 } } }); page.props.onScroll({ nativeEvent: { contentOffset: { y: 2 } } }); });
+    expect(screen.getByRole('button', { name: /Remove Soup, Breakfast/ })).toBeTruthy();
+    await act(async () => { page.props.onScroll({ nativeEvent: { contentOffset: { y: 20 } } }); });
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    await reveal('first');
+    const second = screen.getByTestId('plan-swipe-second');
+    await act(async () => { second.props.onDragStart(); });
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    await act(async () => { second.props.onDragEnd(); second.props.onReveal(); });
+    expect(screen.getByRole('button', { name: /Remove Soup, Dinner/ })).toBeTruthy();
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+  });
+
+  it.each(['Today', 'Next week', 'Previous week', 'Add Lunch'] as const)('closes the revealed action when pressing %s', async (action) => {
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast')] });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await reveal('first');
+    await fireEvent.press(screen.getByRole('button', { name: action }));
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+  });
+
+  it('blocks a late full-swipe callback after changing dates and returning', async () => {
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast'), planned('other', 'breakfast', '2026-10-06')] });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    const old = await reveal('first');
+    const dayButtons = within(screen.getByTestId('meal-plan-week-strip')).getAllByRole('button');
+    await fireEvent.press(dayButtons[1]);
+    await fireEvent.press(within(screen.getByTestId('meal-plan-week-strip')).getAllByRole('button')[0]);
+    await act(async () => { await expect(old.props.onRemove()).rejects.toThrow('selected meal changed'); });
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Edit Soup, Breakfast' })).toBeTruthy();
+  });
+
+  it('reconciles a revision conflict, exposes the changed meal and requires a new gesture', async () => {
+    const old = planned('first', 'breakfast');
+    mockedApi.mealPlan.mockResolvedValueOnce({ ...emptyWeek(), entries: [old] }).mockResolvedValue({ ...emptyWeek(), entries: [{ ...old, edit_revision: 2, recipe_name: 'Changed Soup' }] });
+    mockedApi.deleteMealPlanEntry.mockRejectedValue(new ApiError(409, 'Meal changed on another device.', 'MEAL_PLAN_REVISION_CONFLICT'));
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await reveal('first');
+    await fireEvent.press(screen.getByRole('button', { name: /Remove Soup, Breakfast/ }));
+    await screen.findByText('Meal changed on another device.');
+    expect(screen.getByRole('button', { name: 'Edit Changed Soup, Breakfast' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Remove Changed Soup/ })).toBeNull();
+    expect(mockedApi.deleteMealPlanEntry).toHaveBeenCalledTimes(1);
+    expect(rendered.getPathname()).toBe('/plan');
+  });
+
+  it('closes the action on refresh and background without allowing its old removal callback', async () => {
+    const listeners: ((state: 'active' | 'background') => void)[] = [];
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((type, callback) => {
+      if (type === 'change') listeners.push(callback);
+      return { remove: jest.fn() };
+    });
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast')] });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    const old = await reveal('first');
+    await act(async () => { screen.getByTestId('meal-plan-screen').props.refreshControl.props.onRefresh(); });
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    expect(screen.getByTestId('plan-swipe-first')).not.toBe(old);
+    await act(async () => { await expect(old.props.onRemove()).rejects.toThrow(); });
+    await reveal('first');
+    await act(async () => { listeners.forEach((listener) => listener('background')); });
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+  });
+
+  it('suppresses the release press after a canceled swipe but keeps later ordinary editing usable', async () => {
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast')] });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    // renderRouter installs its clock; control time only after router setup.
+    let now = Date.now();
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const card = await screen.findByTestId('plan-swipe-first');
+    await act(async () => { card.props.onDragStart(); card.props.onDragEnd(); });
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit Soup, Breakfast' }));
+    expect(rendered.getPathname()).toBe('/plan');
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+    now += 600;
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit Soup, Breakfast' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/sheet/edit'));
+  });
+  it('closes a revealed meal action across tab departure/return and rejects the old callback', async () => {
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast')] });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    const old = await reveal('first');
+    await act(async () => { router.navigate('/recipes'); });
+    await act(async () => { router.navigate('/plan'); });
+    await screen.findByTestId('plan-swipe-first');
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    await act(async () => { await expect(old.props.onRemove()).rejects.toThrow(); });
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+  });
+  it('keeps the existing Edit and confirmed removal path on web without a swipe-only action', async () => {
+    Platform.OS = 'web';
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast')] });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    expect(screen.queryByTestId('plan-swipe-first')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit Soup, Breakfast' }));
+    expect(rendered.getPathname()).toBe('/plan/sheet/edit');
+    await fireEvent.press(await screen.findByRole('button', { name: 'Remove from plan' }));
+    expect(await screen.findByText('Remove this meal from the plan?')).toBeTruthy();
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+  });
 
   it('fits all seven days in one week row and lets the last day be selected', async () => {
     const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
