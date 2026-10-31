@@ -184,10 +184,13 @@ runtime/data or deployment changes.
 See `docs/plans/shopping-group-collapse.md`. Broader device cases are not inferred.
 
 Next proposed slice is F01 recipe ingredient reordering, planned in
-`docs/plans/recipe-ingredient-reordering.md`: trailing hold/drag handle with
-tap-to-reveal Up/Down, stable per-occurrence UI keys and the existing ordered
-Save contract. Proposes a pinned sortable dependency plus compatibility and
-single-scroll checks. Awaiting interaction/dependency review; planning only.
+`docs/plans/recipe-ingredient-reordering.md`. Felipe revised the interaction to
+a far-right three-horizontal-line handle with animated dragging, no visible
+Up/Down buttons and no tap menu. Both reference attachments arrived as one-frame
+JPEGs, so exact motion matching awaits GIF/video. Stable per-occurrence UI keys,
+the existing ordered Save contract and a pinned sortable dependency remain
+proposed. Awaiting interaction/animation/dependency review; explicitly plan
+edits only, with no implementation yet.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

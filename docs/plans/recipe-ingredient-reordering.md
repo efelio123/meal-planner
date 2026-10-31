@@ -1,6 +1,8 @@
 # Recipe ingredient reordering — F01
 
-Status: proposed October 30, 2026; awaiting review. Planning only: no application,
+Status: revised October 30, 2026 per Felipe's visual references; awaiting review
+and a moving animation reference. Felipe explicitly requested plan edits only.
+No application,
 API, schema, dependency installation, configuration, deployment or data changes.
 
 Branch: `codex/recipe-ingredient-reorder-plan`, from clean `af33f4a` after Felipe
@@ -14,37 +16,55 @@ No push/merge, native rebuild, Mac runtime/data changes or paid resources.
 Arrange recipe ingredients in the desired order during creation or editing,
 then preserve that order after Save and reload without changing their details.
 
+## Design references and animation status
+
+Felipe's October 30 attachments supersede the original three-dot/tap-menu idea:
+
+- **Photo 1.jpg:** confirmed handle style is three equal horizontal strokes,
+  softly rounded and neutral-colored, aligned at the far right of each row.
+  Retain the app's theme and ingredient content; the reference's white surface
+  and sample names are not a request to restyle the whole editor.
+- **Pasted Image 2.jpg:** arrived as a single-frame JPEG (as did Photo 1), so no
+  movement, activation delay, easing or drop animation can be observed. Exact
+  animation matching remains pending a GIF/video. Do not claim the animation
+  was reviewed or invent its timing from the still image.
+
 ## Proposed interaction
 
-1. Add the requested **three-dot control at the far right** of every ingredient
-   row, after existing Edit/Remove controls. Give it a 44-point touch target and
-   an accessible label including the ingredient name and position (duplicates
-   may share a name). Use existing themed symbols and disabled/pressed styling.
-2. **Hold and drag the dots** to move that ingredient vertically. Dragging starts
-   only from this handle after a short hold; scrolling elsewhere remains normal.
-   Show a modest lifted-row treatment and insertion feedback; neighbouring rows
-   move smoothly. Support variable-height names/notes and auto-scroll near the
-   viewport edges. Keep row text readable; avoid a dramatic scale effect.
-3. **Tap the dots** to reveal that row's **Move up / Move down** buttons inline,
-   using the established direction-step movement styling. A second tap closes
-   them; opening another row's controls closes the previous ones. This provides
-   touch, keyboard and screen-reader access without dragging or a new sheet.
-   Disable Up on the first row and Down on the last. Add a short visible hint
-   when two or more ingredients exist: hold to drag, tap for move controls.
-4. Keep Edit/Remove behavior and the existing ingredient details sheet. Drag
-   release must not open movement controls, edit, remove or add an ingredient.
-   Announce successful moves (name/new position) for assistive technology and
-   preserve focus on the moved ingredient's controls where feasible.
-5. Reordering updates **only the current draft**, persisted with the existing
-   recipe Save action. No auto-save/request per move. Leaving/cancelling follows
-   existing editor draft behavior; do not add a new discard-warning flow.
-   A single ingredient keeps a visible but disabled handle; empty lists stay as
-   they are. Disable all movement when the editor is loading/saving or its save
-   outcome is unknown. While a drag is active, guard Save and other ingredient
-   mutations synchronously; restore controls on drop, cancellation or interruption.
-6. Support the shared editor from **Recipes Create/Edit** and **Plan Create**.
-   Keep Directions reordering, defaults, fractions/To taste, notes, native sheets
-   and optional recipe fields unchanged. Recipe sections/importing (F09) are
+1. Add a **three-horizontal-line drag handle at the far right** of every
+   ingredient row, after existing Edit/Remove controls. Match Photo 1's simple
+   three-stroke style using a consistent themed symbol, with a 44-point touch
+   target and an accessible label including ingredient name and position.
+   Duplicate ingredient names must remain distinguishable.
+2. **Press and drag the handle** to move an ingredient vertically. Activation
+   is handle-only; ordinary scrolling elsewhere remains normal. Exact hold/
+   activation timing will be checked against the moving reference when supplied.
+   A plain tap does not open a menu or reveal any controls.
+3. **No visible Move up/Move down buttons, no tap-to-reveal panel and no reorder
+   menu.** Keep the row visually simple as requested. Supply nonvisual
+   move-earlier/later accessibility actions and keyboard equivalents where
+   supported, using the same movement helper, without introducing visible
+   alternatives. Announce the ingredient's new position and retain accessible
+   focus on its handle where feasible.
+4. **Animate the reorder interaction.** Provisional behavior: the active row
+   follows the finger with subtle lift/insertion feedback, neighbouring rows
+   slide smoothly into the available space, and the row settles into position
+   on release. Avoid abrupt jumps or dramatic zoom/bounce. These are proposed
+   behaviors, not an assertion about the unseen animation; refine them to match
+   the GIF/video before treating motion design as accepted. Respect reduced
+   motion without disabling reordering. Support variable-height names/notes and
+   edge auto-scroll without changing the row's content height during a drag.
+5. Keep Edit/Remove and the current ingredient-details sheet. Drag release or
+   cancellation must not edit, remove, add or save an ingredient. Reordering
+   changes **only the current draft**, persisted by recipe Save, not per move.
+   Leaving/cancelling follows existing draft behavior; no new discard warning.
+   A single ingredient has a visible but disabled handle; empty lists stay as
+   they are. Disable movement while loading/saving or save outcome is unknown.
+   During a drag, guard Save and ingredient mutations synchronously, restoring
+   controls on completed drop, cancellation or interruption.
+6. Apply the same behavior in **Recipes Create/Edit** and **Plan Create**.
+   Keep Directions controls, defaults, fractions/To taste, notes, native sheets
+   and optional recipe fields unchanged. Recipe sections/importing (F09) remain
    separate; this is one flat ingredient list.
 
 ## Source findings and state/persistence changes
@@ -57,7 +77,7 @@ then preserve that order after Save and reload without changing their details.
   remove callbacks with key-based targeting, including details-sheet callbacks.
   Resolve the current position only at the action boundary. A stale callback
   for a removed/reloaded row must not replace a different ingredient.
-- Use one immutable movement helper for drag drops and Up/Down. Validate drag
+- Use one immutable movement helper for drag drops and nonvisual move actions. Validate drag
   results against the current keys and editor generation/scope; ignore late
   results after household/session/recipe change, editor reload/unmount or an
   interrupted drag. Restore the original draft order on cancellation. Moving
@@ -109,7 +129,8 @@ regression-tested, preserving the accepted keyboard-gap correction.
 
 ## Validation after the complete implementation
 
-- Unit/component tests: immutable arbitrary/adjacent moves, first/last/no-op,
+- Unit/component tests: handle-only activation, plain tap reveals no controls,
+  immutable arbitrary/adjacent moves via drag/accessibility, first/last/no-op,
   duplicate Catalog rows and stable keys, retained measurements/notes, dirty
   flags and payload order without UI keys. Edit/remove after reorder affects
   the intended key; adding an ingredient appends it without scrambling others.
@@ -127,10 +148,10 @@ regression-tested, preserving the accepted keyboard-gap correction.
   compatibility/advisory checks and whitespace. No full database suite for
   this schema-free client feature; broaden if server behavior changes.
 - Phone review: actual handle drag vs ordinary scroll, variable-height rows,
-  edge auto-scroll in both directions, long/short lists, tap movement controls,
+  edge auto-scroll in both directions, long/short lists, nonvisual movement actions,
   keyboard dismissal, interruptions/tab return and last field/action reachability.
-  Confirm arrows/controls match related screens and moved values survive saved
-  reloads. Run current appearance; report Android, native builds, hosted CI and
+  Compare the three-line handle with Photo 1 and the motion with the supplied
+  GIF/video once available. Confirm moved values survive saved reloads. Run current appearance; report Android, native builds, hosted CI and
   other unperformed cases as unrun. Mocked drag tests cannot prove native feel.
 
 ## References and review decisions
@@ -143,7 +164,14 @@ Primary references checked October 30:
 [pinned package metadata](https://raw.githubusercontent.com/MatiPl01/react-native-sortables/v1.10.1/packages/react-native-sortables/package.json),
 [release history](https://github.com/MatiPl01/react-native-sortables/releases).
 
-Recommend direct hold-and-drag on the trailing dots, tap-to-reveal Up/Down,
-and the named drag dependency with the compatibility check above. Approve this
-interaction and dependency scope before implementation. If an explicit global
-reorder mode or menu is preferred, revise the interaction first.
+Recommend the referenced three-line drag handle with animated movement and no
+visible Up/Down controls or tap menu. The named dependency/compatibility check
+remains proposed. Exact motion and activation timing await a moving reference;
+Felipe explicitly said not to implement yet. Review the revised interaction,
+animation reference and dependency scope before implementation.
+
+Revision history: the initial proposal used trailing dots and tap-to-reveal
+Up/Down. Felipe replaced that design with three horizontal lines and drag-only
+visible interaction. Nonvisual accessibility/keyboard movement remains possible
+without adding visible buttons. Both supplied files were verified as JPEGs
+with one frame; a GIF/video is still needed to assess the requested animation.
