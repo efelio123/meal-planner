@@ -1,5 +1,7 @@
-import { render, within } from '@testing-library/react-native';
-import { Platform, StyleSheet, Text } from 'react-native';
+import { type ComponentRef } from 'react';
+import { useAnimatedRef } from 'react-native-reanimated';
+import { fireEvent, render, within } from '@testing-library/react-native';
+import { Platform, ScrollView, StyleSheet, Text } from 'react-native';
 import { Screen, type ScreenLayout } from './screen';
 
 const originalPlatform = Platform.OS;
@@ -44,4 +46,21 @@ describe.each(['ios', 'android', 'web'] as const)('%s page layout ownership', (p
     expect(view.getByText('Last action')).toBeTruthy();
     expect(within(scroll).queryByText('Last action')).toBeNull();
   });
+});
+
+it('opts into one animated scroll owner with the same stack insets and keyboard contract', async () => {
+  Platform.OS = 'ios';
+  const scroll = jest.fn();
+  function EditorFrame() {
+    const ref = useAnimatedRef<ComponentRef<typeof ScrollView>>();
+    return <Screen layout="tab-stack" contentAlignment="top" animatedScrollRef={ref} onScroll={scroll}><Text>Last field</Text></Screen>;
+  }
+  const view = await render(<EditorFrame />);
+  const owner = view.getByTestId('screen');
+  expect(view.getAllByTestId('screen')).toHaveLength(1);
+  expect(owner.parent?.props.edges).toEqual({ top: false, right: true, bottom: true, left: true });
+  expect(owner.props.automaticallyAdjustKeyboardInsets).toBe(true);
+  expect(owner.props.contentInsetAdjustmentBehavior).toBe('never');
+  await fireEvent.scroll(owner, { nativeEvent: { contentOffset: { x: 0, y: 100 }, contentSize: { height: 1000, width: 300 }, layoutMeasurement: { height: 500, width: 300 } } });
+  expect(scroll).toHaveBeenCalled();
 });

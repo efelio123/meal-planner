@@ -395,3 +395,46 @@ def test_recipe_write_waiting_for_household_deletion_is_rejected_after_archive(r
     with recipe_engine.begin() as connection:
         connection.execute(text("UPDATE households SET deleted_at = NULL WHERE id = :id"), {"id": household_id})
     cleanup_household(recipe_engine, [household_id], [owner_id])
+
+
+@pytest.mark.anyio
+async def test_recipe_ingredient_order_preserves_duplicate_occurrences_and_revision(recipe_engine: Engine) -> None:
+    with recipe_engine.begin() as connection:
+        owner_id = insert_user(connection, f"recipe-order-{uuid4()}@example.test")
+        household_id = insert_household(connection, owner_id)
+        butter = insert_food(connection, household_id, "Butter")
+        milk = insert_food(connection, household_id, "Milk")
+    rows = [
+        {"catalog_item_id": butter, "amount": "2 2/3", "unit_code": "tablespoon", "note": "softened"},
+        {"catalog_item_id": milk, "amount": None, "custom_unit_label": "splash", "note": "to taste"},
+        {"catalog_item_id": butter, "amount": "1/2", "note": "for the pan"},
+    ]
+    app.dependency_overrides.clear()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            base = f"/v1/households/{household_id}/recipes"
+            created = await call_as(owner_id, "recipe-order@example.test", client, "POST", base, json={
+                "create_request_id": str(uuid4()), "name": "Ordered recipe", "ingredients": rows,
+            })
+            assert created.status_code == 201, created.text
+            saved = created.json()["recipe"]
+            original_rows = saved["ingredients"]
+            expected = [original_rows[2], original_rows[0], original_rows[1]]
+            edited = await call_as(owner_id, "recipe-order@example.test", client, "PATCH", f"{base}/{saved['id']}", json={
+                "expected_revision": saved["edit_revision"], "ingredients": [rows[2], rows[0], rows[1]],
+            })
+            assert edited.status_code == 200, edited.text
+            stale = await call_as(owner_id, "recipe-order@example.test", client, "PATCH", f"{base}/{saved['id']}", json={
+                "expected_revision": saved["edit_revision"], "ingredients": rows,
+            })
+            assert stale.status_code == 409
+            detail = await call_as(owner_id, "recipe-order@example.test", client, "GET", f"{base}/{saved['id']}")
+            assert detail.status_code == 200
+            actual = detail.json()["recipe"]["ingredients"]
+            fields = ("catalog_item_id", "amount", "unit_code", "custom_unit_label", "note")
+            assert [[row[field] for field in fields] for row in actual] == [[row[field] for field in fields] for row in expected]
+            assert [row["position"] for row in actual] == [0, 1, 2]
+            assert detail.json()["recipe"]["edit_revision"] == saved["edit_revision"] + 1
+    finally:
+        app.dependency_overrides.clear()
+        cleanup_household(recipe_engine, [household_id], [owner_id])

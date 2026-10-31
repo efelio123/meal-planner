@@ -2,6 +2,8 @@ import type { Recipe, RecipeIngredient, RecipeIngredientInput } from '@/lib/api'
 import { formatRecipeAmount } from './recipe-presentation';
 
 export type RecipeIngredientDraft = {
+  /** Identity of this occurrence in the local editor, never sent to the API. */
+  key: string;
   catalogItemId: string;
   catalogItemName: string;
   categoryEmoji: string | null;
@@ -42,6 +44,7 @@ export function recipeDurationParts(minutes: number | null): [string, string] {
 
 export function ingredientDraftFromRecipe(ingredient: RecipeIngredient): RecipeIngredientDraft {
   return {
+    key: newCreateRequestId(),
     catalogItemId: ingredient.catalog_item_id,
     catalogItemName: ingredient.catalog_item_name,
     categoryEmoji: ingredient.category_emoji,

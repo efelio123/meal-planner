@@ -8,6 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, StyleSheet } from 'react-native';
 import { ApiError, api, type CatalogItem, type MealPlanEntry, type MealPlanWeek, type Recipe } from '@/lib/api';
 
+jest.mock('react-native-sortables', () => jest.requireActual('../recipes/testing/sortables-mock'));
 jest.setTimeout(30000);
 
 // Route coverage does not exercise Shopping's native swipe animation.

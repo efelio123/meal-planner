@@ -1,4 +1,5 @@
 import { render } from '@testing-library/react-native';
+import { NativeSheetProvider } from '@/features/native-sheets/native-sheet-context';
 import PlanStackLayout from '@/app/(app)/(tabs)/plan/_layout';
 
 jest.mock('expo-router', () => {
@@ -14,7 +15,7 @@ jest.mock('expo-router', () => {
 jest.mock('@/hooks/use-theme', () => ({ useTheme: () => ({ surface: '#fff', text: '#111', screen: '#fff', elevatedSurface: '#eee' }) }));
 
 it('opens only the full meal editor sheets at the high detent', async () => {
-  const result = await render(<PlanStackLayout />);
+  const result = await render(<NativeSheetProvider scope="test"><PlanStackLayout /></NativeSheetProvider>);
   expect(result.getByTestId('route-sheet/add').props.options.sheetInitialDetentIndex).toBe('last');
   expect(result.getByTestId('route-sheet/edit').props.options.sheetInitialDetentIndex).toBe('last');
   expect(result.getByTestId('route-sheet/day').props.options.sheetInitialDetentIndex).toBe(0);

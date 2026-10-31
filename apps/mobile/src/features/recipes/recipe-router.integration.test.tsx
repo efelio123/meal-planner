@@ -9,9 +9,10 @@ import { Platform, StyleSheet } from 'react-native';
 
 import { api, type CatalogItem, type CatalogUnits, type Me, type Recipe } from '@/lib/api';
 
+jest.mock('react-native-sortables', () => jest.requireActual('./testing/sortables-mock'));
 jest.setTimeout(30000);
 
-jest.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: (...args: unknown[]) => void, ...args: unknown[]) => callback(...args) }));
+jest.mock('react-native-worklets', () => ({ ...jest.requireActual('react-native-worklets/src/mock'), scheduleOnRN: (callback: (...args: unknown[]) => void, ...args: unknown[]) => callback(...args) }));
 
 const mockGetToken = jest.fn().mockResolvedValue('session-token');
 const household = { id: 'household-a', name: 'Home', time_zone: 'UTC', role: 'owner' as const };
@@ -120,6 +121,115 @@ describe('Recipes through the actual Expo Router', () => {
   });
 
   afterEach(() => { Platform.OS = originalPlatform; });
+
+  it.each(['/recipes/create', '/plan/recipe-create'])('reorders duplicate occurrences, edits the moved row and submits draft order from %s', async (path) => {
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => { router.navigate(path as never); });
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Two milks');
+    for (const amount of ['1', '2 2/3']) {
+      await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+      await fireEvent.press(await screen.findByText('Milk'));
+      await fireEvent.changeText(await screen.findByLabelText('Ingredient amount'), amount);
+      await fireEvent.changeText(screen.getByLabelText('Ingredient note'), `Note ${amount}`);
+      await waitFor(() => expect(screen.getByRole('button', { name: 'Add ingredient' }).props.disabled).not.toBe(true));
+      await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+      await screen.findByText(`Note: Note ${amount}`);
+    }
+    const original = screen.getByTestId('recipe-sortable-grid').props.data;
+    await fireEvent(screen.getByLabelText('Reorder Milk, position 1 of 2'), 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+    expect(screen.getByTestId('recipe-sortable-grid').props.data.map((row: { key: string }) => row.key)).toEqual([original[1].key, original[0].key]);
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Edit Milk' })[1]);
+    expect(await screen.findByDisplayValue('1')).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Ingredient amount'), '4');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save ingredient' }));
+    await screen.findByLabelText('Reorder Milk, position 2 of 2');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.createRecipe).toHaveBeenCalled());
+    const submitted = mockedApi.createRecipe.mock.calls[0][2].ingredients;
+    expect(submitted.map((row) => [row.amount, row.note])).toEqual([['2 2/3', 'Note 2 2/3'], ['4', 'Note 1']]);
+    expect(submitted.every((row) => !('key' in row))).toBe(true);
+  });
+
+  it('marks an order-only edit dirty, preserves it on a revision conflict, then reloads saved order', async () => {
+    const original = recipe();
+    const rows = [original.ingredients![0], { ...original.ingredients![0], id: 'second', amount: '3', note: 'second occurrence', position: 1 }];
+    const saved = recipe({ ingredients: rows });
+    mockedApi.recipe.mockResolvedValue({ recipe: saved });
+    const { ApiError } = jest.requireActual<typeof import('@/lib/api')>('@/lib/api');
+    mockedApi.updateRecipe.mockRejectedValueOnce(new ApiError(409, 'Changed elsewhere.', 'RECIPE_REVISION_CONFLICT'));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => { router.navigate('/recipes/recipe-1/edit'); });
+    await screen.findByLabelText('Reorder Milk, position 1 of 2');
+    await fireEvent(screen.getByLabelText('Reorder Milk, position 1 of 2'), 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'recipe-1', expect.objectContaining({ expected_revision: 1, ingredients: [expect.objectContaining({ amount: '3', note: 'second occurrence' }), expect.objectContaining({ amount: '1/2' })] })));
+    expect(await screen.findByRole('button', { name: 'Reload latest recipe' })).toBeTruthy();
+    expect(screen.getByTestId('recipe-sortable-grid').props.data[0].note).toBe('second occurrence');
+    await fireEvent.press(screen.getByRole('button', { name: 'Reload latest recipe' }));
+    await waitFor(() => expect(screen.getByTestId('recipe-sortable-grid').props.data[0].amount).toBe('1/2'));
+  });
+
+  it('guards Save/Edit/Remove while dragging and restores an unconfirmed drop without dirtying order', async () => {
+    const saved = recipe({ ingredients: [recipe().ingredients![0], { ...recipe().ingredients![0], id: 'second', amount: '3', position: 1 }] });
+    mockedApi.recipe.mockResolvedValue({ recipe: saved });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => { router.navigate('/recipes/recipe-1/edit'); });
+    const grid = await screen.findByTestId('recipe-sortable-grid');
+    const keys = grid.props.data.map((row: { key: string }) => row.key);
+    await act(async () => { grid.props.onDragStart({ key: keys[0] }); });
+    expect(screen.getByRole('button', { name: 'Save' }).props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Edit Milk' })[0]);
+    expect(screen.queryByText('Ingredient details')).toBeNull();
+    await act(async () => { grid.props.onActiveItemDropped({ key: keys[0], indexToKey: [...keys].reverse() }); });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' }).props.accessibilityState.disabled).toBe(false));
+    expect(screen.getByTestId('recipe-sortable-grid').props.data.map((row: { key: string }) => row.key)).toEqual(keys);
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalled());
+    expect(mockedApi.updateRecipe.mock.calls[0][3]).not.toHaveProperty('ingredients');
+  });
+
+  it('ignores a delayed drop from a recipe that has been left and keeps the next draft editable', async () => {
+    const saved = recipe({ ingredients: [recipe().ingredients![0], { ...recipe().ingredients![0], id: 'second', amount: '3', position: 1 }] });
+    mockedApi.recipe.mockResolvedValue({ recipe: saved });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => { router.navigate('/recipes/recipe-1/edit'); });
+    const oldGrid = await screen.findByTestId('recipe-sortable-grid');
+    const oldDrop = oldGrid.props.onActiveItemDropped;
+    const keys = oldGrid.props.data.map((row: { key: string }) => row.key);
+    await act(async () => { oldGrid.props.onDragStart({ key: keys[0] }); });
+    await act(async () => { router.back(); });
+    mockedApi.recipe.mockResolvedValue({ recipe: { ...saved, id: 'recipe-2', name: 'Second recipe' } });
+    await act(async () => { router.navigate('/recipes/recipe-2/edit'); });
+    await screen.findByDisplayValue('Second recipe');
+    const currentKeys = screen.getByTestId('recipe-sortable-grid').props.data.map((row: { key: string }) => row.key);
+    expect(currentKeys).not.toEqual(keys);
+    await act(async () => { oldDrop({ key: keys[0], indexToKey: [...keys].reverse() }); });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' }).props.accessibilityState.disabled).toBe(false));
+    expect(screen.getByTestId('recipe-sortable-grid').props.data.map((row: { key: string }) => row.key)).toEqual(currentKeys);
+    expect(mockedApi.updateRecipe).not.toHaveBeenCalled();
+  });
+
+  it('keeps an order-only draft after an unknown save and does not mistake the old server order for success', async () => {
+    const saved = recipe({ ingredients: [recipe().ingredients![0], { ...recipe().ingredients![0], id: 'second', amount: '3', position: 1 }] });
+    mockedApi.recipe.mockResolvedValue({ recipe: saved });
+    mockedApi.updateRecipe.mockRejectedValueOnce(new Error('connection lost'));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => { router.navigate('/recipes/recipe-1/edit'); });
+    await screen.findByLabelText('Reorder Milk, position 1 of 2');
+    await fireEvent(screen.getByLabelText('Reorder Milk, position 1 of 2'), 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await screen.findAllByRole('button', { name: 'Check saved version' });
+    expect(screen.getByTestId('recipe-sortable-grid').props.sortEnabled).toBe(false);
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Check saved version' })[0]);
+    expect(await screen.findByText('The latest recipe is unchanged. You can safely try saving again.')).toBeTruthy();
+    expect(screen.getByTestId('recipe-sortable-grid').props.data[0].amount).toBe('3');
+    expect(mockedApi.updateRecipe).toHaveBeenCalledTimes(1);
+  });
 
   it('saves blank amounts as To taste while retaining the default unit through create and edit', async () => {
     const saved = recipe({ id: 'recipe-created', ingredients: [{ ...recipe().ingredients![0], amount: null, unit_code: 'cup', unit_label: 'Cup' }] });

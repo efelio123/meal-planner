@@ -1,5 +1,6 @@
-import type { PropsWithChildren, ReactNode } from 'react';
+import type { ComponentRef, PropsWithChildren, ReactNode } from 'react';
 import { Platform, RefreshControl, ScrollView, StyleSheet, type ScrollViewProps } from 'react-native';
+import Animated, { type AnimatedRef } from 'react-native-reanimated';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 import { SafeAreaView as NativeTabSafeAreaView } from 'react-native-screens/experimental';
 import { useTheme } from '@/hooks/use-theme';
@@ -14,6 +15,8 @@ type ScreenProps = PropsWithChildren<{
   contentAlignment?: 'center' | 'top';
   /** Pass a stable boolean for a page with inline input; clearance sits inside native safe areas. */
   inlineKeyboardActive?: boolean;
+  /** Opt in to the same single scroll owner with UI-thread auto-scroll support. */
+  animatedScrollRef?: AnimatedRef<ComponentRef<typeof ScrollView>>;
   refreshing?: boolean;
   onRefresh?: () => void | Promise<void>;
   onScrollBeginDrag?: ScrollViewProps['onScrollBeginDrag'];
@@ -28,7 +31,7 @@ const stackEdges: Edge[] = ['right', 'bottom', 'left'];
 const androidTabEdges: Edge[] = ['top', 'right', 'left'];
 const androidStackEdges: Edge[] = ['right', 'left'];
 
-export function Screen({ children, layout, contentAlignment = 'center', inlineKeyboardActive, refreshing = false, onRefresh, onScrollBeginDrag, onScroll, footer, testID = 'screen' }: ScreenProps) {
+export function Screen({ children, layout, contentAlignment = 'center', inlineKeyboardActive, animatedScrollRef, refreshing = false, onRefresh, onScrollBeginDrag, onScroll, footer, testID = 'screen' }: ScreenProps) {
   const theme = useTheme();
   const tabRoot = layout === 'tab-root';
   const nativeIosInsets = Platform.OS === 'ios' && (tabRoot || layout === 'tab-stack');
@@ -36,9 +39,11 @@ export function Screen({ children, layout, contentAlignment = 'center', inlineKe
     : Platform.OS === 'android' && tabRoot ? androidTabEdges
     : Platform.OS === 'android' && layout === 'tab-stack' ? androidStackEdges
     : tabRoot ? standaloneEdges : stackEdges;
+  const PageScrollView = animatedScrollRef ? Animated.ScrollView : ScrollView;
   const body = (
     <>
-      <ScrollView
+      <PageScrollView
+        ref={animatedScrollRef}
         style={[styles.scroll, { backgroundColor: theme.screen }]}
         contentContainerStyle={[styles.content, contentAlignment === 'top' ? styles.contentTop : styles.contentCenter, tabRoot && Platform.OS === 'ios' && styles.contentFill]}
         alwaysBounceVertical={Platform.OS === 'ios'}
@@ -65,7 +70,7 @@ export function Screen({ children, layout, contentAlignment = 'center', inlineKe
         testID={testID}
       >
         {children}
-      </ScrollView>
+      </PageScrollView>
       {footer}
     </>
   );

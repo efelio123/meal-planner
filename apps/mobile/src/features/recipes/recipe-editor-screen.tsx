@@ -1,8 +1,10 @@
 import { useAuth } from '@clerk/expo';
 import { Stack, useFocusEffect, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { type ComponentRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, AppState, Keyboard, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+
+import { useAnimatedRef, useSharedValue } from 'react-native-reanimated';
 
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
@@ -13,7 +15,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { ApiError, api, type CatalogUnits, type GetToken, type Recipe, type RecipeInput, type RecipeUpdateInput } from '@/lib/api';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { namePrefillParams, namePrefillScope } from '@/features/catalog/catalog-name-prefill';
-import { formatRecipeAmount } from './recipe-presentation';
+import { RecipeIngredientList, type RecipeDragLock } from './recipe-ingredient-list';
+import { moveIngredient, reorderIngredients, saveIngredientByKey } from './recipe-ingredient-order';
 import { useRecipeContext } from './recipe-context';
 import { RecipeCover } from './recipe-cover';
 import { useMealPlanContext } from '@/features/meal-plan/meal-plan-context';
@@ -28,13 +31,6 @@ function localStep(instruction = ''): RecipeDirectionDraft {
 
 function amountError(value: string) {
   return isValidRecipeAmount(value) ? null : 'Enter a positive number or fraction. Put a range in the note.';
-}
-
-function formatIngredientSummary(ingredient: RecipeIngredientDraft) {
-  const unit = ingredient.customUnitLabel.trim() || ingredient.unitLabel;
-  const amount = formatRecipeAmount(ingredient.amount.trim());
-  if (!amount) return 'To taste';
-  return unit ? `${amount} ${unit}` : amount;
 }
 
 export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'recipes' | 'plan' }) {
@@ -61,6 +57,15 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
   const pendingUpdateBase = useRef<number | null>(null);
   const [draft, setDraft] = useState<RecipeDraft>(newRecipeDraft);
   const [ingredients, setIngredients] = useState<RecipeIngredientDraft[]>([]);
+  const ingredientsRef = useRef(ingredients);
+  const scrollRef = useAnimatedRef<ComponentRef<typeof ScrollView>>();
+  const dragBlocked = useSharedValue<RecipeDragLock>({ owner: `${scope}:0`, blocked: false });
+  const dragSession = useRef<{ scope: string; generation: number; epoch: number } | null>(null);
+  const focused = useRef(true);
+  const [dragging, setDragging] = useState(false);
+  const [dragEpoch, setDragEpoch] = useState(0);
+  const interactionId = `${scope}:${dragEpoch}`;
+  const interactionRef = useRef(interactionId);
   const [steps, setSteps] = useState<RecipeDirectionDraft[]>([]);
   const [ingredientsDirty, setIngredientsDirty] = useState(false);
   const [stepsDirty, setStepsDirty] = useState(false);
@@ -74,13 +79,68 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
 
 
   const editorLoaded = loadedScope === scope;
+  useLayoutEffect(() => {
+    interactionRef.current = interactionId;
+    dragBlocked.set({ owner: interactionId, blocked: false });
+  }, [dragBlocked, interactionId]);
+  const dragInProgress = useCallback(() => {
+    const lock = dragBlocked.get();
+    return dragSession.current !== null || (lock.owner === interactionRef.current && lock.blocked);
+  }, [dragBlocked]);
+  const cancelDrag = useCallback(() => {
+    const lock = dragBlocked.get();
+    if (!dragSession.current && (lock.owner !== interactionRef.current || !lock.blocked)) return;
+    dragSession.current = null;
+    dragBlocked.set({ owner: interactionRef.current, blocked: false });
+    setDragging(false);
+    // Reset the library's animation-preview order, leaving the draft untouched.
+    setDragEpoch((current) => current + 1);
+  }, [dragBlocked]);
+  useFocusEffect(useCallback(() => {
+    focused.current = true;
+    return () => { focused.current = false; cancelDrag(); };
+  }, [cancelDrag]));
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => { if (state !== 'active') cancelDrag(); });
+    return () => subscription.remove();
+  }, [cancelDrag]);
+  const changeIngredients = useCallback((change: (current: RecipeIngredientDraft[]) => RecipeIngredientDraft[]) => {
+    const next = change(ingredientsRef.current);
+    if (next === ingredientsRef.current) return false;
+    ingredientsRef.current = next;
+    setIngredients(next);
+    setIngredientsDirty(true);
+    return true;
+  }, []);
+  const startDrag = () => {
+    if (!mounted.current || scopeRef.current !== scope || interactionRef.current !== interactionId) return;
+    if (!focused.current || !editorLoaded || loading || saving || saveUnknown) { cancelDrag(); return; }
+    dragSession.current = { scope, generation: requestGeneration.current, epoch: dragEpoch };
+    setDragging(true);
+    Keyboard.dismiss();
+  };
+  const finishDrag = (keys: string[], completed: boolean) => {
+    const session = dragSession.current;
+    if (!session || session.scope !== scope || session.epoch !== dragEpoch || interactionRef.current !== interactionId) return;
+    dragSession.current = null;
+    dragBlocked.set({ owner: interactionRef.current, blocked: false });
+    setDragging(false);
+    if (completed && mounted.current && focused.current && session.scope === scopeRef.current && session.generation === requestGeneration.current) {
+      changeIngredients((current) => reorderIngredients(current, keys));
+    } else {
+      setDragEpoch((current) => current + 1);
+    }
+  };
+
   useEffect(() => { latestGetToken.current = getToken; }, [getToken]);
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; requestGeneration.current += 1; };
-  }, []);
+    return () => { mounted.current = false; requestGeneration.current += 1; dragSession.current = null; dragBlocked.set({ owner: interactionRef.current, blocked: false }); };
+  }, [dragBlocked]);
   const loadExistingRecipe = useCallback(async () => {
     if (!editing || !householdId) return;
+    cancelDrag();
+    setDragEpoch((current) => current + 1);
     const requestScope = scope;
     const generation = ++requestGeneration.current;
     setLoading(true);
@@ -92,7 +152,9 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       const recipe = result.recipe;
       originalRevision.current = recipe.edit_revision;
       setDraft(draftFromRecipe(recipe));
-      setIngredients((recipe.ingredients ?? []).map(ingredientDraftFromRecipe));
+      const loadedIngredients = (recipe.ingredients ?? []).map(ingredientDraftFromRecipe);
+      ingredientsRef.current = loadedIngredients;
+      setIngredients(loadedIngredients);
       setSteps((recipe.steps ?? []).map((step) => localStep(step.instruction)));
       setIngredientsDirty(false);
       setStepsDirty(false);
@@ -104,10 +166,11 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, [editing, householdId, recipeId, scope]);
+  }, [cancelDrag, editing, householdId, recipeId, scope]);
 
   useLayoutEffect(() => {
     if (scopeRef.current === scope) return;
+    cancelDrag();
     scopeRef.current = scope;
     requestGeneration.current += 1;
     originalRevision.current = null;
@@ -115,6 +178,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     pendingSave.current = null;
     pendingUpdateBase.current = null;
     setDraft(newRecipeDraft());
+    ingredientsRef.current = [];
     setIngredients([]);
     setSteps([]);
     setIngredientsDirty(false);
@@ -126,7 +190,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     setConflictNeedsReload(false);
     setError(null);
     setMoreDetails(false);
-  }, [editing, scope]);
+  }, [cancelDrag, editing, scope]);
 
   useEffect(() => {
     if (!editing) return;
@@ -217,6 +281,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
   };
 
   const checkUnknownSave = async () => {
+    if (dragInProgress()) return;
     if (!householdId || !pendingSave.current) return;
     const requestScope = scopeRef.current;
     const generation = requestGeneration.current;
@@ -251,6 +316,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
   };
 
   const save = async () => {
+    if (dragInProgress() || loading) return;
     if (saveUnknown) { await checkUnknownSave(); return; }
     if (!householdId || !editorLoaded || !canSave || saving) {
       if (!draft.name.trim()) setError('Enter a recipe name.');
@@ -299,15 +365,18 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     router.push({ pathname: `${editorRouteBase}/sheet/${kind}`, params: { sheetId } } as never);
   }, [editorRouteBase, router, sheetFlow]);
 
-  const saveIngredient = useCallback((ingredient: RecipeIngredientDraft, index: number | null) => {
-    if (index === null) setIngredients((current) => [...current, ingredient]);
-    else setIngredients((current) => current.map((item, itemIndex) => itemIndex === index ? ingredient : item));
-    setIngredientsDirty(true);
-  }, []);
+  const saveIngredient = useCallback((ingredient: RecipeIngredientDraft, key: string | null) => {
+    if (dragInProgress()) return;
+    changeIngredients((current) => saveIngredientByKey(current, ingredient, key));
+  }, [changeIngredients, dragInProgress]);
 
-  const openIngredientDetails = useCallback((food: RecipeFoodChoice, existing: RecipeIngredientDraft | undefined, index: number | null, returnToSearch: boolean, units: CatalogUnits | null = null) => {
+  const openIngredientDetails = useCallback((food: RecipeFoodChoice, existing: RecipeIngredientDraft | undefined, key: string | null, returnToSearch: boolean, units: CatalogUnits | null = null) => {
     Keyboard.dismiss();
+    if (dragInProgress()) return;
+    const openedGeneration = requestGeneration.current;
+    const isCurrentIngredient = () => isCurrentEditorScope() && requestGeneration.current === openedGeneration;
     const initialDraft = existing ?? {
+      key: newCreateRequestId(),
       catalogItemId: food.id,
       catalogItemName: food.name,
       categoryEmoji: food.categoryEmoji,
@@ -322,24 +391,24 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       <RecipeIngredientDetailsSheet
         food={food}
         initialDraft={initialDraft}
-        existingIndex={index}
+        existingKey={key}
         returnToSearch={returnToSearch}
         householdId={householdId!}
         expectedFlowScope={sheetFlow.scope}
         getToken={getCurrentToken}
-        isCurrent={isCurrentEditorScope}
+        isCurrent={isCurrentIngredient}
         initialUnits={units}
         unitSheetRoute={`${editorRouteBase}/sheet/unit`}
-        onSave={saveIngredient}
+        onSave={(ingredient, targetKey) => { if (isCurrentIngredient()) saveIngredient(ingredient, targetKey); }}
       />,
       [0.52, 0.92],
     );
-  }, [editorRouteBase, getCurrentToken, householdId, isCurrentEditorScope, pushNativeSheet, saveIngredient, sheetFlow.scope]);
+  }, [dragInProgress, editorRouteBase, getCurrentToken, householdId, isCurrentEditorScope, pushNativeSheet, saveIngredient, sheetFlow.scope]);
 
-  const startIngredient = useCallback((food: RecipeFoodChoice, existing?: RecipeIngredientDraft, index?: number) => {
-    if (!householdId) return;
-    openIngredientDetails(food, existing, index ?? null, false);
-  }, [householdId, openIngredientDetails]);
+  const startIngredient = useCallback((food: RecipeFoodChoice, existing?: RecipeIngredientDraft) => {
+    if (!householdId || dragInProgress()) return;
+    openIngredientDetails(food, existing, existing?.key ?? null, false);
+  }, [dragInProgress, householdId, openIngredientDetails]);
 
   const openFoodCreate = useCallback((query: string) => {
     if (!householdId || !isCurrentEditorScope()) return;
@@ -350,7 +419,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
   }, [editorRouteBase, householdId, isCurrentEditorScope, router, scope, sessionId, userId]);
 
   const openIngredientSearch = () => {
-    if (!householdId || !editorLoaded || saving) return;
+    if (!householdId || !editorLoaded || loading || saving || saveUnknown || dragInProgress()) return;
     Keyboard.dismiss();
     pushNativeSheet(
       'food',
@@ -395,7 +464,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     startIngredient({ id: createdFood.item.id, name: createdFood.item.name, categoryEmoji: null, recipeUnitCode: createdFood.item.recipe_measurement_unit_code, recipeUnitLabel: createdFood.item.recipe_measurement_unit_label });
   }, [createdFood, householdId, scope, setCreatedFood, startIngredient]));
   const saveLabel = saveUnknown ? (editing ? 'Check saved version' : 'Retry save') : saving ? 'Saving…' : 'Save';
-  const saveDisabled = !editorLoaded || saving;
+  const saveDisabled = !editorLoaded || loading || saving || dragging;
   const saveAction = () => <Pressable accessibilityLabel={saveLabel} accessibilityRole="button" accessibilityState={{ disabled: saveDisabled }} disabled={saveDisabled} hitSlop={10} onPress={() => void save()} style={styles.headerAction}>
     <ThemedText themeColor={saveDisabled ? 'textSecondary' : 'link'} style={styles.headerActionText}>{saveLabel}</ThemedText>
   </Pressable>;
@@ -403,7 +472,8 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     if (Platform.OS !== 'ios') navigation.setOptions({ title: editing ? 'Edit recipe' : 'New recipe', headerRight: saveAction });
   });
 
-  const editable = editorLoaded && !saving && !saveUnknown;
+  const sortableEnabled = editorLoaded && !loading && !saving && !saveUnknown;
+  const editable = sortableEnabled && !dragging;
 
   return (
     <>
@@ -411,7 +481,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       {Platform.OS === 'ios' ? <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button accessibilityLabel={saveLabel} disabled={saveDisabled} hidesSharedBackground onPress={() => void save()} tintColor={saveDisabled ? theme.textSecondary : theme.link} variant="plain">{saveLabel}</Stack.Toolbar.Button>
       </Stack.Toolbar> : null}
-      <Screen layout="tab-stack" contentAlignment="top" testID="recipe-editor-screen">
+      <Screen layout="tab-stack" contentAlignment="top" animatedScrollRef={scrollRef} testID="recipe-editor-screen">
         <View style={styles.content}>
           {editing && loading ? <ActivityIndicator accessibilityLabel="Loading recipe for editing" color={theme.activity} /> : null}
           {editing && error && !editorLoaded ? <View style={styles.errorBlock}>
@@ -435,23 +505,20 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
 
             <View style={styles.section}>
               <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Ingredients <ThemedText themeColor="error">*</ThemedText></ThemedText>
-              {ingredients.length > 0 ? <View style={[styles.ingredientList, { backgroundColor: theme.surface }]}>
-                {ingredients.map((ingredient, index) => <View key={`${ingredient.catalogItemId}-${index}`} style={[styles.ingredientRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
-                  <View style={styles.ingredientSummary}>
-                    <ThemedText numberOfLines={3} style={styles.ingredientName}>{ingredient.catalogItemName}</ThemedText>
-                    <ThemedText themeColor="textSecondary">{formatIngredientSummary(ingredient)}</ThemedText>
-                    {ingredient.note ? <ThemedText themeColor="textSecondary">Note: {ingredient.note}</ThemedText> : null}
-                  </View>
-                  <View style={styles.ingredientActions}>
-                    <Pressable accessibilityLabel={`Edit ${ingredient.catalogItemName}`} accessibilityRole="button" disabled={!editable} onPress={() => startIngredient({ id: ingredient.catalogItemId, name: ingredient.catalogItemName, categoryEmoji: ingredient.categoryEmoji }, ingredient, index)} style={styles.ingredientAction}>
-                      <ThemedText themeColor="link">Edit</ThemedText>
-                    </Pressable>
-                    <Pressable accessibilityLabel={`Remove ${ingredient.catalogItemName} from recipe`} accessibilityRole="button" disabled={!editable} onPress={() => { setIngredients((current) => current.filter((_item, itemIndex) => itemIndex !== index)); setIngredientsDirty(true); }} style={styles.ingredientAction}>
-                      <ThemedText themeColor="error">Remove</ThemedText>
-                    </Pressable>
-                  </View>
-                </View>)}
-              </View> : <ThemedText themeColor="textSecondary">Add at least one Food Catalog item to save this recipe.</ThemedText>}
+              {ingredients.length > 0 ? <RecipeIngredientList
+                key={`${scope}:${dragEpoch}`} ingredients={ingredients} enabled={sortableEnabled} busy={dragging}
+                scrollRef={scrollRef} dragBlocked={dragBlocked} interactionId={interactionId} onStart={startDrag} onFinish={finishDrag}
+                onEdit={(ingredient) => startIngredient({ id: ingredient.catalogItemId, name: ingredient.catalogItemName, categoryEmoji: ingredient.categoryEmoji }, ingredient)}
+                onRemove={(key) => {
+                  if (dragInProgress()) return;
+                  changeIngredients((current) => current.some((item) => item.key === key) ? current.filter((item) => item.key !== key) : current);
+                }}
+                onMove={(key, direction) => {
+                  if (!sortableEnabled || dragInProgress()) return null;
+                  if (!changeIngredients((current) => moveIngredient(current, key, direction))) return null;
+                  return ingredientsRef.current.findIndex((item) => item.key === key) + 1;
+                }}
+              /> : <ThemedText themeColor="textSecondary">Add at least one Food Catalog item to save this recipe.</ThemedText>}
               {error === 'Add at least one Food Catalog ingredient.' ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
               <Pressable accessibilityRole="button" disabled={!editable} onPress={() => void openIngredientSearch()} style={styles.inlineAction}>
                 <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus', android: 'add', web: 'add' }} size={21} tintColor={theme.link} />
@@ -520,12 +587,6 @@ const styles = StyleSheet.create({
   fieldLabel: { fontWeight: '600' },
   section: { gap: 12 },
   sectionTitleRow: { alignItems: 'baseline', flexDirection: 'row', gap: 8 },
-  ingredientList: { borderRadius: 16, overflow: 'hidden' },
-  ingredientRow: { alignItems: 'flex-start', flexDirection: 'row', gap: 8, minHeight: 72, paddingHorizontal: 14, paddingVertical: 12 },
-  ingredientSummary: { flex: 1, gap: 3, minWidth: 0 },
-  ingredientName: { fontWeight: '700', flexShrink: 1 },
-  ingredientActions: { alignItems: 'center', flexDirection: 'row', gap: 2 },
-  ingredientAction: { alignItems: 'center', justifyContent: 'center', minHeight: 44, minWidth: 48, paddingHorizontal: 5 },
   inlineAction: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 10, minHeight: 44, paddingHorizontal: 4 },
   stepCard: { borderRadius: 16, gap: 12, padding: 14 },
   stepHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
