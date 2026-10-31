@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "Meal Planner",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -27,7 +27,12 @@
     },
     "plugins": [
       "expo-router",
-      "@clerk/expo",
+      [
+        "@clerk/expo",
+        {
+          "appleSignIn": false
+        }
+      ],
       "expo-secure-store",
       [
         "expo-splash-screen",
