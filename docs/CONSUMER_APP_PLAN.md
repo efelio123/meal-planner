@@ -259,6 +259,12 @@ interaction on his phone October 31 at `f6a969a`, including compact choices and
 immediate special-meal Add. Individual checklist cases and Android coverage are
 not inferred. No API/schema/database, dependency or server-process change.
 
+F11 personal planning windows and custom shopping ranges are proposed next in
+`docs/plans/personal-planning-ranges.md`, on `codex/personal-planning-ranges`.
+The proposal includes a day-snapping seven-day strip, a per-user device-local
+weekday preference and inclusive 1-31-day review ranges, preserving legacy API
+request replay. Awaiting Felipe's approval; no implementation/runtime changes.
+
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
 New ingredients now inherit the Catalog recipe unit, including Food created
