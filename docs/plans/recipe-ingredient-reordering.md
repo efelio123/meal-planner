@@ -2,7 +2,9 @@
 
 Status: approved by Felipe October 30, 2026 with "Okay, implement" and
 assigned directly to this chat. Implemented on `codex/recipe-ingredient-reordering`
-from `24f41e3`; automated validation passes; physical phone acceptance is pending below.
+from `24f41e3`; Felipe accepts the reviewed interaction, separator follow-ups
+and grab feedback October 30. Broader device cases and trial deployment remain
+separate from that acceptance.
 Felipe authorized stopping the active Expo process for the approved installation;
 only this checkout's Expo process was stopped. The API stayed running.
 
@@ -332,3 +334,13 @@ totals remain 48 (3 high, 44 moderate, 1 low, 0 critical). No SDK upgrade, nativ
 rebuild, server restart or trial deployment was performed. Full mobile/database
 suites were not rerun for this focused follow-up; earlier results are historical.
 Actual iPhone/Android tactile review remains pending.
+
+
+### Reviewed interaction accepted — October 30
+
+After reviewing the top-drop separator correction and then the new grab cue,
+Felipe said "Okay looks great." Mark the reviewed ingredient reordering,
+separator polish and grab-only feedback accepted. No further implementation is
+requested in this slice. This does not infer unreported Android, accessibility,
+reduced-motion, larger-text or interruption checks, or native rebuild/deployment.
+This acceptance update changes documentation only; no validation rerun is needed.

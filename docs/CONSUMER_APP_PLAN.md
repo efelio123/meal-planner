@@ -183,22 +183,22 @@ acceptance are not inferred. No API/schema, dependency, keyboard-layout, Mac
 runtime/data or deployment changes.
 See `docs/plans/shopping-group-collapse.md`. Broader device cases are not inferred.
 
-F01 recipe ingredient reordering is approved and implemented October 30 on
-`codex/recipe-ingredient-reordering`; physical phone acceptance is pending.
-`docs/plans/recipe-ingredient-reordering.md` records the three-line handle,
-reviewed GIF lift/reflow/drop interaction, immutable occurrence keys, key-based
-Edit/Remove, and existing ordered Save/revision contract. Recipes Create/Edit
-and Plan Create reuse the same editor; one optional animated parent scroll
-supports edge auto-scroll. The approved Sortables 1.10.1 dependency is pinned,
-automatic library haptics remain disabled. Felipe subsequently requested one
-subtle grab cue, now supplied through SDK-compatible Expo Haptics 58.0.7 with
-no cues on movement/drop. SDK/gesture versions and native configuration files
-stay unchanged; separately installed apps need their next native rebuild for
-the new module. This follow-up passes 60 targeted tests, types, lint and iOS JS
-export; tactile phone confirmation is pending. Full mobile validation passes (61 suites / 594 tests), as do TypeScript, lint,
-iOS JS export and the targeted disposable-PostgreSQL order test. Existing SDK 58
-patch-update recommendations remain open and are recorded in that plan. Mocked
-checks do not establish native gesture feel. No Mac trial deployment or data changes.
+F01 recipe ingredient reordering is implemented on
+`codex/recipe-ingredient-reordering`; Felipe accepts the reviewed interaction,
+separator polish and grab feedback October 30. Recipes Create/Edit and Plan
+Create reuse three-line handles, stable occurrence keys, guarded completed drops
+and the existing ordered Save/revision contract. A single animated parent scroll
+supports edge auto-scroll. Sortables 1.10.1 is pinned; its automatic haptics are
+disabled. Expo Haptics 58.0.7 supplies one subtle grab cue, with no movement/drop
+cues. Separately installed apps gain that module on their next native rebuild.
+
+Latest grab-feedback validation: 60 targeted tests, TypeScript, lint and iOS JS
+export pass. The earlier full mobile result (61 suites / 594 tests) and targeted
+disposable-PostgreSQL order test cover the initial implementation, before the
+separator/haptic follow-ups. SDK 58 patch-update recommendations remain open.
+`docs/plans/recipe-ingredient-reordering.md` records all decisions and validation.
+Broader physical/Android cases are not inferred; no Mac trial deployment or data
+changes have been made.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
