@@ -1,6 +1,12 @@
+/** Keep the text draft editable; normalize complete leading decimals on blur/save. */
+export function normalizeShoppingAmount(value: string): string {
+  const amount = value.trim();
+  return /^\.\d+$/u.test(amount) ? `0${amount}` : amount;
+}
+
 /** Match the Shopping API's positive decimal, fraction, and mixed-fraction forms. */
 export function shoppingAmountError(value: string): string | null {
-  const amount = value.trim();
+  const amount = normalizeShoppingAmount(value);
   if (!amount) return null;
   if (/^\d+(?:\.\d+)?$/u.test(amount)) return Number(amount) > 0 ? null : 'Enter an amount greater than zero.';
   const mixed = amount.match(/^(\d+)\s+(\d+)\/(\d+)$/u);

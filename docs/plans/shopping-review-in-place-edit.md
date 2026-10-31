@@ -145,3 +145,17 @@ keyboard and exact scroll-position retention remain for physical review. Felipe
 owns this follow-up acceptance: edit multiple Already on Shopping rows, try Save,
 Cancel, Remove and a nested Store/Catalog page, and confirm the review stays open
 with the same dates and unaffected choices.
+
+
+## Small amount-entry follow-up - October 31, 2026
+
+Felipe requests `.5` in Shopping item edits, normalized to `0.5`. The shared
+Shopping amount helper now validates complete leading decimals after normalization;
+the editor normalizes on blur and in its save payload, retaining an editable raw
+draft while typing. Both Shopping and review entry points reuse this behavior,
+including Save before blur. Blank values/fractions are retained; zero, incomplete
+and malformed decimals remain invalid. No numeric conversion/rounding or API
+change is introduced. This is a small self-contained repair, not a new feature.
+All 3 targeted suites / 72 tests, types, lint, whitespace and iOS JS export pass.
+Earlier full/broad results predate this follow-up. PostgreSQL/full mobile and
+physical-device acceptance were not rerun; no runtime, data or dependency change.

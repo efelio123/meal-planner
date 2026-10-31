@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, waitFor, within } from '@testing-library/react-native';
-import { ShoppingCatalogPickerSheet, shoppingPickerKeyboardInset } from '@/features/shopping-list/shopping-sheets';
+import { ShoppingCatalogPickerSheet, ShoppingItemDetailsSheet, shoppingPickerKeyboardInset } from '@/features/shopping-list/shopping-sheets';
 import { api, type CatalogItem, type ShoppingListItem } from '@/lib/api';
 import type { ShoppingAddOutcome } from './use-shopping-list';
 
@@ -219,4 +219,35 @@ describe('Shopping Catalog picker sheet', () => {
     expect(mockBack).toHaveBeenCalledTimes(1);
   });
 
+});
+
+
+describe('Shopping details leading decimals', () => {
+  beforeEach(() => {
+    jest.clearAllMocks(); mockUserId = 'user-1'; mockSessionId = 'session-1'; mockHouseholdId = 'household-1';
+    mockShoppingScope = '["user-1","session-1","household-1"]';
+    mockedApi.catalogItem.mockResolvedValue({ item: catalogItem('apples', 'Apples') });
+    mockedApi.catalogUnits.mockResolvedValue({ shopping_units: { built_in: [], household: [] }, recipe_measurement_units: [] });
+    mockedApi.catalogStores.mockResolvedValue({ stores: [] });
+    mockedApi.shoppingListItem.mockResolvedValue({ item: { ...shoppingItem('apples'), amount: '2' } });
+    mockedApi.updateShoppingListItem.mockResolvedValue({ item: { ...shoppingItem('apples'), amount: '0.5' } });
+  });
+  it.each(['shopping', 'plan'] as const)('normalizes a .5 edit on blur and saves 0.5 from the %s owner', async (routeBase) => {
+    const view = await render(<ShoppingItemDetailsSheet catalogItem={catalogItem('apples', 'Apples')} existingItem={{ ...shoppingItem('apples'), amount: '2' }} routeBase={routeBase} onChanged={jest.fn()} onRemove={jest.fn()} />);
+    await waitFor(() => expect(view.getByRole('button', { name: 'Save changes' })).not.toBeDisabled());
+    await fireEvent.changeText(view.getByLabelText('Amount'), '.5');
+    expect(view.getByRole('button', { name: 'Save changes' })).not.toBeDisabled();
+    await fireEvent(view.getByLabelText('Amount'), 'blur');
+    expect(view.getByLabelText('Amount')).toHaveProp('value', '0.5');
+    await fireEvent.press(view.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(mockedApi.updateShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-1', 'list-row', { amount: '0.5', store_id: null }));
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+  it('normalizes Save even if the focused field has not blurred', async () => {
+    const view = await render(<ShoppingItemDetailsSheet catalogItem={catalogItem('apples', 'Apples')} existingItem={shoppingItem('apples')} onChanged={jest.fn()} onRemove={jest.fn()} />);
+    await waitFor(() => expect(view.getByRole('button', { name: 'Save changes' })).not.toBeDisabled());
+    await fireEvent.changeText(view.getByLabelText('Amount'), '.5');
+    await fireEvent.press(view.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(mockedApi.updateShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-1', 'list-row', expect.objectContaining({ amount: '0.5' })));
+  });
 });
