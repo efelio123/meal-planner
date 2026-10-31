@@ -4,6 +4,8 @@ import RecipesLayout from '@/app/(app)/(tabs)/recipes/_layout';
 import ShoppingLayout from '@/app/(app)/(tabs)/shopping/_layout';
 import PlanLayout from '@/app/(app)/(tabs)/plan/_layout';
 
+jest.mock('@/features/shopping-list/use-shopping-list', () => ({ useShoppingList: () => ({ refreshOnFocus: jest.fn() }) }));
+
 const mockGet = jest.fn(() => ({ detents: [0.58, 0.94], initialDetent: 1 }));
 const mockBack = jest.fn();
 
@@ -15,7 +17,7 @@ jest.mock('expo-router', () => {
     return React.createElement(View, { testID: `route-${name}`, options } as never);
   }
   Stack.Screen = ScreenRoute;
-  return { Stack, useRouter: () => ({ back: mockBack }) };
+  return { Stack, useRouter: () => ({ back: mockBack }), useFocusEffect: () => undefined };
 });
 
 it.each([0, 1])('keeps the Plan unit sheet in its owning stack with registered initial detent %s', async (initialDetent) => {

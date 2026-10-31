@@ -1,3 +1,4 @@
+import { useShoppingList } from '@/features/shopping-list/use-shopping-list';
 import { useAuth } from '@clerk/expo';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -22,6 +23,7 @@ export function ShoppingReviewScreen() {
   const { getToken, selectedHousehold } = useHouseholdState();
   const { userId, sessionId } = useAuth();
   const householdId = selectedHousehold?.id ?? null;
+  const { invalidate: refreshShopping } = useShoppingList();
   const { markShoppingChanged } = useMealPlanContext();
   const scope = `${userId ?? ''}:${sessionId ?? ''}:${householdId ?? ''}:${weekStart}`;
   const scopeRef = useRef(scope);
@@ -147,6 +149,7 @@ export function ShoppingReviewScreen() {
       });
       if (scopeRef.current !== startedScope) return;
       markShoppingChanged(householdId, result.items.length, requestId);
+      void refreshShopping();
       router.dismissAll();
       router.navigate('/(app)/(tabs)/shopping' as never);
     } catch (reason) {

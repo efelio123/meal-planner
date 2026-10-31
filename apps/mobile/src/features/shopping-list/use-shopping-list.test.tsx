@@ -1,11 +1,17 @@
-import { act, renderHook, waitFor } from '@testing-library/react-native';
+import { AppState, Platform, type AppStateStatus } from 'react-native';
+import type { PropsWithChildren } from 'react';
+import { ShoppingProvider } from './shopping-context';
+import { ShoppingListProvider, useShoppingBadge } from './shopping-list-provider';
+import { act, renderHook as renderActualHook, waitFor } from '@testing-library/react-native';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useShoppingList } from '@/features/shopping-list/use-shopping-list';
 import { ApiError, api, type ShoppingList, type ShoppingListItem } from '@/lib/api';
 
 jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: jest.fn() }));
 let mockSessionId = 'session-1';
-jest.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: 'user-1', sessionId: mockSessionId }) }));
+let mockDestination = 'app';
+let mockSignedIn = true;
+jest.mock('@clerk/expo', () => ({ useAuth: () => ({ isLoaded: true, isSignedIn: mockSignedIn, userId: 'user-1', sessionId: mockSessionId }) }));
 jest.mock('@/lib/api', () => ({
   ApiError: jest.requireActual<typeof import('@/lib/api')>('@/lib/api').ApiError,
   api: {
@@ -53,14 +59,21 @@ function selectHousehold(id: string | null) {
   selectedHouseholdId = id;
 }
 
+function Owner({ children }: PropsWithChildren) {
+  return <ShoppingProvider><ShoppingListProvider>{children}</ShoppingListProvider></ShoppingProvider>;
+}
+function renderHook<T>(callback: () => T) { return renderActualHook(callback, { wrapper: Owner }); }
+
 describe('useShoppingList', () => {
   beforeEach(() => {
     jest.resetAllMocks();
     getToken.mockResolvedValue('session-token');
     selectedHouseholdId = 'household-a';
     mockSessionId = 'session-1';
+    mockDestination = 'app';
+    mockSignedIn = true;
     mockedHouseholdState.mockImplementation(() => ({
-      getToken,
+      getToken, destination: mockDestination,
       selectedHousehold: selectedHouseholdId
         ? { id: selectedHouseholdId, name: selectedHouseholdId, time_zone: 'UTC', role: 'member' }
         : null,
@@ -133,10 +146,10 @@ describe('useShoppingList', () => {
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    let addPromise!: ReturnType<ReturnType<typeof useShoppingList>['add']>;
-    await act(async () => { addPromise = result.current.add('catalog-bread'); });
     let refreshPromise!: Promise<void>;
     await act(async () => { refreshPromise = result.current.refresh(); });
+    let addPromise!: ReturnType<ReturnType<typeof useShoppingList>['add']>;
+    await act(async () => { addPromise = result.current.add('catalog-bread'); });
     await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2));
 
     await act(async () => addMutation.resolve({ item: addedItem }));
@@ -161,12 +174,12 @@ describe('useShoppingList', () => {
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(result.current.items).toHaveLength(1));
 
+    let refreshPromise!: Promise<void>;
+    await act(async () => { refreshPromise = result.current.refresh(); });
     let removePromise!: Promise<void>;
     await act(async () => { removePromise = result.current.remove(milk); });
     expect(result.current.items).toEqual([]);
-    let refreshPromise!: Promise<void>;
-    await act(async () => { refreshPromise = result.current.refresh(); });
-    await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2));
+    expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2);
 
     await act(async () => removeMutation.resolve());
     await act(async () => removePromise);
@@ -543,7 +556,7 @@ describe('useShoppingList', () => {
       await expect(result.current.clearPurchased()).rejects.toThrow('still updating');
       await expect(result.current.addOrReadd('catalog-needed')).rejects.toThrow();
       await expect(result.current.add('catalog-needed')).rejects.toThrow();
-      await result.current.toggle(needed); await result.current.update(needed, { amount: '3' }); await result.current.remove(needed);
+      await result.current.toggle(needed); await expect(result.current.update(needed, { amount: '3' })).rejects.toThrow('already being updated'); await result.current.remove(needed);
       await result.current.refresh();
     });
     expect(mockedApi.updateShoppingListItem).not.toHaveBeenCalled();
@@ -794,4 +807,169 @@ describe('useShoppingList', () => {
     expect(result.current.items).toEqual([]);
     expect(mockedApi.updateShoppingListItem).not.toHaveBeenCalled();
   });
+
+  it('shares one load across consumers and coalesces overlapping refresh requests', async () => {
+    const initial = deferred<{ shopping_list: ShoppingList }>();
+    mockedApi.shoppingList.mockReturnValueOnce(initial.promise);
+    const { result } = await renderHook(() => ({ first: useShoppingList(), second: useShoppingList(), badge: useShoppingBadge() }));
+    expect(result.current.first).toBe(result.current.second);
+    expect(result.current.badge.count).toBeNull();
+    let one!: Promise<void>; let two!: Promise<void>;
+    await act(async () => { one = result.current.first.refresh(); two = result.current.second.refresh(); });
+    expect(one).toBe(two);
+    expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1);
+    await act(async () => { initial.resolve(listResponse('household-a', [item('soap'), item('bread', 'Bread', true)])); await one; });
+    expect(result.current.badge.count).toBe(1);
+    expect(result.current.first.items).toBe(result.current.second.items);
+  });
+
+  it.each(['signed-out', 'complete-profile', 'create-or-join', 'select-household', 'api-error'])('does not load Shopping at non-app destination %s', async (destination) => {
+    mockDestination = destination;
+    const { result } = await renderHook(() => ({ state: useShoppingList(), badge: useShoppingBadge() }));
+    await act(async () => { await result.current.state.refresh(); });
+    expect(mockedApi.shoppingList).not.toHaveBeenCalled();
+    expect(result.current.badge.count).toBeNull();
+  });
+
+  it('hides the previous badge immediately on sign-out and ignores a late load', async () => {
+    const late = deferred<{ shopping_list: ShoppingList }>();
+    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [item('milk')])).mockReturnValueOnce(late.promise);
+    const { result, rerender } = await renderHook(() => ({ state: useShoppingList(), badge: useShoppingBadge() }));
+    await waitFor(() => expect(result.current.badge.count).toBe(1));
+    let refresh!: Promise<void>;
+    await act(async () => { refresh = result.current.state.refresh(); });
+    mockSignedIn = false;
+    await rerender(undefined);
+    expect(result.current.badge.count).toBeNull();
+    await act(async () => { late.resolve(listResponse('household-a', [item('late')])); await refresh; });
+    expect(result.current.badge.count).toBeNull();
+    expect(result.current.state.items).toEqual([]);
+  });
+
+  it('retains known badge data after a failed refresh and distinguishes initial failure from empty', async () => {
+    mockedApi.shoppingList.mockRejectedValueOnce(new Error('offline'));
+    const { result } = await renderHook(() => ({ state: useShoppingList(), badge: useShoppingBadge() }));
+    await waitFor(() => expect(result.current.state.error).toBeTruthy());
+    expect(result.current.badge.count).toBeNull();
+    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [item('milk')]));
+    await act(async () => result.current.state.refresh());
+    expect(result.current.badge.count).toBe(1);
+    mockedApi.shoppingList.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => result.current.state.refresh());
+    expect(result.current.badge.count).toBe(1);
+  });
+
+  it('updates the badge for independent rapid toggles, rollback, re-add and both clears', async () => {
+    let rows = [{ ...item('milk'), catalog_item_id: 'catalog-milk' }, { ...item('soap'), catalog_item_id: 'catalog-soap' }];
+    mockedApi.shoppingList.mockImplementation(async () => listResponse('household-a', rows));
+    const milkWrite = deferred<{ item: ShoppingListItem }>();
+    const soapWrite = deferred<{ item: ShoppingListItem }>();
+    mockedApi.updateShoppingListItem.mockReturnValueOnce(milkWrite.promise).mockReturnValueOnce(soapWrite.promise);
+    const { result } = await renderHook(() => ({ state: useShoppingList(), badge: useShoppingBadge() }));
+    await waitFor(() => expect(result.current.badge.count).toBe(2));
+    let milk!: Promise<void>; let soap!: Promise<unknown>;
+    await act(async () => { milk = result.current.state.toggle(rows[0]); soap = result.current.state.toggle(rows[1]).catch((error: Error) => error); });
+    expect(result.current.badge.count).toBe(0);
+    await act(async () => { rows = [{ ...rows[0], is_checked: true }, rows[1]]; milkWrite.resolve({ item: rows[0] }); soapWrite.reject(new Error('offline')); await milk; await soap; });
+    expect(result.current.badge.count).toBe(1);
+    mockedApi.updateShoppingListItem.mockImplementation(async (_token, _home, id, values) => {
+      rows = rows.map((row) => row.id === id ? { ...row, ...values } : row);
+      return { item: rows.find((row) => row.id === id)! };
+    });
+    await act(async () => { await result.current.state.addOrReadd('catalog-milk'); });
+    expect(result.current.badge.count).toBe(2);
+    await act(async () => { await result.current.state.addOrReadd('catalog-milk'); });
+    expect(result.current.badge.count).toBe(2);
+    await act(async () => { await result.current.state.toggle(rows[0]); });
+    mockedApi.clearPurchasedShoppingItems.mockImplementation(async () => {
+      const removed = rows.filter((row) => row.is_checked); rows = rows.filter((row) => !row.is_checked);
+      return { removed_count: removed.length, removed_item_ids: removed.map((row) => row.id) };
+    });
+    await act(async () => { await result.current.state.clearPurchased(); });
+    expect(result.current.badge.count).toBe(1);
+    mockedApi.clearShoppingList.mockImplementation(async () => { const count = rows.length; rows = []; return { removed_count: count }; });
+    await act(async () => { await result.current.state.clear(); });
+    expect(result.current.badge.count).toBe(0);
+  });
+
+  it('defers refreshing during a pending toggle so older server state cannot undo it', async () => {
+    const milk = item('milk');
+    const pending = deferred<{ item: ShoppingListItem }>();
+    mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [milk])).mockResolvedValue(listResponse('household-a', [{ ...milk, is_checked: true }]));
+    mockedApi.updateShoppingListItem.mockReturnValueOnce(pending.promise);
+    const { result } = await renderHook(() => ({ state: useShoppingList(), badge: useShoppingBadge() }));
+    await waitFor(() => expect(result.current.badge.count).toBe(1));
+    let write!: Promise<void>;
+    await act(async () => { write = result.current.state.toggle(milk); await result.current.state.refresh(); });
+    expect(result.current.badge.count).toBe(0);
+    expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1);
+    await act(async () => { pending.resolve({ item: { ...milk, is_checked: true } }); await write; });
+    await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2));
+    expect(result.current.badge.count).toBe(0);
+  });
+
+  it('invalidates a read started before Plan batch-add reconciliation', async () => {
+    const old = deferred<{ shopping_list: ShoppingList }>();
+    mockedApi.shoppingList.mockReturnValueOnce(old.promise).mockResolvedValue(listResponse('household-a', [item('new')]));
+    const { result } = await renderHook(() => ({ state: useShoppingList(), badge: useShoppingBadge() }));
+    await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1));
+    await act(async () => { await result.current.state.invalidate(); });
+    expect(result.current.badge.count).toBe(1);
+    await act(async () => { old.resolve(listResponse('household-a', [])); });
+    expect(result.current.badge.count).toBe(1);
+  });
+
+  it('rejects callbacks captured before leaving and returning to the same household', async () => {
+    const { result, rerender } = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(result.current.known).toBe(true));
+    const old = result.current;
+    selectHousehold('household-b'); await rerender(undefined);
+    selectHousehold('household-a'); await rerender(undefined);
+    await waitFor(() => expect(result.current.known).toBe(true));
+    await act(async () => { await expect(old.add('old')).rejects.toThrow('household or sign-in changed'); });
+    expect(mockedApi.addShoppingListItem).not.toHaveBeenCalled();
+  });
+
+  it('refreshes on foreground return, avoids active-only events and removes the listener', async () => {
+    let change!: (state: AppStateStatus) => void;
+    const remove = jest.fn();
+    const spy = jest.spyOn(AppState, 'addEventListener').mockImplementation((_event, callback) => { change = callback; return { remove }; });
+    const view = await renderHook(() => useShoppingList());
+    await waitFor(() => expect(view.result.current.known).toBe(true));
+    await act(async () => { change('background'); change('active'); change('active'); });
+    await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2));
+    await view.unmount();
+    expect(remove).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+  });
+
+
+  it('coalesces web visibility/focus refreshes and cleans up both browser listeners', async () => {
+    const documentDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+    const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'window');
+    const originalPlatform = Platform.OS;
+    const callbacks = new Map<string, () => void>();
+    const browserDocument = { visibilityState: 'visible', addEventListener: jest.fn((name: string, callback: () => void) => callbacks.set(name, callback)), removeEventListener: jest.fn() };
+    const browserWindow = { addEventListener: jest.fn((name: string, callback: () => void) => callbacks.set(name, callback)), removeEventListener: jest.fn() };
+    Object.defineProperty(globalThis, 'document', { configurable: true, value: browserDocument });
+    Object.defineProperty(globalThis, 'window', { configurable: true, value: browserWindow });
+    Platform.OS = 'web';
+    try {
+      const view = await renderHook(() => useShoppingList());
+      await waitFor(() => expect(view.result.current.known).toBe(true));
+      await act(async () => { callbacks.get('visibilitychange')?.(); callbacks.get('focus')?.(); });
+      expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2);
+      browserDocument.visibilityState = 'hidden';
+      await act(async () => { callbacks.get('focus')?.(); });
+      expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2);
+      await view.unmount();
+      expect(browserDocument.removeEventListener).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
+      expect(browserWindow.removeEventListener).toHaveBeenCalledWith('focus', expect.any(Function));
+    } finally {
+      Platform.OS = originalPlatform;
+      if (documentDescriptor) Object.defineProperty(globalThis, 'document', documentDescriptor); else Reflect.deleteProperty(globalThis, 'document');
+      if (windowDescriptor) Object.defineProperty(globalThis, 'window', windowDescriptor); else Reflect.deleteProperty(globalThis, 'window');
+    }
+  });
+
 });

@@ -17,6 +17,7 @@ import { useTheme, useThemeMode } from '@/hooks/use-theme';
 import { getStartupDiagnostics } from '@/lib/startup-diagnostics';
 import { NativeSheetProvider, useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { nativeSheetRouteOptions } from '@/features/native-sheets/native-sheet-route-options';
+import { ShoppingListProvider } from '@/features/shopping-list/shopping-list-provider';
 import { ShoppingProvider } from '@/features/shopping-list/shopping-context';
 
 SplashScreen.preventAutoHideAsync();
@@ -77,7 +78,9 @@ function RootNavigator() {
   return (
     <NativeSheetProvider scope={`${isSignedIn ? 'signed-in' : 'signed-out'}:${userId ?? ''}:${sessionId ?? ''}:${selectedHousehold?.id ?? ''}`}>
       <ShoppingProvider>
+      <ShoppingListProvider>
         <RootStack destination={destination} isSignedIn={isSignedIn} />
+      </ShoppingListProvider>
       </ShoppingProvider>
     </NativeSheetProvider>
   );

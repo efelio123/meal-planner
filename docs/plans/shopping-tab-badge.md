@@ -1,10 +1,13 @@
 # Shopping tab count badge - F13
 
-Status: proposed October 31, 2026; awaiting Felipe's review. Plan only.
+Status: approved October 31, 2026 with "Loooks good, implement it"; assigned
+directly to this chat. Implementation branch: `codex/shopping-tab-badge`, from
+planning commit `65c8e50`. Implementation and automated validation are complete;
+physical phone review remains pending.
 Planning branch: `codex/shopping-tab-badge-plan`, from clean `d606bdb`, which
 records phone acceptance of planned-meal swipe deletion. Preserve that accepted
-branch chain. Implementation requires approval and a focused implementation branch;
-assignment follows AGENTS.md unless Felipe explicitly assigns it directly.
+branch chain. Felipe explicitly approved direct implementation on the focused
+branch above. Push, merge, deployment and native rebuild remain separate.
 
 ## Goal and product behavior
 
@@ -139,3 +142,60 @@ accessible count; shared in-memory list owner; lifecycle refresh without live
 cross-device delivery. No blocking technical question is known. Approval covers
 this bounded state-owner move and badge, not push notifications, widgets, themes,
 roles or automatic real-time household synchronization.
+
+
+## Implementation record - October 31, 2026
+
+- Root ShoppingListProvider owns one validated, user/session/household-scoped
+  snapshot for tabs, the Shopping page and retained sheets. useShoppingList is
+  now a consumer; use-shopping-list-state.ts holds the existing mutation engine.
+  ShoppingContext keeps sheet returns and revision notices. Unknown data remains
+  distinct from a confirmed empty list; scope/generation guards reject stale
+  actions and token use, and mask a previous household immediately.
+- Native and web tab layouts use shopping-badge.ts for the same count/format and
+  exact accessible label. Native uses Trigger.Badge; web uses tabBarBadge and the
+  existing navigation theme. Titles, icons, order, tab history, tab-root Screen
+  and native safe-area settings are preserved. No new page or layout frame.
+- Details saves now reconcile canonical responses through the shared owner.
+  Plan review invalidates its full snapshot after confirmed batch/replay success;
+  result length remains success-notice data, never badge arithmetic. A failed
+  reconciliation does not retry the successful batch POST.
+- Pending row mutations preserve rapid independent checkoffs and rollback. Reads
+  coalesce, older responses cannot overwrite newer writes, and a requested read
+  waits until pending row changes finish. Confirmed clear reconciliation and
+  filters/search/collapse remain intact. No manually maintained count cache.
+- Freshness is tied to foreground/visibility and Shopping stack focus, so merely
+  dismissing its child Add/Edit sheet does not trigger an extra read. A first
+  focus within one second of a completed startup/explicit reconciliation reuses
+  that fresh snapshot; later tab returns refresh and in-flight requests coalesce.
+  This uses timestamps, not timer polling. Native and browser listeners clean up.
+- Tests cover the actual root provider and route flows; isolated stack-layout
+  tests explicitly stub the new data dependency. The native system label is not
+  a rendered text node in Jest: route checks observe the real tab consumer while
+  separate native/web configuration tests verify badge/label wiring and stable
+  navigator instances. Physical rendering and announcements still need review.
+
+No API/schema, dependencies, Mac trial data/runtime, native build, deployment or
+paid resource changed. Existing local Expo/API processes were not restarted or
+stopped. During validation only completed Jest processes belonging to this run
+were stopped after a failed isolated web fixture left its native router open.
+Database tests and the full PostgreSQL suite are unrun because server/database
+behavior did not change. Hosted CI, physical iPhone/Android/browser checks and
+light/dark release review remain unrun; prior F06 validation is historical.
+
+Phone review remains Felipe's follow-up: initial count from Plan, rapid checkoff,
+re-add, Plan batch add, swipe/remove and both clears, filtering without changing
+the badge total, household/sign-in isolation, and foreground return after the
+other phone changes the list. Check one/two/three-digit badge appearance,
+selected/unselected Shopping, larger text and keyboard/nested-sheet return.
+Cross-device changes still require foreground, Shopping tab entry or refresh;
+this is not live synchronization or an app-icon badge.
+
+
+Final validation: all 64 mobile suites / 665 tests passed with no skipped tests,
+plus TypeScript, lint, whitespace checks and iOS JS export. A subsequent
+import-order-only test cleanup was rechecked with both affected suites (13 tests),
+TypeScript and lint; application code did not change after the full pass/export.
+Initial failed passes exposed test fixtures that assumed the previous focus policy,
+used removed test helpers, or resolved a web import to the native file. Those
+fixtures were repaired and the complete pass above supersedes the failed runs.

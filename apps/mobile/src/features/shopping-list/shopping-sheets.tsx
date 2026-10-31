@@ -1,3 +1,4 @@
+import { useShoppingList } from './use-shopping-list';
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -193,11 +194,12 @@ export function ShoppingCatalogPickerSheet({ items, onAdd }: { items: ShoppingLi
 }
 
 function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemove }: { catalogItem: ShoppingCatalogSummary; existingItem?: ShoppingListItem; onChanged: () => void; onRemove: (item: ShoppingListItem) => Promise<void> }) {
+  const { add, update } = useShoppingList();
   const theme = useTheme();
   const router = useRouter();
   const { getToken, selectedHousehold } = useHouseholdState();
   const { userId, sessionId } = useAuth();
-  const { scope: shoppingScope, createdChoice, setCreatedChoice, markChanged } = useShoppingContext();
+  const { scope: shoppingScope, createdChoice, setCreatedChoice } = useShoppingContext();
   const { revision: catalogRevision } = useCatalogContext();
   const householdId = selectedHousehold?.id ?? null;
   const requestScope = JSON.stringify([userId, sessionId, householdId]);
@@ -325,10 +327,9 @@ function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemo
       values.custom_shopping_unit_id = selectedUnitId && unitId.startsWith('custom:') ? selectedUnitId : null;
     }
     try {
-      if (existingItem) await api.updateShoppingListItem(() => latestToken.current(), householdId, existingItem.id, values);
-      else await api.addShoppingListItem(() => latestToken.current(), householdId, catalogItem.id, values);
+      if (existingItem) await update(existingItem, values);
+      else await add(catalogItem.id, values);
       if (scopeRef.current !== started) return;
-      markChanged(householdId);
       onChanged();
       router.back();
     } catch (reason) {

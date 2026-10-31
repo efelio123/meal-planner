@@ -216,10 +216,20 @@ local disposable PostgreSQL. Felipe accepts the reviewed swipe feature on his
 phone October 31 at `55382a0`; broader checklist/Android coverage is not inferred;
 no API/schema, dependency, Mac trial, native build or deployment changes. See
 `docs/plans/planned-meal-swipe-delete.md` for scope and review checks. F13 Shopping
-badge is proposed October 31 in `docs/plans/shopping-tab-badge.md` on
-`codex/shopping-tab-badge-plan`: one shared Shopping data owner, all-household
-unchecked-row count, hidden zero/unknown, `99+` with exact accessible count, and
-lifecycle refresh. Awaiting review; no implementation or live trial changes.
+badge is approved and implemented directly October 31 on
+`codex/shopping-tab-badge`, from `65c8e50`. Native/web tabs and Shopping share one
+validated user/session/household data owner. Count all unchecked household rows,
+independent of filters/search; hide zero/unknown, show `99+` with exact accessible
+count. Canonical mutations, Plan batch reconciliation, rollback and scoped
+refresh keep the list and badge aligned. Foreground/browser visibility and
+Shopping tab return refresh without polling or real-time delivery; nested sheet
+return preserves the accepted list behavior.
+
+F13 validation: 64 mobile suites / 665 tests, TypeScript, lint, whitespace and iOS
+JS export pass; import-only test polish has 13 additional passing targeted tests.
+Physical phone/Android/browser review remains pending. No API/schema, dependency,
+Mac trial, native build or deployment changes. Local servers remain running.
+See `docs/plans/shopping-tab-badge.md` for lifecycle decisions and review checks.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

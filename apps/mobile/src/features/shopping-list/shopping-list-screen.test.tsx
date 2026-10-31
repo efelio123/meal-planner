@@ -75,7 +75,7 @@ describe('Shopping list screen', () => {
     mockedHouseholdState.mockReturnValue({ selectedHousehold: { id: 'household-1', name: 'Home', time_zone: 'UTC', role: 'member' } } as unknown as ReturnType<typeof useHouseholdState>);
     mockedShoppingList.mockReturnValue({
       add: jest.fn(), addOrReadd: jest.fn().mockResolvedValue('added'), clear: jest.fn().mockResolvedValue(0), clearPurchased: jest.fn().mockResolvedValue(1), clearing: null, error: null, householdId: 'household-1', items: [item('milk', 'Milk'), item('bread', 'Bread', true)],
-      loading: false, pendingItemIds: new Set(), refresh: mockRefresh, remove: jest.fn(), toggle: jest.fn().mockResolvedValue(undefined), update: jest.fn(),
+      loading: false, pendingItemIds: new Set(), refresh: mockRefresh, refreshOnFocus: jest.fn(), remove: jest.fn(), toggle: jest.fn().mockResolvedValue(undefined), update: jest.fn(),
     } as unknown as ReturnType<typeof shoppingListHook.useShoppingList>);
   });
 

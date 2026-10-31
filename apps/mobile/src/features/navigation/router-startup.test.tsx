@@ -11,6 +11,17 @@ import { catalogEmojiSheetKeyboardBehavior } from '@/features/catalog/catalog-em
 import { useResetToHouseholdStartup } from '@/features/profile/use-reset-to-household-startup';
 
 jest.setTimeout(30000);
+// The native tab's system label is not a rendered text node in Jest. Observe
+// the real tab consumer; native badge wiring is covered by native-tabs-config.
+let mockTabBadge: { accessibilityLabel: string } | null = null;
+jest.mock('@/features/shopping-list/shopping-list-provider', () => {
+  const actual = jest.requireActual<typeof import('@/features/shopping-list/shopping-list-provider')>('@/features/shopping-list/shopping-list-provider');
+  return { ...actual, useShoppingBadge: () => {
+    const badge = actual.useShoppingBadge(); mockTabBadge = badge; return badge;
+  } };
+});
+function shoppingTabLabel() { return mockTabBadge?.accessibilityLabel; }
+
 
 // These router tests cover navigation, not the row's native swipe animation.
 jest.mock('@/components/swipe-to-delete-row', () => ({ SwipeToDeleteRow: ({ children }: PropsWithChildren) => children }));
@@ -291,6 +302,7 @@ function shoppingRow(overrides: Partial<ShoppingListItem> = {}): ShoppingListIte
 
 describe('signed-in startup routing', () => {
   beforeEach(() => {
+    mockTabBadge = null;
     jest.resetAllMocks();
     mockInitialDestination = 'app';
     mockInitialSignedIn = true;
@@ -323,6 +335,33 @@ describe('signed-in startup routing', () => {
     } });
   });
   afterEach(() => { jest.restoreAllMocks(); });
+
+  it('loads the badge on Plan before Shopping mounts and shares rapid checkbox changes with the tab', async () => {
+    const rows = [shoppingRow(), shoppingRow({ id: 'soap', name: 'Soap', catalog_item_id: 'soap', catalog_item_type: 'household' }), shoppingRow({ id: 'checked', name: 'Bread', is_checked: true })];
+    jest.mocked(api.shoppingList).mockResolvedValue({ shopping_list: { ...shoppingListResponse().shopping_list, items: rows } });
+    jest.mocked(api.updateShoppingListItem).mockImplementation(async (_token, _home, id, values) => ({ item: { ...rows.find((row) => row.id === id)!, ...values } }));
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/plan' });
+    await waitFor(() => expect(shoppingTabLabel()).toBe('Shopping, 2 items to buy'));
+    expect(rendered.getPathname()).toBe('/plan');
+    expect(jest.mocked(api.shoppingList)).toHaveBeenCalledTimes(1);
+    await act(async () => { router.navigate('/shopping' as Href); });
+    await screen.findByRole('checkbox', { name: 'Mark Milk purchased' });
+    expect(jest.mocked(api.shoppingList)).toHaveBeenCalledTimes(1);
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Milk purchased' }));
+    await waitFor(() => expect(shoppingTabLabel()).toBe('Shopping, 1 item to buy'));
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Soap purchased' }));
+    await waitFor(() => expect(shoppingTabLabel()).toBe('Shopping, 0 items to buy'));
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Mark Milk not purchased' }));
+    await waitFor(() => expect(shoppingTabLabel()).toBe('Shopping, 1 item to buy'));
+  });
+
+  it('does not fetch Shopping data from a signed-out route', async () => {
+    mockInitialSignedIn = false; mockInitialDestination = 'signed-out';
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/welcome' });
+    await act(async () => {});
+    expect(jest.mocked(api.shoppingList)).not.toHaveBeenCalled();
+  });
+
 
   it.each([
     '/profile/my-account', '/profile/my-households', '/profile/my-households/create',
@@ -597,7 +636,7 @@ describe('signed-in startup routing', () => {
     expect(renderResult.getPathname()).toBe('/plan');
   });
 
-  it('preserves the loaded shared list and avoids a tab-switch reload', async () => {
+  it('preserves the loaded shared list and reconciles it on returning to the Shopping tab', async () => {
     const apples = {
       id: 'item-apples', name: 'Apples', is_checked: false, checked_at: null,
       checked_by_user_id: null, created_by_user_id: 'user-1', created_at: '2026-09-01T00:00:00Z',
@@ -615,7 +654,7 @@ describe('signed-in startup routing', () => {
     }
 
     expect(screen.getByText('Apples')).toBeTruthy();
-    expect(api.shoppingList).toHaveBeenCalledTimes(1);
+    expect(api.shoppingList).toHaveBeenCalledTimes(2);
   });
 
   it('allows group collapse during search and preserves separate choices through edit and tab return', async () => {
@@ -1217,7 +1256,7 @@ describe('signed-in startup routing', () => {
     expect(await screen.findByText('We couldn’t update that item.')).toBeTruthy();
     expect(screen.getByRole('checkbox', { name: 'Mark Eggs purchased' }).props.accessibilityState)
       .toMatchObject({ checked: false, disabled: false });
-    expect(api.shoppingList).toHaveBeenCalledTimes(1);
+    expect(api.shoppingList).toHaveBeenCalledTimes(2);
   });
 
   it('follows Android tab history through several tabs using the real router', async () => {
@@ -1236,7 +1275,7 @@ describe('signed-in startup routing', () => {
       });
       expect(renderResult.getPathname()).toBe(expectedPath);
     }
-    expect(api.shoppingList).toHaveBeenCalledTimes(1);
+    expect(api.shoppingList).toHaveBeenCalledTimes(2);
   });
 
   it('pushes and pops a fixture screen in the Shopping nested stack', async () => {

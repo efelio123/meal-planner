@@ -17,6 +17,11 @@ jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack, push: mock
 jest.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: mockUserId, sessionId: mockSessionId }) }));
 jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: () => ({ getToken: jest.fn().mockResolvedValue('token'), selectedHousehold: { id: mockHouseholdId } }) }));
 jest.mock('@/features/shopping-list/shopping-context', () => ({ useShoppingContext: () => ({ scope: mockShoppingScope, markChanged: jest.fn() }) }));
+// Sheet-only tests stub the owner commands; route tests use the actual provider.
+jest.mock('./use-shopping-list', () => ({ useShoppingList: () => ({
+  add: (id: string, values: unknown) => jest.requireMock('@/lib/api').api.addShoppingListItem(async () => 'token', mockHouseholdId, id, values),
+  update: (item: { id: string }, values: unknown) => jest.requireMock('@/lib/api').api.updateShoppingListItem(async () => 'token', mockHouseholdId, item.id, values),
+}) }));
 jest.mock('@/features/catalog/catalog-context', () => ({ useCatalogContext: () => ({ revision: 0 }) }));
 jest.mock('@/features/native-sheets/native-sheet-context', () => ({ useNativeSheetFlow: () => ({ present: mockPresent }) }));
 jest.mock('@/lib/api', () => ({

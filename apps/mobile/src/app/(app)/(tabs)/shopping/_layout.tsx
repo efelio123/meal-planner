@@ -1,4 +1,6 @@
-import { Stack, useRouter } from 'expo-router';
+import { useCallback } from 'react';
+import { useShoppingList } from '@/features/shopping-list/use-shopping-list';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Platform } from 'react-native';
 import { AppBackButton } from '@/components/app-back-button';
 import { recipeSheetOptions } from '@/features/native-sheets/recipe-sheet-options';
@@ -8,6 +10,8 @@ import { useTheme } from '@/hooks/use-theme';
 
 export default function ShoppingStackLayout() {
   const theme = useTheme();
+  const { refreshOnFocus } = useShoppingList();
+  useFocusEffect(useCallback(() => { refreshOnFocus(); }, [refreshOnFocus]));
   const router = useRouter();
   const { get } = useNativeSheetFlow();
   const choiceModalOptions = {

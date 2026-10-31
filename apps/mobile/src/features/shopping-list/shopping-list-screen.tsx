@@ -28,7 +28,7 @@ const sortOptions = [
 export default function ShoppingListScreen() {
   const theme = useTheme(); const router = useRouter(); const sheetFlow = useNativeSheetFlow();
   const { selectedHousehold } = useHouseholdState();
-  const { scope, createdItem, setCreatedItem, revisionForHousehold } = useShoppingContext();
+  const { scope, createdItem, setCreatedItem } = useShoppingContext();
   const mealPlanContext = useMealPlanContextOptional();
   const { addOrReadd, clear, clearPurchased, clearing, error, householdId, items, loading, pendingItemIds, refresh, remove, toggle } = useShoppingList();
   const [search, setSearch] = useState('');
@@ -49,11 +49,9 @@ export default function ShoppingListScreen() {
   const scrollDragStartY = useRef(0);
   const scrollOffsetY = useRef(0);
   const scrollStartedAfterReveal = useRef(false);
-  const scopeRef = useRef(scope); const previousRevision = useRef({ householdId, revision: householdId ? revisionForHousehold(householdId) : 0 });
+  const scopeRef = useRef(scope);
   const scopeVersion = useRef(0);
   const openedEditParam = useRef<string | null>(null);
-  const shoppingRevision = householdId ? revisionForHousehold(householdId) : 0;
-  const mealRevision = householdId ? mealPlanContext?.shoppingRevisionForHousehold(householdId) ?? 0 : 0;
   const shoppingNotice = householdId ? mealPlanContext?.shoppingAddNoticeForHousehold(householdId) ?? null : null;
 
   useLayoutEffect(() => {
@@ -82,14 +80,6 @@ export default function ShoppingListScreen() {
     const timer = setTimeout(() => setClearNotice(null), 3500);
     return () => clearTimeout(timer);
   }, [clearNotice]);
-  useEffect(() => {
-    const prior = previousRevision.current;
-    previousRevision.current = { householdId, revision: shoppingRevision + mealRevision };
-    if (prior.householdId === householdId && prior.revision !== shoppingRevision + mealRevision) {
-      setOpenSwipeId(null);
-      void refresh();
-    }
-  }, [householdId, mealRevision, refresh, shoppingRevision]);
   const dismissSearch = useCallback(() => {
     searchInput.current?.blur();
     setSearchFocused(false);

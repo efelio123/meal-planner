@@ -10,6 +10,17 @@ import { ApiError, api, type CatalogItem, type MealPlanEntry, type MealPlanWeek,
 
 jest.mock('react-native-sortables', () => jest.requireActual('../recipes/testing/sortables-mock'));
 jest.setTimeout(30000);
+// The native tab's system label is not a rendered text node in Jest. Observe
+// the real tab consumer; native badge wiring is covered by native-tabs-config.
+let mockTabBadge: { accessibilityLabel: string } | null = null;
+jest.mock('@/features/shopping-list/shopping-list-provider', () => {
+  const actual = jest.requireActual<typeof import('@/features/shopping-list/shopping-list-provider')>('@/features/shopping-list/shopping-list-provider');
+  return { ...actual, useShoppingBadge: () => {
+    const badge = actual.useShoppingBadge(); mockTabBadge = badge; return badge;
+  } };
+});
+function shoppingTabLabel() { return mockTabBadge?.accessibilityLabel; }
+
 
 // Route coverage does not exercise Shopping's native swipe animation.
 jest.mock('@/components/swipe-to-delete-row', () => jest.requireActual('../../components/testing/swipe-to-delete-mock'));
@@ -90,6 +101,7 @@ async function waitForLoadedPlan() {
 
 describe('meal planning through the Expo Router', () => {
   beforeEach(() => {
+    mockTabBadge = null;
     Platform.OS = 'android';
     jest.clearAllMocks();
     mockGetToken.mockResolvedValue('session-token');
@@ -540,6 +552,9 @@ describe('meal planning through the Expo Router', () => {
   });
 
   it('retries an uncertain shopping response with the same idempotency request ID', async () => {
+    mockedApi.shoppingList.mockResolvedValueOnce({ shopping_list: { id: 'list-1', household_id: household.id, items: [] } }).mockResolvedValue({ shopping_list: {
+      id: 'list-1', household_id: household.id, items: [{ id: 'generated-eggs', name: 'Eggs', is_checked: false, checked_at: null, checked_by_user_id: null, created_by_user_id: user.id, created_at: '', catalog_item_id: 'food-eggs' }],
+    } });
     mockedApi.mealPlanShoppingReview.mockResolvedValue({
       week_start: '2026-10-05', week_end: '2026-10-11', review_token: 'c'.repeat(64), needs: [{
         need_key: 'eggs-unit', catalog_item_id: 'food-eggs', name: 'Eggs', amount: '2',
@@ -573,6 +588,7 @@ describe('meal planning through the Expo Router', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Retry add safely' }));
     await waitFor(() => expect(mockedApi.addMealPlanNeedsToShopping).toHaveBeenCalledTimes(3));
     expect(mockedApi.addMealPlanNeedsToShopping.mock.calls[2][2]).toEqual(adjustedRequest);
+    await waitFor(() => expect(shoppingTabLabel()).toBe('Shopping, 1 item to buy'));
     expect(await screen.findByText('1 item added from this week’s meals.')).toBeTruthy();
     expect(rendered.getPathname()).toBe('/shopping');
   });
