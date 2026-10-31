@@ -190,8 +190,12 @@ reviewed GIF lift/reflow/drop interaction, immutable occurrence keys, key-based
 Edit/Remove, and existing ordered Save/revision contract. Recipes Create/Edit
 and Plan Create reuse the same editor; one optional animated parent scroll
 supports edge auto-scroll. The approved Sortables 1.10.1 dependency is pinned,
-haptics remain disabled, and SDK/gesture versions/native configuration stay
-unchanged. Full mobile validation passes (61 suites / 594 tests), as do TypeScript, lint,
+automatic library haptics remain disabled. Felipe subsequently requested one
+subtle grab cue, now supplied through SDK-compatible Expo Haptics 58.0.7 with
+no cues on movement/drop. SDK/gesture versions and native configuration files
+stay unchanged; separately installed apps need their next native rebuild for
+the new module. This follow-up passes 60 targeted tests, types, lint and iOS JS
+export; tactile phone confirmation is pending. Full mobile validation passes (61 suites / 594 tests), as do TypeScript, lint,
 iOS JS export and the targeted disposable-PostgreSQL order test. Existing SDK 58
 patch-update recommendations remain open and are recorded in that plan. Mocked
 checks do not establish native gesture feel. No Mac trial deployment or data changes.

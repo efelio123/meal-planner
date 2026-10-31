@@ -7,8 +7,10 @@ import { renderRouter } from 'expo-router/testing-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, StyleSheet } from 'react-native';
 
+import { dragGrabFeedback } from '@/lib/haptics';
 import { api, type CatalogItem, type CatalogUnits, type Me, type Recipe } from '@/lib/api';
 
+jest.mock('@/lib/haptics', () => ({ dragGrabFeedback: jest.fn().mockResolvedValue(undefined) }));
 jest.mock('react-native-sortables', () => jest.requireActual('./testing/sortables-mock'));
 jest.setTimeout(30000);
 
@@ -139,6 +141,7 @@ describe('Recipes through the actual Expo Router', () => {
     const original = screen.getByTestId('recipe-sortable-grid').props.data;
     await fireEvent(screen.getByLabelText('Reorder Milk, position 1 of 2'), 'accessibilityAction', { nativeEvent: { actionName: 'increment' } });
     expect(screen.getByTestId('recipe-sortable-grid').props.data.map((row: { key: string }) => row.key)).toEqual([original[1].key, original[0].key]);
+    expect(dragGrabFeedback).not.toHaveBeenCalled();
     await fireEvent.press(screen.getAllByRole('button', { name: 'Edit Milk' })[1]);
     expect(await screen.findByDisplayValue('1')).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Ingredient amount'), '4');
@@ -181,11 +184,15 @@ describe('Recipes through the actual Expo Router', () => {
     const keys = grid.props.data.map((row: { key: string }) => row.key);
     await act(async () => { grid.props.onDragStart({ key: keys[0] }); });
     expect(screen.getByRole('button', { name: 'Save' }).props.accessibilityState.disabled).toBe(true);
+    expect(dragGrabFeedback).toHaveBeenCalledTimes(1);
+    await act(async () => { grid.props.onDragStart({ key: keys[0] }); });
+    expect(dragGrabFeedback).toHaveBeenCalledTimes(1);
     await fireEvent.press(screen.getAllByRole('button', { name: 'Edit Milk' })[0]);
     expect(screen.queryByText('Ingredient details')).toBeNull();
     await act(async () => { grid.props.onActiveItemDropped({ key: keys[0], indexToKey: [...keys].reverse() }); });
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save' }).props.accessibilityState.disabled).toBe(false));
     expect(screen.getByTestId('recipe-sortable-grid').props.data.map((row: { key: string }) => row.key)).toEqual(keys);
+    expect(dragGrabFeedback).toHaveBeenCalledTimes(1);
     await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalled());
     expect(mockedApi.updateRecipe.mock.calls[0][3]).not.toHaveProperty('ingredients');

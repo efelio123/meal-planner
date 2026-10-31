@@ -287,3 +287,48 @@ TypeScript, lint and whitespace checks also passed. The earlier full-suite resul
 remains historical; full mobile/database suites and native visual checks were
 not rerun for this focused styling/timing follow-up. Phone confirmation of this
 specific flicker correction is pending. Expo/API processes were not changed.
+
+
+### Grab-only haptic feedback follow-up — October 30
+
+Felipe requested a small vibration when an ingredient is grabbed, superseding
+this slice's earlier decision to leave all feedback off. This focused follow-up
+adds one light iOS impact / native Android drag-start cue on a validated grab,
+with no feedback on plain taps, row crossings, drop, cancellation, accessibility
+moves or stale callbacks. Keep the sortable library's own haptics disabled
+because it emits additional medium start/drop and light crossing impacts.
+
+Use official SDK 58-compatible `expo-haptics` 58.0.7, recommended by both the
+installed Expo bundled-module map and versioned documentation. The built-in
+React Native Vibration API produces an approximately 400 ms iPhone vibration,
+which is unsuitable here. The optional native haptic feedback package is not
+available in Expo Go's native graph. This adds one free MIT package without
+upgrading SDK/gesture dependencies. Expo Go supports Expo Haptics; separately
+installed native apps gain the module on their next rebuild. Its Android VIBRATE
+permission is supplied by the module itself. No native configuration file,
+Mac trial runtime or installed binary is changed in this follow-up.
+
+Add a small shared helper in `src/lib/haptics.ts`. The resolved module uses
+`requireOptionalNativeModule`, so import it normally and catch unavailable-device/
+module failures when requesting feedback; older native builds still drag normally. Call it after the editor's existing scope,
+focus, loading and interaction guards and deduplicate repeated starts. Do not
+await feedback or change gesture timing, persistence or navigation.
+
+Validate grab-only/deduplicated feedback, platform/failure no-op behavior and
+existing Recipes/Plan drag routes; run TypeScript, lint, iOS JS export and a
+focused dependency/advisory review after intended edits. Tactile strength still
+needs phone review. Do not stop Felipe's Expo server or rebuild/deploy the native
+trial app for this small package addition.
+
+
+Grab-feedback validation: four targeted helper/component/Recipes/Plan suites,
+**60 tests passed**; TypeScript, lint, whitespace and final iOS JS export also
+passed (2150 modules). Tests cover one light iOS impact, native Android grab cue,
+web no-op and native failure tolerance; router checks verify one cue despite a
+repeated start callback and no extra cue on accessibility movement or canceled
+drop. `expo-haptics` 58.0.7 matches Expo's installed `~58.0.7` recommendation and
+adds no transitive dependencies. Audit reports no advisory for it; existing audit
+totals remain 48 (3 high, 44 moderate, 1 low, 0 critical). No SDK upgrade, native
+rebuild, server restart or trial deployment was performed. Full mobile/database
+suites were not rerun for this focused follow-up; earlier results are historical.
+Actual iPhone/Android tactile review remains pending.

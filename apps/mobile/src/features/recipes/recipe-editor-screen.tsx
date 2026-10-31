@@ -12,6 +12,7 @@ import { ThemedText } from '@/components/themed-text';
 import { MoreDetailsToggle, visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
+import { dragGrabFeedback } from '@/lib/haptics';
 import { ApiError, api, type CatalogUnits, type GetToken, type Recipe, type RecipeInput, type RecipeUpdateInput } from '@/lib/api';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { namePrefillParams, namePrefillScope } from '@/features/catalog/catalog-name-prefill';
@@ -115,7 +116,9 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
   const startDrag = () => {
     if (!mounted.current || scopeRef.current !== scope || interactionRef.current !== interactionId) return;
     if (!focused.current || !editorLoaded || loading || saving || saveUnknown) { cancelDrag(); return; }
+    if (dragSession.current) return;
     dragSession.current = { scope, generation: requestGeneration.current, epoch: dragEpoch };
+    void dragGrabFeedback();
     setDragging(true);
     Keyboard.dismiss();
   };
