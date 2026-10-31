@@ -118,7 +118,9 @@ class UpdateShoppingListItemRequest(BaseModel):
 class CreateMealPlanEntryRequest(BaseModel):
     planned_for: str = Field(min_length=10, max_length=10)
     meal_slot: Literal["breakfast", "lunch", "dinner"]
-    recipe_id: UUID
+    recipe_id: UUID | None = None
+    entry_type: Literal["recipe", "leftovers", "eating_out"] = "recipe"
+    detail: StrictStr | None = None
 
 
 class UpdateMealPlanEntryRequest(CreateMealPlanEntryRequest):
@@ -514,12 +516,12 @@ def get_meal_plan(household_id: UUID, user: User, week_offset: int = Query(defau
 
 @app.post("/v1/households/{household_id}/meal-plan/entries", status_code=status.HTTP_201_CREATED, tags=["meal-plan"])
 def post_meal_plan_entry(household_id: UUID, payload: CreateMealPlanEntryRequest, user: User) -> dict:
-    return {"entry": meal_planning.create_entry(user, str(household_id), payload.planned_for, payload.meal_slot, str(payload.recipe_id))}
+    return {"entry": meal_planning.create_entry(user, str(household_id), payload.planned_for, payload.meal_slot, str(payload.recipe_id) if payload.recipe_id is not None else None, entry_type=payload.entry_type, detail=payload.detail)}
 
 
 @app.patch("/v1/households/{household_id}/meal-plan/entries/{entry_id}", tags=["meal-plan"])
 def patch_meal_plan_entry(household_id: UUID, entry_id: UUID, payload: UpdateMealPlanEntryRequest, user: User) -> dict:
-    return {"entry": meal_planning.update_entry(user, str(household_id), str(entry_id), payload.planned_for, payload.meal_slot, str(payload.recipe_id), payload.expected_revision)}
+    return {"entry": meal_planning.update_entry(user, str(household_id), str(entry_id), payload.planned_for, payload.meal_slot, str(payload.recipe_id) if payload.recipe_id is not None else None, payload.expected_revision, entry_type=payload.entry_type, detail=payload.detail)}
 
 
 @app.delete("/v1/households/{household_id}/meal-plan/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["meal-plan"])

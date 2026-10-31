@@ -102,7 +102,7 @@ def get_week(user: CurrentUser, household_id: str, week_offset: int = 0, engine:
             SELECT authorized_week.time_zone, authorized_week.local_today,
                 authorized_week.week_start,
                 entry.id::text AS id, entry.planned_for, entry.meal_slot,
-                entry.recipe_id::text AS recipe_id, entry.edit_revision,
+                entry.recipe_id::text AS recipe_id, entry.entry_type, entry.detail, entry.edit_revision,
                 recipe.name AS recipe_name, recipe.cover_kind, recipe.cover_emoji,
                 recipe.archived_at,
                 (SELECT count(*)::int FROM household_recipe_ingredients ingredient
@@ -142,27 +142,44 @@ def _validate_recipe(connection, household_id: str, recipe_id: str) -> None:
         raise _conflict("MEAL_PLAN_RECIPE_ARCHIVED", "Choose an active recipe for a planned meal.")
 
 
-def create_entry(user: CurrentUser, household_id: str, planned_for: str, meal_slot: str, recipe_id: str, engine: Engine | None = None) -> dict:
+def _entry_values(entry_type: str, recipe_id: str | None, detail: str | None) -> tuple[str, str | None, str | None]:
+    if entry_type not in {"recipe", "leftovers", "eating_out"}:
+        raise _invalid("Choose a recipe, leftovers, or eating out.")
+    detail = (detail.strip() or None) if detail is not None else None
+    if detail is not None and len(detail) > 160:
+        raise _invalid("Meal details must be 160 characters or fewer.")
+    if entry_type == "recipe":
+        if not recipe_id or detail is not None:
+            raise _invalid("Recipe meals require a recipe and no special-meal detail.")
+    elif recipe_id is not None:
+        raise _invalid("Leftovers and eating out cannot reference a recipe.")
+    return entry_type, recipe_id, detail
+
+
+def create_entry(user: CurrentUser, household_id: str, planned_for: str, meal_slot: str, recipe_id: str | None, engine: Engine | None = None, *, entry_type: str = "recipe", detail: str | None = None) -> dict:
+    entry_type, recipe_id, detail = _entry_values(entry_type, recipe_id, detail)
     day = _date(planned_for)
     if meal_slot not in SLOTS:
         raise _invalid("Choose breakfast, lunch, or dinner.")
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
-        _validate_recipe(connection, household_id, recipe_id)
+        if recipe_id is not None:
+            _validate_recipe(connection, household_id, recipe_id)
         try:
             row = connection.execute(text("""
-                INSERT INTO household_meal_plan_entries (household_id, planned_for, meal_slot, recipe_id, created_by_user_id)
-                VALUES (:household_id, :planned_for, :meal_slot, :recipe_id, :user_id)
-                RETURNING id::text AS id, planned_for, meal_slot, recipe_id::text AS recipe_id, edit_revision
-            """), {"household_id": household_id, "planned_for": day, "meal_slot": meal_slot, "recipe_id": recipe_id, "user_id": user.id}).mappings().one()
+                INSERT INTO household_meal_plan_entries (household_id, planned_for, meal_slot, recipe_id, entry_type, detail, created_by_user_id)
+                VALUES (:household_id, :planned_for, :meal_slot, :recipe_id, :entry_type, :detail, :user_id)
+                RETURNING id::text AS id, planned_for, meal_slot, recipe_id::text AS recipe_id, entry_type, detail, edit_revision
+            """), {"household_id": household_id, "planned_for": day, "meal_slot": meal_slot, "recipe_id": recipe_id, "entry_type": entry_type, "detail": detail, "user_id": user.id}).mappings().one()
         except IntegrityError as error:
             if getattr(getattr(error, "orig", None), "sqlstate", None) == "23505":
-                raise _conflict("MEAL_PLAN_SLOT_OCCUPIED", "That day and meal already has a planned recipe.") from error
+                raise _conflict("MEAL_PLAN_SLOT_OCCUPIED", "That day and meal already has a planned meal.") from error
             raise
         return _entry(row)
 
 
-def update_entry(user: CurrentUser, household_id: str, entry_id: str, planned_for: str, meal_slot: str, recipe_id: str, expected_revision: int, engine: Engine | None = None) -> dict:
+def update_entry(user: CurrentUser, household_id: str, entry_id: str, planned_for: str, meal_slot: str, recipe_id: str | None, expected_revision: int, engine: Engine | None = None, *, entry_type: str = "recipe", detail: str | None = None) -> dict:
+    entry_type, recipe_id, detail = _entry_values(entry_type, recipe_id, detail)
     day = _date(planned_for)
     if meal_slot not in SLOTS:
         raise _invalid("Choose breakfast, lunch, or dinner.")
@@ -176,19 +193,20 @@ def update_entry(user: CurrentUser, household_id: str, entry_id: str, planned_fo
             raise _not_found()
         if current["edit_revision"] != expected_revision:
             raise _conflict("MEAL_PLAN_REVISION_CONFLICT", "This planned meal changed on another device. Refresh before saving.")
-        if current["recipe_id"] != recipe_id:
+        if recipe_id is not None and current["recipe_id"] != recipe_id:
             _validate_recipe(connection, household_id, recipe_id)
         try:
             row = connection.execute(text("""
                 UPDATE household_meal_plan_entries
                 SET planned_for = :planned_for, meal_slot = :meal_slot, recipe_id = :recipe_id,
+                    entry_type = :entry_type, detail = :detail,
                     edit_revision = edit_revision + 1, updated_at = CURRENT_TIMESTAMP
                 WHERE household_id = :household_id AND id = :entry_id
-                RETURNING id::text AS id, planned_for, meal_slot, recipe_id::text AS recipe_id, edit_revision
-            """), {"household_id": household_id, "entry_id": entry_id, "planned_for": day, "meal_slot": meal_slot, "recipe_id": recipe_id}).mappings().one()
+                RETURNING id::text AS id, planned_for, meal_slot, recipe_id::text AS recipe_id, entry_type, detail, edit_revision
+            """), {"household_id": household_id, "entry_id": entry_id, "planned_for": day, "meal_slot": meal_slot, "recipe_id": recipe_id, "entry_type": entry_type, "detail": detail}).mappings().one()
         except IntegrityError as error:
             if getattr(getattr(error, "orig", None), "sqlstate", None) == "23505":
-                raise _conflict("MEAL_PLAN_SLOT_OCCUPIED", "That day and meal already has a planned recipe.") from error
+                raise _conflict("MEAL_PLAN_SLOT_OCCUPIED", "That day and meal already has a planned meal.") from error
             raise
         return _entry(row)
 
@@ -223,7 +241,7 @@ def _review_snapshot(connection, household_id: str, week_start: date) -> dict:
         JOIN household_recipe_ingredients ingredient ON ingredient.household_id=recipe.household_id AND ingredient.recipe_id=recipe.id
         JOIN catalog_items item ON item.household_id=ingredient.household_id AND item.id=ingredient.catalog_item_id
         LEFT JOIN recipe_measurement_units units ON units.code=ingredient.recipe_unit_code AND units.dimension=ingredient.recipe_unit_dimension
-        WHERE entry.household_id=:household_id AND entry.planned_for BETWEEN :week_start AND :week_end
+        WHERE entry.household_id=:household_id AND entry.entry_type='recipe' AND entry.planned_for BETWEEN :week_start AND :week_end
         ORDER BY entry.planned_for,
             array_position(ARRAY['breakfast','lunch','dinner'], entry.meal_slot),
             recipe.name, ingredient.position

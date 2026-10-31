@@ -1,3 +1,4 @@
+import { mealDraftPayload } from './meal-entry';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, Pressable, StyleSheet, View } from 'react-native';
@@ -133,7 +134,7 @@ export function MealPlanScreen() {
     closeSwipe();
     const id = flow.present(
       <MealPlanAddSheet householdId={householdId} weekOffset={weekOffset} dates={dates} initialDate={day} initialSlot={slot} onSave={async (draft) => {
-        await create({ planned_for: draft.plannedFor, meal_slot: draft.mealSlot, recipe_id: draft.recipeId! });
+        await create(mealDraftPayload(draft));
         if (mealPlanContext.scope === scope) setDaySelection({ scope, day: draft.plannedFor });
       }} />,
       { detents: [0.62, 0.96], initialDetent: 1, onDismiss: mealPlanContext.clearRecipeCreate },
@@ -147,7 +148,7 @@ export function MealPlanScreen() {
     if (wasRevealed) return;
     const id = flow.present(
       <MealPlanEditSheet householdId={householdId} dates={dates} entry={entry}
-        onSave={(draft) => update(entry.id, { planned_for: draft.plannedFor, meal_slot: draft.mealSlot, recipe_id: draft.recipeId!, expected_revision: draft.expected_revision })}
+        onSave={(draft) => update(entry.id, { ...mealDraftPayload(draft), expected_revision: draft.expected_revision })}
         onRemove={() => remove(entry.id, entry.edit_revision)}
         onReload={() => refresh()} />,
       { detents: [0.62, 0.96], initialDetent: 1 },

@@ -104,3 +104,27 @@ def test_review_token_changes_when_a_meal_moves_within_the_same_week() -> None:
 
     assert original["needs"][0]["amount"] == moved["needs"][0]["amount"] == "1"
     assert original["review_token"] != moved["review_token"]
+
+
+@pytest.mark.parametrize(("kind", "recipe_id", "detail", "normalized"), [
+    ("recipe", "recipe-id", None, None),
+    ("leftovers", None, "  Chicken tacos  ", "Chicken tacos"),
+    ("eating_out", None, "  ", None),
+    ("leftovers", None, "\t\n", None),
+    ("eating_out", None, "x" * 160, "x" * 160),
+])
+def test_special_meal_values_normalize_without_inventing_recipe_links(kind, recipe_id, detail, normalized):
+    from meal_planner_api.meal_planning import _entry_values
+    assert _entry_values(kind, recipe_id, detail) == (kind, recipe_id, normalized)
+
+
+@pytest.mark.parametrize(("kind", "recipe_id", "detail"), [
+    ("recipe", None, None), ("recipe", "recipe-id", "Restaurant"),
+    ("leftovers", "recipe-id", None), ("eating_out", "recipe-id", "Cafe"),
+    ("notes", None, "Anything"), ("leftovers", None, "x" * 161),
+])
+def test_special_meal_values_reject_invalid_variants(kind, recipe_id, detail):
+    from meal_planner_api.meal_planning import _entry_values
+    with pytest.raises(HTTPException) as caught:
+        _entry_values(kind, recipe_id, detail)
+    assert caught.value.status_code == 422

@@ -232,13 +232,22 @@ checklist/Android/browser coverage is not inferred. No API/schema, dependency,
 Mac trial, native build or deployment changes. Local servers remain running.
 See `docs/plans/shopping-tab-badge.md` for lifecycle decisions and review checks.
 
-Next proposed slice is F07 Leftovers/Eating out, documented in
-`docs/plans/meal-plan-special-entries.md` on `codex/meal-plan-special-entries-plan`.
-Add optional meal/restaurant text to non-recipe planned occurrences, reuse native
-Add/Edit and swipe deletion, and exclude them from shopping calculations. This
-needs an additive migration and typed API/mobile entries; preserve existing
-recipe plans and require a later coordinated phone/API trial rollout. Plan only,
-awaiting review; no application/schema/live-data changes are made by planning.
+F07 Leftovers/Eating out is approved and implemented directly October 31 on
+`codex/meal-plan-special-entries`, from `698433e`. Shared native Add/Edit offers
+both fixed choices with optional meal/restaurant text; typed occurrences preserve
+recipe behavior, revisions and occupancy. Special entries have no recipe link or
+ingredient-shopping needs. Counts, dots, editing and the accepted swipe work for
+all kinds; recipe-create return and per-kind drafts are guarded.
+
+The additive `meal_plan_special_entries` migration preserves old recipe rows and
+refuses downgrade while special entries exist. All 66 mobile suites / 679 tests,
+all 176 API tests on verified disposable PostgreSQL, types, mobile/API lint,
+whitespace and iOS JS export pass. Local development was backed up and migrated
+with legacy plan-data/row-count preservation checks; its API was restarted and
+Expo remains running for review. Physical acceptance and broader device cases are
+pending. Mac trial data/runtime and native apps remain unchanged; coordinated
+trial phone/API upgrade and a fresh Mac backup are still separate. See
+`docs/plans/meal-plan-special-entries.md` for validation and rollout boundaries.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

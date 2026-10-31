@@ -1,13 +1,16 @@
 # Leftovers and Eating out in Plan - F07
 
-Status: proposed October 31, 2026; awaiting Felipe's review. Plan only.
+Status: approved October 31, 2026 with "Plan looks good; implement it" and assigned
+directly to this chat. Implementation branch: `codex/meal-plan-special-entries`,
+from planning commit `698433e`. Implementation and automated validation are complete;
+physical phone review remains pending.
 Planning branch: `codex/meal-plan-special-entries-plan`, from clean `bb836a0`,
 which records phone acceptance of F13. The small-feature sequence F08, F02-F06,
 F01 and F13 is accepted at the recorded review scopes. F07 is recommended next
 as the smallest remaining functional slice, ahead of recipe sections/copying,
 personal planning ranges, calendar, themes, permissions and widgets.
-Implementation needs approval and a separate focused branch; assignment follows
-AGENTS.md unless Felipe explicitly assigns implementation directly.
+Felipe explicitly approved implementation directly on the focused branch above.
+Push, merge, Mac trial deployment and native rebuild remain separate.
 
 ## Goal and user behavior
 
@@ -135,3 +138,57 @@ entries use the same occupied-slot and revision rules. No restaurant directory,
 leftover inventory, arbitrary note-only meal, recipe copy, personal week range,
 calendar sync, permissions, theme or widget work is included. No blocking product
 question is known; Felipe may revise these choices before implementation.
+
+
+## Implementation and validation - October 31, 2026
+
+- Handwritten `meal_plan_special_entries` migration adds typed entry/detail fields
+  and permits a null recipe only for special entries. Existing recipe rows retain
+  their identity, revision, ownership, dates and contents. Database CHECKs enforce
+  combinations and trimmed non-empty details of at most 160 characters; null is
+  allowed. Downgrade locks the table and refuses if special entries exist.
+- Create/Update/Read return the kind and detail; recipe-only requests still default
+  to recipe. Domain validation normalizes blank detail to null and rejects mixed
+  variants. Existing membership, composite ownership, slot uniqueness, archived
+  recipe rules and revision checks remain. Shopping snapshots explicitly include
+  recipe entries only, preserving stale-review protection and idempotent adds.
+- Typed mobile inputs/drafts avoid recipe-ID assertions. Shared meal-entry helpers
+  and covers supply recipe/special titles, details, icon tiles and accessibility
+  hints. Shared special options serve Add/Edit; per-kind drafts survive switching,
+  recipe-create return guards reject a newer selection being overwritten, and
+  special Save remains usable while the recipe library loads or fails. Recipe
+  requests retain their prior payload shape. Plan counts/dots and accepted swipe
+  deletion work for all kinds. Shopping and its badge are unchanged.
+- Existing tab-root Screen and measured native-sheet keyboard/header/footer owners
+  are preserved. Added sheet IDs let tests target the foreground search instead
+  of accidentally matching the retained recipe library behind it. No new route,
+  custom gesture, guessed inset or dependency was added.
+
+Final automated results: all 66 mobile suites / 679 tests and all 176 API tests
+passed with no skips. The API pass used identity-verified local
+`meal_planner_disposable_test`, including the populated-row upgrade, CHECK/FK,
+downgrade-refusal, revision, access and review behavior. Types, mobile lint, API
+Ruff, whitespace and iOS JS export pass. Initial test-only failures (an unavailable
+async marker, fixture lint and ambiguous background search query) were repaired;
+the full final passes supersede them. No tests ran against development or Mac
+trial data. Hosted CI, physical iPhone/Android/browser geometry, keyboard/drag
+feel and light/dark release review remain unrun by the agent.
+
+## Local review environment and trial boundary
+
+After validation, the existing local development database was backed up in
+PostgreSQL custom format under `%LOCALAPPDATA%/MealPlanner/backups/`, named
+`before-special-meals-<timestamp>.dump`. Archive listing and matching container/
+Windows SHA-256 verified the copied backup; a full restore was not performed.
+The tested migration was then applied to local `127.0.0.1:5432/meal_planner_dev`
+for phone review. A digest of every preexisting plan column and all Catalog,
+Recipe and Plan row counts matched before/after. This was application of the
+approved migration, not testing against development data.
+
+Only the identified worktree API was restarted; Expo remained running. Its health
+and OpenAPI kind enum (recipe/leftovers/eating_out) were verified. An initial local
+migration invocation omitted the explicit configuration path and stopped before
+DDL; the corrected configured invocation completed successfully. No Mac trial
+schema, data/runtime, native build, staging/production deployment or paid resource
+changed. Trial rollout still needs a fresh Mac backup and coordinated phone/API
+upgrade as described above. Felipe owns physical review before acceptance.

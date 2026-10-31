@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/expo';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useHouseholdState } from '@/hooks/use-household-state';
-import { ApiError, api, type GetToken, type MealPlanEntry, type MealPlanWeek } from '@/lib/api';
+import { ApiError, api, type GetToken, type MealPlanEntryInput, type MealPlanWeek } from '@/lib/api';
 import { mealPlanScope } from './meal-plan-context';
 
 type StoredState = { scope: string; weekOffset: number; week: MealPlanWeek | null; loading: boolean; refreshing: boolean; error: string | null };
@@ -94,11 +94,11 @@ export function useMealPlan() {
     await action();
     if (isCurrentView()) await refresh({ quiet: true });
   }, [isCurrentView, refresh]);
-  const create = useCallback((values: Pick<MealPlanEntry, 'planned_for' | 'meal_slot' | 'recipe_id'>) => {
+  const create = useCallback((values: MealPlanEntryInput) => {
     if (!householdId) return Promise.resolve();
     return mutate(() => api.createMealPlanEntry(() => latestGetToken.current(), householdId, values));
   }, [householdId, mutate]);
-  const update = useCallback((entryId: string, values: Pick<MealPlanEntry, 'planned_for' | 'meal_slot' | 'recipe_id'> & { expected_revision: number }) => {
+  const update = useCallback((entryId: string, values: MealPlanEntryInput & { expected_revision: number }) => {
     if (!householdId) return Promise.resolve();
     if (removals.current.has(entryId) || needsFreshRead.current.has(entryId)) return Promise.reject(new Error('Refresh the plan before changing this meal.'));
     return mutate(() => api.updateMealPlanEntry(() => latestGetToken.current(), householdId, entryId, values));

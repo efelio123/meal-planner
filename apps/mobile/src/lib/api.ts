@@ -30,11 +30,18 @@ export type PendingInvitation = { id: string; normalized_email: string; expires_
 export type ApiErrorCode = 'DISPLAY_NAME_REQUIRED' | 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' | 'INVITATION_ALREADY_PENDING' | 'LAST_OWNER' | 'CATALOG_ITEM_ALREADY_EXISTS' | 'CATALOG_CHOICE_ALREADY_EXISTS' | 'CATALOG_CHOICE_IN_USE' | 'CATALOG_REFERENCE_ARCHIVED' | 'CATALOG_CATEGORY_COUNT_CHANGED' | 'RECIPE_REVISION_CONFLICT' | 'RECIPE_CATALOG_ITEM_ARCHIVED' | 'RECIPE_CREATE_REQUEST_ALREADY_USED' | 'MEAL_PLAN_SLOT_OCCUPIED' | 'MEAL_PLAN_REVISION_CONFLICT' | 'MEAL_PLAN_RECIPE_ARCHIVED' | 'MEAL_PLAN_REVIEW_STALE' | 'MEAL_PLAN_REQUEST_REUSED' | 'SHOPPING_ITEM_ALREADY_EXISTS';
 
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner';
-export type MealPlanEntry = {
-  id: string; planned_for: string; meal_slot: MealSlot; recipe_id: string; edit_revision: number;
-  recipe_name?: string; cover_kind?: Recipe['cover_kind']; cover_emoji?: string | null;
-  archived_at?: string | null; ingredient_count?: number;
-};
+export type MealEntryType = 'recipe' | 'leftovers' | 'eating_out';
+type MealEntryIdentity = { id: string; planned_for: string; meal_slot: MealSlot; edit_revision: number;
+  recipe_name?: string | null; cover_kind?: Recipe['cover_kind'] | null; cover_emoji?: string | null;
+  archived_at?: string | null; ingredient_count?: number };
+export type MealPlanEntry = MealEntryIdentity & (
+  | { entry_type?: 'recipe'; recipe_id: string; detail?: null }
+  | { entry_type: 'leftovers' | 'eating_out'; recipe_id: null; detail: string | null }
+);
+export type MealPlanEntryInput = { planned_for: string; meal_slot: MealSlot } & (
+  | { entry_type?: 'recipe'; recipe_id: string; detail?: null }
+  | { entry_type: 'leftovers' | 'eating_out'; recipe_id: null; detail: string | null }
+);
 export type MealPlanWeek = { time_zone: string; local_today: string; week_start: string; week_end: string; week_offset: number; entries: MealPlanEntry[] };
 export type MealPlanNeed = {
   need_key: string; catalog_item_id: string; name: string; amount: string | null;
@@ -259,9 +266,9 @@ export const api = {
     request<ClearPurchasedShoppingItemsResult>(getToken, `/v1/households/${householdId}/shopping-list/purchased-items`, { method: 'DELETE' }),
   mealPlan: (getToken: GetToken, householdId: string, weekOffset = 0) =>
     request<MealPlanWeek>(getToken, `/v1/households/${householdId}/meal-plan?week_offset=${weekOffset}`, { method: 'GET' }),
-  createMealPlanEntry: (getToken: GetToken, householdId: string, values: Pick<MealPlanEntry, 'planned_for' | 'meal_slot' | 'recipe_id'>) =>
+  createMealPlanEntry: (getToken: GetToken, householdId: string, values: MealPlanEntryInput) =>
     request<{ entry: MealPlanEntry }>(getToken, `/v1/households/${householdId}/meal-plan/entries`, { method: 'POST', body: JSON.stringify(values) }),
-  updateMealPlanEntry: (getToken: GetToken, householdId: string, entryId: string, values: Pick<MealPlanEntry, 'planned_for' | 'meal_slot' | 'recipe_id'> & { expected_revision: number }) =>
+  updateMealPlanEntry: (getToken: GetToken, householdId: string, entryId: string, values: MealPlanEntryInput & { expected_revision: number }) =>
     request<{ entry: MealPlanEntry }>(getToken, `/v1/households/${householdId}/meal-plan/entries/${entryId}`, { method: 'PATCH', body: JSON.stringify(values) }),
   deleteMealPlanEntry: (getToken: GetToken, householdId: string, entryId: string, revision: number) =>
     request<void>(getToken, `/v1/households/${householdId}/meal-plan/entries/${entryId}?expected_revision=${revision}`, { method: 'DELETE' }),

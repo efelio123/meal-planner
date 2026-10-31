@@ -2,7 +2,8 @@ import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-
 import { SwipeToDeleteRow } from '@/components/swipe-to-delete-row';
 import { ThemedText } from '@/components/themed-text';
 import { DisclosureChevron } from '@/components/visual-roles';
-import { RecipeCover } from '@/features/recipes/recipe-cover';
+import { MealEntryCover } from './meal-entry-cover';
+import { mealTitle, mealSubtitle } from './meal-entry';
 import { useTheme } from '@/hooks/use-theme';
 import type { MealPlanEntry } from '@/lib/api';
 import { dateLabel } from './meal-plan-utils';
@@ -17,15 +18,17 @@ type Props = {
 export function MealPlanCard({ entry, slotLabel, active, pending, blocked, swipeEnabled, onEdit, onStart, onEnd, onReveal, onClose, onRemove }: Props) {
   const theme = useTheme();
   const disabled = pending || blocked;
+  const title = mealTitle(entry);
+  const subtitle = mealSubtitle(entry);
   const frame = [styles.frame, { backgroundColor: theme.surface, borderColor: theme.border }];
-  const row = <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${entry.recipe_name}, ${slotLabel}`} accessibilityState={{ disabled }} disabled={disabled} onPress={() => onEdit(entry)} style={[styles.row, { backgroundColor: theme.surface }]}>
-    <RecipeCover recipe={{ name: entry.recipe_name ?? 'Recipe', cover_kind: entry.cover_kind ?? 'initials', cover_emoji: entry.cover_emoji ?? null }} size="row" />
-    <View style={styles.info}><ThemedText numberOfLines={2} style={styles.title}>{entry.recipe_name}</ThemedText><ThemedText themeColor="textSecondary">{entry.archived_at ? 'Archived recipe' : 'Household meal'}</ThemedText></View>
-    {pending ? <ActivityIndicator accessibilityLabel={`Removing ${entry.recipe_name}, ${slotLabel}`} color={theme.activity} /> : <DisclosureChevron />}
+  const row = <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${title}, ${slotLabel}`} accessibilityHint={subtitle ?? undefined} accessibilityState={{ disabled }} disabled={disabled} onPress={() => onEdit(entry)} style={[styles.row, { backgroundColor: theme.surface }]}>
+    <MealEntryCover entry={entry} />
+    <View style={styles.info}><ThemedText numberOfLines={2} style={styles.title}>{title}</ThemedText>{subtitle ? <ThemedText themeColor="textSecondary" numberOfLines={2}>{subtitle}</ThemedText> : null}</View>
+    {pending ? <ActivityIndicator accessibilityLabel={`Removing ${title}, ${slotLabel}`} color={theme.activity} /> : <DisclosureChevron />}
   </Pressable>;
   if (Platform.OS === 'web') return <View style={frame}>{row}</View>;
   return <SwipeToDeleteRow rowId={entry.id} testID={`plan-swipe-${entry.id}`}
-    removeAccessibilityLabel={`Remove ${entry.recipe_name}, ${slotLabel}, ${dateLabel(entry.planned_for)} from plan`}
+    removeAccessibilityLabel={`Remove ${title}, ${slotLabel}, ${dateLabel(entry.planned_for)} from plan`}
     containerStyle={frame} active={active} enabled={swipeEnabled && !disabled}
     onDragStart={() => onStart(entry)} onDragEnd={() => onEnd(entry)}
     onReveal={() => onReveal(entry)} onClose={() => onClose(entry)} onRemove={() => onRemove(entry)}>{row}</SwipeToDeleteRow>;
