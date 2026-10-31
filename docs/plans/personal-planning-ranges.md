@@ -252,3 +252,13 @@ range for an exact start; return from Add/Create recipe; review 1, 14 and 31 day
 check Cancel versus Apply after adjusting an amount; verify the saved weekday
 on reopen and independence from the other phone. Retest meal swipes and Shopping
 badge/checkoffs alongside these changes. Mac rollout remains separately scoped.
+
+
+## Review follow-up - October 31, 2026
+
+Felipe says the reviewed date-range UI looks good, then reports that Already on
+Shopping -> Edit closes the review and switches tabs. This is the existing
+explicit dismissAll/navigation behavior, not a missing saved preference. The
+proposed in-place reuse and nested-navigation repair is documented separately
+in `shopping-review-in-place-edit.md`; awaiting approval. Do not infer completion
+of every F11 device checklist case from the positive review report.
