@@ -267,3 +267,23 @@ passed**, plus TypeScript, lint and whitespace checks. The preceding 61-suite /
 the full suite and database tests were not rerun for the separator-only change.
 The updated separator appearance still needs phone confirmation. Expo remains
 under Felipe's control in his own terminal; it was not restarted or stopped here.
+
+
+### Top-drop separator timing follow-up — October 30
+
+Felipe observed a brief top border when a row landed first, before the separator
+moved below it. The prior fix restored border color when lift progress reached
+zero, but React still supplied the row's original index until the scheduled
+completed-drop callback updated the draft. The separator now reads the library's
+UI-thread key-to-index map directly. It stays hidden for visual slot zero and
+for the active/settling row, independent of when React commits the new order.
+It is an absolute decorative line rather than a layout border, avoiding the
+hairline height change when moving into or out of the first slot.
+
+A focused regression models the native order reaching slot zero while the React
+draft still has its original order, then checks the committed order as well.
+Three targeted component/Recipes/Plan router suites: **55 tests passed**;
+TypeScript, lint and whitespace checks also passed. The earlier full-suite result
+remains historical; full mobile/database suites and native visual checks were
+not rerun for this focused styling/timing follow-up. Phone confirmation of this
+specific flicker correction is pending. Expo/API processes were not changed.

@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { AccessibilityInfo } from 'react-native';
+import { AccessibilityInfo, StyleSheet } from 'react-native';
 import { useSharedValue } from 'react-native-reanimated';
 import { RecipeIngredientList, type RecipeDragLock } from './recipe-ingredient-list';
 import type { RecipeIngredientDraft } from './recipe-form-utils';
+import { sortableTestItems } from './testing/sortables-mock';
 
 jest.mock('react-native-sortables', () => jest.requireActual('./testing/sortables-mock'));
 jest.mock('react-native-worklets', () => ({ ...jest.requireActual('react-native-worklets/src/mock'), scheduleOnRN: (fn: (...args: unknown[]) => void, ...args: unknown[]) => fn(...args) }));
@@ -75,4 +76,30 @@ it('ignores a late activation from a previous editor interaction', async () => {
   await act(async () => { screen.getByTestId('recipe-sortable-grid').props.onDragStart({ key: 'one' }); });
   expect(props.onStart).not.toHaveBeenCalled();
   expect(props.dragBlocked.get()).toEqual({ owner: 'a newer editor', blocked: false });
+});
+
+it('keeps the new first row separator hidden before and after React commits a top drop', async () => {
+  const props = setup();
+  const view = await render(<RecipeIngredientList {...props} />);
+  const separatorOpacity = (key: string) => StyleSheet.flatten(screen.getByTestId(`ingredient-separator-${key}`, { includeHiddenElements: true }).props.style).opacity;
+  expect(separatorOpacity('one')).toBe(0);
+  expect(separatorOpacity('two')).toBe(1);
+  const moving = sortableTestItems.get('two')!;
+  await act(async () => { moving.isActive.set(true); moving.activationAnimationProgress.set(1); });
+  await view.rerender(<RecipeIngredientList {...props} />);
+  expect(separatorOpacity('two')).toBe(0);
+  // UI layout has dropped row two into slot zero; the React draft is still in
+  // its old order during the scheduled completion callback's intervening frame.
+  await act(async () => {
+    moving.keyToIndex.set({ two: 0, one: 1 });
+    moving.isActive.set(false);
+    moving.activationAnimationProgress.set(0);
+  });
+  await view.rerender(<RecipeIngredientList {...props} />);
+  expect(screen.getByTestId('recipe-sortable-grid').props.data.map((item: RecipeIngredientDraft) => item.key)).toEqual(['one', 'two']);
+  expect(separatorOpacity('two')).toBe(0);
+  expect(separatorOpacity('one')).toBe(1);
+  await view.rerender(<RecipeIngredientList {...props} ingredients={[rows[1], rows[0]]} />);
+  expect(separatorOpacity('two')).toBe(0);
+  expect(separatorOpacity('one')).toBe(1);
 });

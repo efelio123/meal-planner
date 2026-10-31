@@ -98,16 +98,17 @@ function IngredientHandle({ ingredient, index, count, disabled, touch, onMove }:
   </GestureDetector>;
 }
 
-/** Keep separator geometry stable, but exclude its ink from the lifted row. */
-function IngredientRowSurface({ children, index }: PropsWithChildren<{ index: number }>) {
+/** Draw separators from UI-thread order, including the frame before React commits a drop. */
+function IngredientRowSurface({ children }: PropsWithChildren) {
   const theme = useTheme();
-  const { isActive, activationAnimationProgress } = useItemContext();
+  const { isActive, activationAnimationProgress, itemKey, keyToIndex } = useItemContext();
   const separatorStyle = useAnimatedStyle(() => ({
-    borderTopColor: isActive.get() || activationAnimationProgress.get() > 0 ? 'transparent' : theme.border,
+    opacity: !isActive.get() && activationAnimationProgress.get() === 0 && (keyToIndex.get()[itemKey] ?? 0) > 0 ? 1 : 0,
   }));
-  return <Animated.View style={[styles.row, { backgroundColor: theme.surface }, index > 0 && styles.rowSeparator, separatorStyle]}>
+  return <View style={[styles.row, { backgroundColor: theme.surface }]}>
+    <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID={`ingredient-separator-${itemKey}`} style={[styles.rowSeparator, { backgroundColor: theme.border }, separatorStyle]} />
     {children}
-  </Animated.View>;
+  </View>;
 }
 
 export function RecipeIngredientList({ ingredients, enabled, busy, scrollRef, dragBlocked, interactionId, onStart, onFinish, onEdit, onRemove, onMove }: Props) {
@@ -147,7 +148,7 @@ export function RecipeIngredientList({ ingredients, enabled, busy, scrollRef, dr
       const unit = item.customUnitLabel.trim() || item.unitLabel;
       const amount = formatRecipeAmount(item.amount.trim());
       const summary = amount ? (unit ? `${amount} ${unit}` : amount) : 'To taste';
-      return <IngredientRowSurface index={index}>
+      return <IngredientRowSurface>
         <View style={styles.summary}>
           <ThemedText numberOfLines={3} style={styles.name}>{item.catalogItemName}</ThemedText>
           <ThemedText themeColor="textSecondary">{summary}</ThemedText>
@@ -165,7 +166,7 @@ export function RecipeIngredientList({ ingredients, enabled, busy, scrollRef, dr
 
 const styles = StyleSheet.create({
   row: { alignItems: 'flex-start', flexDirection: 'row', gap: 4, minHeight: 72, paddingHorizontal: 10, paddingVertical: 12, borderRadius: 12 },
-  rowSeparator: { borderTopWidth: StyleSheet.hairlineWidth },
+  rowSeparator: { position: 'absolute', top: 0, left: 0, right: 0, height: StyleSheet.hairlineWidth },
   summary: { flex: 1, gap: 3, minWidth: 0 },
   name: { fontWeight: '700', flexShrink: 1 },
   actions: { flexDirection: 'row', alignItems: 'center' },
