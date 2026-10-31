@@ -200,6 +200,16 @@ separator/haptic follow-ups. SDK 58 patch-update recommendations remain open.
 Broader physical/Android cases are not inferred; no Mac trial deployment or data
 changes have been made.
 
+
+Next proposed slice: F06 planned-meal swipe deletion, documented in
+`docs/plans/planned-meal-swipe-delete.md` on `codex/planned-meal-swipe-plan`.
+Reuse Shopping's two-stage circular trash action and existing 65% release rule
+through one shared component, while preserving ordinary Edit and stable reveal
+behavior. Keep deletion scoped to one planned occurrence and reconcile confirmed
+removals before refreshing, with safe conflict/failure handling. This is a plan
+awaiting review, with no application/API/dependency changes. F13 Shopping badge
+is the following bounded candidate; rebuilding the trial phones remains separate.
+
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
 New ingredients now inherit the Catalog recipe unit, including Food created
