@@ -328,16 +328,14 @@ describe('meal planning through the Expo Router', () => {
     await waitForLoadedPlan();
     const slotLabel = slot[0].toUpperCase() + slot.slice(1);
     await fireEvent.press(screen.getByRole('button', { name: `Add ${slotLabel}` }));
-    await fireEvent.press(await screen.findByRole('radio', { name: title }));
-    await fireEvent.changeText(screen.getByLabelText(field), kind === 'leftovers' ? '  Tacos  ' : '  ');
-    await fireEvent.press(screen.getByRole('button', { name: 'Add meal' }));
+    await fireEvent.press(await screen.findByRole('button', { name: title }));
     await screen.findByRole('button', { name: `Edit ${title}, ${slotLabel}` });
     expect(mockedApi.createMealPlanEntry).toHaveBeenCalledWith(expect.any(Function), household.id, {
-      planned_for: '2026-10-05', meal_slot: slot, entry_type: kind, recipe_id: null, detail: kind === 'leftovers' ? 'Tacos' : null,
+      planned_for: '2026-10-05', meal_slot: slot, entry_type: kind, recipe_id: null, detail: null,
     });
     expect(screen.getByText('1 meal')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: `Edit ${title}, ${slotLabel}` }));
-    expect(screen.getByLabelText(field).props.value).toBe(kind === 'leftovers' ? 'Tacos' : '');
+    expect(screen.getByLabelText(field).props.value).toBe('');
     await fireEvent.changeText(screen.getByLabelText(field), 'Friday dinner');
     await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
     await screen.findByRole('button', { name: `Edit ${title}, ${slotLabel}` });
@@ -373,26 +371,41 @@ describe('meal planning through the Expo Router', () => {
     });
   });
 
-  it('retains special drafts while switching recipes, searching, opening a day sheet and canceling', async () => {
+  it('adds the special entry to the selected day and slot once, and keeps failure retryable', async () => {
+    const pending = deferred<{ entry: MealPlanEntry }>();
+    mockedApi.createMealPlanEntry.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({ entry: { id: 'retry-special', planned_for: '2026-10-06', meal_slot: 'lunch', entry_type: 'leftovers', recipe_id: null, detail: null, edit_revision: 1 } });
     const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await waitForLoadedPlan();
     await fireEvent.press(screen.getByRole('button', { name: 'Add Dinner' }));
-    await fireEvent.press(await screen.findByRole('radio', { name: 'Leftovers' }));
-    await fireEvent.changeText(screen.getByLabelText('Which meal? (optional)'), 'Chicken tacos');
-    await fireEvent.press(screen.getByRole('radio', { name: 'Eating out' }));
-    await fireEvent.changeText(screen.getByLabelText('Restaurant (optional)'), 'Cafe');
-    await fireEvent.press(await screen.findByRole('radio', { name: /Soup/u }));
-    await fireEvent.changeText(within(screen.getByTestId('meal-plan-add-sheet')).getByLabelText('Search recipes'), 'not found');
-    await fireEvent.press(screen.getByRole('radio', { name: 'Leftovers' }));
-    expect(screen.getByLabelText('Which meal? (optional)').props.value).toBe('Chicken tacos');
     await fireEvent.press(screen.getByRole('button', { name: 'Monday, October 5' }));
     await fireEvent.press(await screen.findByRole('radio', { name: /Tuesday, October 6/ }));
-    expect(screen.getByLabelText('Which meal? (optional)').props.value).toBe('Chicken tacos');
-    await fireEvent.changeText(screen.getByLabelText('Which meal? (optional)'), 'x'.repeat(161));
-    expect(screen.getByRole('button', { name: 'Add meal' }).props.accessibilityState.disabled).toBe(true);
+    await fireEvent.press(screen.getByRole('radio', { name: 'Lunch' }));
+    const quickAdd = await screen.findByRole('button', { name: 'Leftovers' });
+    await fireEvent.press(quickAdd);
+    await fireEvent.press(quickAdd);
+    expect(mockedApi.createMealPlanEntry).toHaveBeenCalledTimes(1);
+    expect(mockedApi.createMealPlanEntry).toHaveBeenCalledWith(expect.any(Function), household.id, { planned_for: '2026-10-06', meal_slot: 'lunch', entry_type: 'leftovers', recipe_id: null, detail: null });
+    expect(screen.getByRole('button', { name: 'Eating out' }).props.accessibilityState.disabled).toBe(true);
+    await act(async () => { pending.reject(new Error('offline')); });
+    await screen.findByText('We couldn’t add this meal. Please try again.');
+    expect(rendered.getPathname()).toBe('/plan/sheet/add');
+    await fireEvent.press(screen.getByRole('button', { name: 'Leftovers' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan'));
+    expect(mockedApi.createMealPlanEntry).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not navigate away from a new page when a dismissed quick-add finishes late', async () => {
+    const pending = deferred<{ entry: MealPlanEntry }>();
+    mockedApi.createMealPlanEntry.mockReturnValueOnce(pending.promise);
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(screen.getByRole('button', { name: 'Add Dinner' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Eating out' }));
     await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
-    expect(rendered.getPathname()).toBe('/plan');
-    expect(mockedApi.createMealPlanEntry).not.toHaveBeenCalled();
+    await act(async () => { router.navigate('/recipes'); });
+    await act(async () => { pending.resolve({ entry: { id: 'late-special', planned_for: '2026-10-05', meal_slot: 'dinner', entry_type: 'eating_out', recipe_id: null, detail: null, edit_revision: 1 } }); });
+    expect(rendered.getPathname()).toBe('/recipes');
+    expect(mockedApi.createMealPlanEntry).toHaveBeenCalledTimes(1);
   });
 
   it('starts at Plan, stacks a day picker, preserves the add draft, and returns from recipe creation to the same sheet', async () => {

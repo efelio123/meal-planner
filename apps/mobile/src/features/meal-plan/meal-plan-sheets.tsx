@@ -1,8 +1,8 @@
 import { useMealChoice } from './use-meal-choice';
 import { SpecialMealOptions } from './special-meal-options';
-import { choiceFromEntry, validMealChoice, type MealDraft } from './meal-entry';
+import { choiceFromEntry, validMealChoice, type MealChoice, type MealDraft } from './meal-entry';
 import { useAuth } from '@clerk/expo';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, usePathname, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
@@ -73,6 +73,12 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const savingRequest = useRef(false);
+  const pathname = usePathname();
+  const latestPathname = useRef(pathname);
+  const mountedSheet = useRef(true);
+  useLayoutEffect(() => { latestPathname.current = pathname; }, [pathname]);
+  useEffect(() => { mountedSheet.current = true; return () => { mountedSheet.current = false; }; }, []);
   const [recipeLoadError, setRecipeLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
@@ -120,10 +126,12 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
   }, [context, selectRecipe, selectionIsCurrent, sheetId]));
 
   const openDay = () => {
+    if (savingRequest.current) return;
     const id = flow.present(<DayPickerSheet dates={dates} selected={draft.plannedFor} onSelect={(plannedFor) => { setActionError(null); setDraft((current) => ({ ...current, plannedFor })); }} />, { detents: [0.45, 0.8] });
     router.push({ pathname: '/(app)/(tabs)/plan/sheet/day', params: { sheetId: id } } as never);
   };
   const createRecipe = () => {
+    if (savingRequest.current) return;
     setActionError(null);
     selectType('recipe');
     pendingRecipeCreate.current = captureSelection();
@@ -131,12 +139,13 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
     Keyboard.dismiss();
     router.push('/(app)/(tabs)/plan/recipe-create' as never);
   };
-  const submit = async () => {
-    if (!validMealChoice(choice) || saving || !isCurrent()) return;
+  const submit = async (selectedChoice: MealChoice = choice) => {
+    if (!validMealChoice(selectedChoice) || savingRequest.current || !isCurrent() || !mountedSheet.current || latestPathname.current !== pathname) return;
+    savingRequest.current = true;
     setSaving(true); setActionError(null); Keyboard.dismiss();
-    try { await onSave({ ...draft, choice }); if (isCurrent()) router.back(); }
-    catch (reason) { if (isCurrent()) setActionError(reason instanceof ApiError ? reason.message : 'We couldn’t add this meal. Please try again.'); }
-    finally { if (isCurrent()) setSaving(false); }
+    try { await onSave({ ...draft, choice: selectedChoice }); if (isCurrent() && mountedSheet.current && latestPathname.current === pathname) router.back(); }
+    catch (reason) { if (isCurrent() && mountedSheet.current && latestPathname.current === pathname) setActionError(reason instanceof ApiError ? reason.message : 'We couldn’t add this meal. Please try again.'); }
+    finally { savingRequest.current = false; if (isCurrent() && mountedSheet.current && latestPathname.current === pathname) setSaving(false); }
   };
 
   // Keep the header and footer as native siblings of the scrolling content.
@@ -147,17 +156,17 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
     <ScrollView style={styles.sheetScroll} contentContainerStyle={styles.sheetContent} automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
       <ThemedText themeColor="textSecondary">Plan a recipe, leftovers, or eating out for your household.</ThemedText>
       <ThemedText style={styles.label}>Day</ThemedText>
-      <Pressable accessibilityRole="button" accessibilityLabel={dateLabel(draft.plannedFor)} onPress={openDay} style={[styles.selector, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+      <Pressable accessibilityRole="button" accessibilityLabel={dateLabel(draft.plannedFor)} disabled={saving} onPress={openDay} style={[styles.selector, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <SymbolView name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }} size={20} tintColor={theme.textSecondary} />
         <ThemedText style={styles.selectorText}>{dateLabel(draft.plannedFor)}</ThemedText><DisclosureChevron />
       </Pressable>
       <ThemedText style={styles.label}>Meal</ThemedText>
       <View style={[styles.segments, { backgroundColor: theme.surface, borderColor: theme.border }]}>
-        {MEAL_SLOTS.map((slot) => <Pressable key={slot.id} accessibilityRole="radio" accessibilityState={{ selected: draft.mealSlot === slot.id }} onPress={() => { setActionError(null); setDraft((current) => ({ ...current, mealSlot: slot.id })); }} style={[styles.segment, draft.mealSlot === slot.id && { backgroundColor: theme.surfaceSelected }]}>
+        {MEAL_SLOTS.map((slot) => <Pressable key={slot.id} accessibilityRole="radio" disabled={saving} accessibilityState={{ selected: draft.mealSlot === slot.id, disabled: saving }} onPress={() => { setActionError(null); setDraft((current) => ({ ...current, mealSlot: slot.id })); }} style={[styles.segment, draft.mealSlot === slot.id && { backgroundColor: theme.surfaceSelected }]}>
           <ThemedText themeColor={draft.mealSlot === slot.id ? 'link' : undefined} style={styles.segmentText}>{slot.label}</ThemedText>
         </Pressable>)}
       </View>
-      <SpecialMealOptions choice={choice} onSelect={(kind) => { setActionError(null); selectType(kind); }} onDetail={changeDetail} disabled={saving} />
+      <SpecialMealOptions immediate choice={choice} onSelect={(kind) => { void submit({ kind, detail: '' }); }} onDetail={changeDetail} disabled={saving} />
       <View style={styles.sectionHeading}><ThemedText accessibilityRole="header" style={styles.label}>Recipe</ThemedText><ThemedText themeColor="textSecondary">{recipes.length} household recipes</ThemedText></View>
       <View style={[styles.searchRow, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}>
         <SymbolView name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={19} tintColor={theme.textSecondary} />
@@ -165,13 +174,13 @@ export function MealPlanAddSheet({ householdId, weekOffset, dates, initialDate, 
       </View>
       {loading ? <ActivityIndicator accessibilityLabel="Loading recipes" color={theme.activity} /> : null}
       {recipeLoadError ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{recipeLoadError}</ThemedText><PrimaryButton onPress={() => { setRecipeLoadError(null); setLoading(true); setVersion((value) => value + 1); }} title="Retry" /></View> : null}
-      {!recipeLoadError ? <View style={[styles.recipeList, { backgroundColor: theme.surface, borderColor: theme.border }]}>{filtered.map((recipe, index) => <Pressable key={recipe.id} accessibilityRole="radio" accessibilityState={{ selected: recipeId === recipe.id }} onPress={() => { setActionError(null); selectRecipe(recipe.id); }} style={[styles.recipeRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }, recipeId === recipe.id && { backgroundColor: theme.surfaceSelected }]}>
+      {!recipeLoadError ? <View style={[styles.recipeList, { backgroundColor: theme.surface, borderColor: theme.border }]}>{filtered.map((recipe, index) => <Pressable key={recipe.id} accessibilityRole="radio" disabled={saving} accessibilityState={{ selected: recipeId === recipe.id, disabled: saving }} onPress={() => { setActionError(null); selectRecipe(recipe.id); }} style={[styles.recipeRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }, recipeId === recipe.id && { backgroundColor: theme.surfaceSelected }]}>
         <RecipeCover recipe={recipe} size="row" />
         <View style={styles.recipeInfo}><ThemedText numberOfLines={1} style={styles.recipeName}>{recipe.name}</ThemedText><ThemedText themeColor="textSecondary">{recipe.ingredient_count} ingredients</ThemedText></View>
         {recipeId === recipe.id ? <SymbolView name={{ ios: 'checkmark.circle.fill', android: 'check_circle', web: 'check_circle' }} size={22} tintColor={theme.primary} /> : null}
       </Pressable>)}</View> : null}
       {!loading && !recipeLoadError && filtered.length === 0 ? <ThemedText themeColor="textSecondary">{query.trim() ? 'No recipes match your search.' : 'No active recipes yet.'}</ThemedText> : null}
-      <Pressable accessibilityRole="button" onPress={createRecipe} style={[styles.createRecipe, { borderTopColor: theme.border }]}>
+      <Pressable accessibilityRole="button" disabled={saving} onPress={createRecipe} style={[styles.createRecipe, { borderTopColor: theme.border }]}>
         <SymbolView name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={22} tintColor={theme.link} /><ThemedText themeColor="link" style={styles.flexText}>Create a new recipe</ThemedText><DisclosureChevron variant="action" />
       </Pressable>
     </ScrollView>

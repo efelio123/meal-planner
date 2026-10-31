@@ -248,6 +248,13 @@ Expo remains running for review. Physical acceptance and broader device cases ar
 pending. Mac trial data/runtime and native apps remain unchanged; coordinated
 trial phone/API upgrade and a fresh Mac backup are still separate. See
 `docs/plans/meal-plan-special-entries.md` for validation and rollout boundaries.
+October 31 follow-up: Felipe requests compact side-by-side choices and one-tap
+addition. Add now submits a blank-detail special occurrence immediately; optional
+details remain in Edit with explicit Save. Pending, retry and late-dismissal
+navigation guards preserve normal recipe flow. Latest validation: 65 targeted
+Plan tests, types, lint, whitespace and iOS JS export pass. The earlier full
+mobile/API results predate this client-only follow-up. Phone review is pending;
+no API/schema/database, dependency or server-process change.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

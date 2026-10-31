@@ -192,3 +192,39 @@ DDL; the corrected configured invocation completed successfully. No Mac trial
 schema, data/runtime, native build, staging/production deployment or paid resource
 changed. Trial rollout still needs a fresh Mac backup and coordinated phone/API
 upgrade as described above. Felipe owns physical review before acceptance.
+
+
+## Approved compact quick-add follow-up - October 31, 2026
+
+Felipe requests side-by-side Leftovers/Eating out choices and immediate addition
+when tapped. This instruction approves the focused follow-up directly. Add now
+creates a blank-detail special entry for the current day/slot and closes on
+confirmed success, without a second Add/Save tap. Optional details are entered
+later by opening the planned occurrence. Existing Edit retains explicit Save and
+per-kind drafts; both sheets reuse the compact two-column control. This supersedes
+the original Add special-choice/detail-before-save behavior, not recipe selection.
+Guard duplicate taps synchronously, keep failures retryable in the same sheet,
+and avoid late success navigating after dismissal. No API/schema/dependency or
+Mac trial/runtime change. Validate relevant Plan choice/router flows, types/lint
+and iOS JS export; physical compact layout remains a phone-review follow-up.
+
+
+Compact quick-add implementation: the shared control now has two flexible,
+side-by-side 52-point-minimum buttons with compact symbols and wrapping labels.
+Add uses action buttons that submit a null-detail occurrence for the chosen
+day/slot immediately; recipe choice retains its explicit Add action. Edit uses
+the same compact layout as selectable options, retains optional text and explicit
+Save. A synchronous pending ref blocks repeated submission; failures leave the
+sheet retryable. Mounted-route checks prevent a late success from navigating
+away after dismissal. No navigation frame, inset or keyboard owner changed.
+
+Latest follow-up validation: 4 targeted Plan suites / 65 tests, TypeScript, lint,
+whitespace and iOS JS export pass. Coverage includes all special kinds/slots,
+recipe creation/Save, special edit details, repeat taps while pending, retry,
+chosen day/slot and late completion after Cancel/navigation. The first pass
+caught an overly broad focus guard and an unsupported direct press callback in
+a test; route-lifetime checks and real press events corrected them. Full mobile
+(679 tests) and PostgreSQL (176 tests) results above are historical for the initial
+F07 implementation, not rerun/claimed for this client-only follow-up. No API,
+schema, local/Mac database, dependency or server-process changes. Physical compact
+layout/keyboard review remains pending; Expo remains available for Felipe.
