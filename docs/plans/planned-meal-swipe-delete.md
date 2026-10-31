@@ -2,8 +2,8 @@
 
 Status: approved October 30, 2026 with "Looks good, implement"; assigned directly
 to this chat. Implementation branch: `codex/planned-meal-swipe-delete`, from
-`6559fe4`. Implementation and automated validation are complete; physical review is
-pending, as recorded below.
+`6559fe4`. Implementation and automated validation are complete. Felipe accepts the
+reviewed swipe feature on his phone October 31, 2026, as recorded below.
 Planning branch: `codex/planned-meal-swipe-plan`, from clean `8b472cd` after
 acceptance of ingredient reordering and grab feedback. Preserve that accepted
 branch chain. Felipe subsequently approved direct implementation on the focused branch above. No push, merge, deployment, native
@@ -171,3 +171,13 @@ No development or Mac trial database was used. The final route test controls its
 clock after router initialization, so release suppression and later ordinary Edit
 taps are both verified. Earlier failed runs were repaired and superseded by this
 final pass; no broader physical or release acceptance is inferred.
+
+
+## Phone acceptance - October 31, 2026
+
+Felipe confirms "Okay swipe to delete feature looks good" after running the
+local app containing `55382a0`. F06 is accepted at that reviewed phone scope.
+This does not imply that every individual checklist case, Android, larger text,
+light/dark release review or hosted/native deployment was tested. No application
+code changed for this acceptance record; automated checks above remain the last
+implementation validation and were not rerun for documentation only.

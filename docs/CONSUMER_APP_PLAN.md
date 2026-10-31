@@ -212,7 +212,8 @@ Edit-sheet confirmation and web removal path remain.
 
 Final validation: 62 mobile suites / 633 tests, TypeScript, lint, whitespace and
 iOS JS export pass, plus 1 targeted meal-plan integration test against verified
-local disposable PostgreSQL. Physical iPhone/Android swipe review remains pending;
+local disposable PostgreSQL. Felipe accepts the reviewed swipe feature on his
+phone October 31 at `55382a0`; broader checklist/Android coverage is not inferred;
 no API/schema, dependency, Mac trial, native build or deployment changes. See
 `docs/plans/planned-meal-swipe-delete.md` for scope and review checks. F13 Shopping
 badge remains the following bounded candidate, subject to its own plan/approval.
