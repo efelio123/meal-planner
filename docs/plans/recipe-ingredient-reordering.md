@@ -1,15 +1,13 @@
 # Recipe ingredient reordering — F01
 
-Status: revised October 30, 2026 per Felipe's handle image and working GIF;
-awaiting interaction/dependency review. Felipe requested plan edits only.
-No application,
-API, schema, dependency installation, configuration, deployment or data changes.
+Status: approved by Felipe October 30, 2026 with "Okay, implement" and
+assigned directly to this chat. Implemented on `codex/recipe-ingredient-reordering`
+from `24f41e3`; automated validation passes; physical phone acceptance is pending below.
+Felipe authorized stopping the active Expo process for the approved installation;
+only this checkout's Expo process was stopped. The API stayed running.
 
-Branch: `codex/recipe-ingredient-reorder-plan`, from clean `af33f4a` after Felipe
-accepted searchable Shopping group collapse. Preserve accepted family-trial
-fixes and SDK 58. Implement after approval on a focused feature branch; ownership
-follows AGENTS.md unless Felipe directly assigns implementation to this chat.
-No push/merge, native rebuild, Mac runtime/data changes or paid resources.
+Preserve accepted family-trial fixes and SDK 58. No push/merge, native rebuild,
+Mac runtime/data changes or paid resources are included in this slice.
 
 ## Goal
 
@@ -127,7 +125,7 @@ resolved release and real gestures before claiming support.
   native module. Do not silently upgrade SDK/gesture/animation packages or add
   native configuration. If compatibility requires that, revise the plan first.
 - Approval includes this named package/lockfile change, subject to that check;
-  no installation yet. Check new dependency advisories without broad audit-fix
+  the named package is now installed. Check new dependency advisories without broad audit-fix
   upgrades. Coordinate package refresh if Expo is actively serving the phone.
 
 Implementation belongs under `features/recipes/`: a focused sortable ingredient
@@ -174,14 +172,82 @@ Primary references checked October 30:
 
 Recommend the referenced three-line drag handle with animated movement and no
 visible Up/Down controls or tap menu. Use the linked GIF's observed lift,
-neighbour reflow and settling phases, tuning exact hold/easing on-device. The
-named dependency/compatibility check remains proposed. Felipe said not to
-implement yet; review the revised interaction and dependency scope first.
+neighbour reflow and settling phases, tuning exact hold/easing on-device. Felipe subsequently approved this interaction and the pinned dependency and
+requested direct implementation in this chat.
 
 Revision history: the initial proposal used trailing dots and tap-to-reveal
 Up/Down. Felipe replaced that design with three horizontal lines and drag-only
 visible interaction. Nonvisual accessibility/keyboard movement remains possible
 without adding visible buttons. Initial uploads were one-frame JPEGs; Felipe
 then provided the source URL above, verified as a 71-frame GIF and inspected
-across its animation frames. Motion is now documented, with implementation
-still explicitly on hold.
+across its animation frames. That revised interaction was approved before
+implementation.
+
+
+## Implementation and validation — October 30
+
+- Shared Create/Edit editor now uses a one-column `react-native-sortables`
+  1.10.1 grid with a 44-point handle containing three equal neutral strokes.
+  Hold delay is 250 ms; lift scale 1.025, shadow opacity 0.18, activation/drop
+  180 ms. Reduced motion removes scale/shadow and shortens those phases to zero;
+  neighbour movement retains Reanimated's system motion handling. These initial
+  values still need comparison with the GIF on a phone.
+- Parent Screen opts into Animated.ScrollView/ref only for this editor, retaining
+  one scroll owner and existing native safe-area/keyboard handling. Existing
+  ingredient grouping is retained without clipping the lifted row's shadow.
+- Each local occurrence gets a fresh key on create/load. Drop permutations and
+  accessibility/Alt+Arrow movement reuse immutable key-based helpers; Edit/Remove
+  and details-sheet saves follow those keys. Keys never enter server payloads.
+- The library reports native cancellation and normal release through the same
+  drop API. A passive, simultaneous RNGH 3 manual observer records actual native
+  release/cancel without stealing drag activation. It releases its own native
+  state on pointer-up. Only a confirmed release commits after settling; cancel
+  restores the original draft order. No library patch/custom drag engine was added.
+- UI-thread interaction ownership and JS scope/generation guards protect Save,
+  ingredient mutations and delayed callbacks across blur, background, reload,
+  household/session/recipe changes and unmount. Unknown saves disable movement;
+  order-only edits participate in the existing revision/recovery path.
+- Optional `react-native-haptic-feedback` 3.0.0 resolves in the lockfile. Haptics
+  remain false; pinned source loads its native adapters only when enabled. The
+  current read-only iOS autolinking graph does not include that optional package.
+  No native configuration or native build was changed.
+- Test adapters use installed Worklets/Reanimated mocks with persistent shared
+  values and scheduled RN callbacks; Reanimated 4.7's native CSS initializer is
+  inert in Jest. Router imports the mock subpaths itself, so both entry paths
+  share those test semantics. Native gesture/layout is the mocked boundary;
+  drafts, navigation, save payloads and recovery stay real. The existing Plan
+  detent test now supplies the provider required by its actual layout.
+
+Final automated validation:
+
+- Full mobile Jest suite: **61 suites / 594 tests passed**. Includes real-router
+  Recipes Create and Plan Create duplicate-row reorder/edit/save, order-only
+  revision conflict/reload, unknown-save recovery without confusing old order
+  for success, late drop after leaving/reopening, canceled-drop non-dirty state,
+  gesture lock, and existing native-sheet/default-unit/fraction/To taste cases.
+  Component tests separately exercise confirmed native release versus cancel,
+  plain tap/single-row disabled state, nonvisual movement, and stale activation.
+- `npx tsc --noEmit`, `npm run lint`, and `git diff --check`: passed.
+- New targeted PostgreSQL recipe order test: **1 passed** after verifying
+  `127.0.0.1:5432/meal_planner_disposable_test` by connection identity and bringing
+  that disposable database to Alembic head. Covers create, order-only update,
+  duplicate occurrences/details, GET positions and stale revision rejection.
+  Full database suite was not run for this schema-free client feature.
+- Final `expo export --platform ios` succeeded (2146 modules), writing only to a
+  temporary directory. This verifies bundling, not an installed native app.
+- Read-only `expo-modules-autolinking react-native-config --platform ios --json`
+  succeeds; optional haptic feedback is absent from its current native graph.
+- `npm audit --json` lists **no advisory for either added package**. Existing
+  total is 48 (3 high, 44 moderate, 1 low; 0 critical); no broad audit fix applied.
+- `expo install --check` is **not passing**: it now recommends newer patch
+  releases for twelve already installed SDK 58 packages, including Expo 58.0.21
+  and RN 0.88.1. None concerns the added sortable package. The pinned installed
+  baseline remains Expo 58.0.19 / RN 0.88.0 / RNGH 3.3.0 / Reanimated 4.7.1 /
+  Worklets 0.13.0; upgrading it is outside this approved dependency change.
+
+Physical handle feel, scrolling/edge auto-scroll, larger text, keyboard show/hide,
+reduced motion and interruption review remain pending. No native/Android build,
+hosted CI, push/merge or trial deployment has been performed. Expo was left
+stopped after the user-authorized package installation; restart it from this
+worktree's `apps/mobile` directory with `npx expo start --lan --clear` to review.
+The API process and Mac trial runtime/data were not changed.

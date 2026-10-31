@@ -183,15 +183,18 @@ acceptance are not inferred. No API/schema, dependency, keyboard-layout, Mac
 runtime/data or deployment changes.
 See `docs/plans/shopping-group-collapse.md`. Broader device cases are not inferred.
 
-Next proposed slice is F01 recipe ingredient reordering, planned in
-`docs/plans/recipe-ingredient-reordering.md`. Felipe revised the interaction to
-a far-right three-horizontal-line handle with animated dragging, no visible
-Up/Down buttons and no tap menu. Initial attachments were static JPEGs, but his
-subsequent source URL provides a verified 71-frame GIF; the plan now documents
-its lifted row/shadow, neighbour reflow and drop settling. Stable per-occurrence
-UI keys, the ordered Save contract and a pinned sortable dependency remain
-proposed. Awaiting interaction/dependency review; explicitly plan edits only,
-with no implementation yet.
+F01 recipe ingredient reordering is approved and implemented October 30 on
+`codex/recipe-ingredient-reordering`; physical phone acceptance is pending.
+`docs/plans/recipe-ingredient-reordering.md` records the three-line handle,
+reviewed GIF lift/reflow/drop interaction, immutable occurrence keys, key-based
+Edit/Remove, and existing ordered Save/revision contract. Recipes Create/Edit
+and Plan Create reuse the same editor; one optional animated parent scroll
+supports edge auto-scroll. The approved Sortables 1.10.1 dependency is pinned,
+haptics remain disabled, and SDK/gesture versions/native configuration stay
+unchanged. Full mobile validation passes (61 suites / 594 tests), as do TypeScript, lint,
+iOS JS export and the targeted disposable-PostgreSQL order test. Existing SDK 58
+patch-update recommendations remain open and are recorded in that plan. Mocked
+checks do not establish native gesture feel. No Mac trial deployment or data changes.
 
 Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
 on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.

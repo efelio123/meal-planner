@@ -152,7 +152,7 @@ individual slices, even when they depend on the same bug fixes.
 
 | ID | Request and preserved intent | Initial recommendation / dependencies |
 | --- | --- | --- |
-| F01 | Reorder recipe ingredients using a far-right three-line drag handle, with animated movement; persist order on create/edit. No visible Up/Down controls or tap menu (revised October 30). | Plan revised October 30 in `recipe-ingredient-reordering.md` to match the supplied three-line handle. The subsequent source URL supplies a reviewed 71-frame GIF: lifted row/shadow, smooth neighbour movement and drop settling. Stable occurrence keys, existing ordered Save API and pinned sortable dependency remain proposed. Plan edits only; no implementation. |
+| F01 | Reorder recipe ingredients using a far-right three-line drag handle, with animated movement; persist order on create/edit. No visible Up/Down controls or tap menu (revised October 30). | Approved and implemented October 30 on `codex/recipe-ingredient-reordering`; phone acceptance pending. Shared Recipes/Plan editor, stable occurrence keys, guarded completed drops, existing ordered Save API, and pinned Sortables 1.10.1 with haptics disabled. Validation is recorded in `recipe-ingredient-reordering.md`; no live trial deployment. |
 | F02 | Choose a recipe measurement unit from one complete list; remove the separate Volume/Mass/Count picker. | Implemented and accepted in review October 29 on `codex/recipe-unit-list`. Optional API-backed picker infers dimension and preserves existing data/shopping preferences. 7 targeted suites / 184 tests, types and lint pass; broader device/Android coverage not inferred. See `recipe-measurement-unit-list.md`. |
 | F03 | Clear only purchased Shopping entries while retaining needed ones. | Approved and implemented October 29 on `codex/clear-purchased-items`. All-store scope, one confirmation, distinct purchased/all actions and atomic server-current-status deletion with removed-ID reconciliation. 218 mobile / 25 API tests, types and lint pass; Felipe accepts the reviewed change October 29, without implying every device/Android check. See `clear-purchased-shopping-items.md`. |
 | F04 | Category and Store sorting show labelled sections, optionally collapsible. Alphabetical/Recently added show no such headings. | Approved and implemented October 30 on `codex/shopping-group-headings`. Headings/counts inside To buy/Purchased, identity-based groups with missing values last, no new collapse controls. 256 targeted tests across 6 suites, types and lint pass. Felipe accepts reviewed headings October 30. Collapse follow-up approved with tappable search headers and implemented on `codex/shopping-group-collapse`: 281 targeted tests across 7 suites, types/lint pass. Felipe accepts reviewed collapse October 30; broader device/Android checks are not inferred. See `shopping-group-collapse.md`. See `shopping-group-headings.md` for initial validation. |
@@ -268,8 +268,9 @@ Resolve when the corresponding feature is scheduled:
   deployment remain separate.
 - F01: `recipe-ingredient-reordering.md` now specifies the referenced three-line
   drag handle and no visible Up/Down/menu. Initial uploads were static; the
-  subsequent source GIF is verified/reviewed and specifies lift/reflow/drop. Interaction/dependency review is pending, and
-  Felipe explicitly requested no implementation yet.
+  subsequent source GIF is verified/reviewed and specifies lift/reflow/drop.
+  Felipe approved implementation October 30; it is now implemented on its feature
+  branch, with phone acceptance and trial deployment still pending.
 - F04 initial headings accepted October 30 under `shopping-group-headings.md`.
   Collapsing was approved with interactive search headers and implemented under
   `shopping-group-collapse.md`; normal/query choices are independent, and new
