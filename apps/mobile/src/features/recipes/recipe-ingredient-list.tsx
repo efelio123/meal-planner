@@ -1,7 +1,7 @@
-import type { ComponentRef } from 'react';
+import type { ComponentRef, PropsWithChildren } from 'react';
 import { AccessibilityInfo, Platform, Pressable, ScrollView, StyleSheet, View, type KeyDownEvent } from 'react-native';
 import { GestureDetector, GestureStateManager, useManualGesture, type ManualGestureConfig } from 'react-native-gesture-handler';
-import { useReducedMotion, useSharedValue, type AnimatedRef, type SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, type AnimatedRef, type SharedValue } from 'react-native-reanimated';
 import Sortable, { useItemContext } from 'react-native-sortables';
 import { scheduleOnRN } from 'react-native-worklets';
 
@@ -98,6 +98,18 @@ function IngredientHandle({ ingredient, index, count, disabled, touch, onMove }:
   </GestureDetector>;
 }
 
+/** Keep separator geometry stable, but exclude its ink from the lifted row. */
+function IngredientRowSurface({ children, index }: PropsWithChildren<{ index: number }>) {
+  const theme = useTheme();
+  const { isActive, activationAnimationProgress } = useItemContext();
+  const separatorStyle = useAnimatedStyle(() => ({
+    borderTopColor: isActive.get() || activationAnimationProgress.get() > 0 ? 'transparent' : theme.border,
+  }));
+  return <Animated.View style={[styles.row, { backgroundColor: theme.surface }, index > 0 && styles.rowSeparator, separatorStyle]}>
+    {children}
+  </Animated.View>;
+}
+
 export function RecipeIngredientList({ ingredients, enabled, busy, scrollRef, dragBlocked, interactionId, onStart, onFinish, onEdit, onRemove, onMove }: Props) {
   const theme = useTheme();
   const reducedMotion = useReducedMotion();
@@ -135,7 +147,7 @@ export function RecipeIngredientList({ ingredients, enabled, busy, scrollRef, dr
       const unit = item.customUnitLabel.trim() || item.unitLabel;
       const amount = formatRecipeAmount(item.amount.trim());
       const summary = amount ? (unit ? `${amount} ${unit}` : amount) : 'To taste';
-      return <View style={[styles.row, { backgroundColor: theme.surface }, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+      return <IngredientRowSurface index={index}>
         <View style={styles.summary}>
           <ThemedText numberOfLines={3} style={styles.name}>{item.catalogItemName}</ThemedText>
           <ThemedText themeColor="textSecondary">{summary}</ThemedText>
@@ -146,13 +158,14 @@ export function RecipeIngredientList({ ingredients, enabled, busy, scrollRef, dr
           <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${item.catalogItemName} from recipe`} disabled={!enabled || busy} onPress={() => onRemove(item.key)} style={styles.action}><ThemedText themeColor="error">Remove</ThemedText></Pressable>
           <IngredientHandle ingredient={item} index={index} count={ingredients.length} disabled={!enabled || ingredients.length < 2} touch={touch} onMove={onMove} />
         </View>
-      </View>;
+      </IngredientRowSurface>;
     }}
   /></View>;
 }
 
 const styles = StyleSheet.create({
   row: { alignItems: 'flex-start', flexDirection: 'row', gap: 4, minHeight: 72, paddingHorizontal: 10, paddingVertical: 12, borderRadius: 12 },
+  rowSeparator: { borderTopWidth: StyleSheet.hairlineWidth },
   summary: { flex: 1, gap: 3, minWidth: 0 },
   name: { fontWeight: '700', flexShrink: 1 },
   actions: { flexDirection: 'row', alignItems: 'center' },

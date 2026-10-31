@@ -251,3 +251,19 @@ hosted CI, push/merge or trial deployment has been performed. Expo was left
 stopped after the user-authorized package installation; restart it from this
 worktree's `apps/mobile` directory with `npx expo start --lan --clear` to review.
 The API process and Mac trial runtime/data were not changed.
+
+
+### Phone review and separator polish — October 30
+
+Felipe reviewed the drag flow positively ("Looks great") and requested that the
+row's top separator not lift with it. The row now makes that separator transparent
+while active and throughout settling, restoring it only after the lift animation
+ends. Its hairline width stays reserved, so row measurements and drag behavior do
+not change. This uses the pinned library's per-row activity/animation values.
+
+Follow-up validation: two targeted ingredient/component/router suites, **38 tests
+passed**, plus TypeScript, lint and whitespace checks. The preceding 61-suite /
+594-test result covers the larger implementation before this styling follow-up;
+the full suite and database tests were not rerun for the separator-only change.
+The updated separator appearance still needs phone confirmation. Expo remains
+under Felipe's control in his own terminal; it was not restarted or stopped here.

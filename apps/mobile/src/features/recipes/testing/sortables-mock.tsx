@@ -1,10 +1,11 @@
 // Native layout/animation boundary only; editor state and callbacks stay real.
 import type { PropsWithChildren } from 'react';
 import { View } from 'react-native';
+import { useSharedValue } from 'react-native-reanimated';
 import { useManualGesture } from 'react-native-gesture-handler';
 import type { SortableGridProps } from 'react-native-sortables';
 
-export const useItemContext = () => ({ gesture: useManualGesture({}) });
+export const useItemContext = () => ({ gesture: useManualGesture({}), isActive: useSharedValue(false), activationAnimationProgress: useSharedValue(0) });
 export default {
   Grid: <T extends { key: string },>({ data, renderItem, ...props }: SortableGridProps<T>) => (
     <View {...props} {...{ data }} testID="recipe-sortable-grid">
