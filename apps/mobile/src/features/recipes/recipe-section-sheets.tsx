@@ -72,9 +72,12 @@ export function RecipeSectionsSheet({ nameSheetRoute, initialSections, isCurrent
     }} />, { detents: [0.42, 0.78] });
     router.push({ pathname: nameSheetRoute, params: { sheetId: id } } as never);
   };
-  return <View testID="recipe-sections-root" style={[styles.root, { backgroundColor: theme.elevatedSurface }]}>
-    <View style={[styles.header, styles.content]}><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Manage sections</ThemedText><Pressable accessibilityRole="button" disabled={dragging} onPress={() => { if (!blocked()) router.back(); }} style={visualStyles.sheetAction}><ThemedText themeColor="link">Done</ThemedText></Pressable></View>
-    <Animated.ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false}>
+  // Native formSheet frame: preserve the header/body/footer as native siblings.
+  // Screens sizes its ScrollView from the native header frame; flattened Views
+  // can put the scrolling instructions over the title (as in Add meal).
+  return <View collapsable={false} testID="recipe-sections-root" style={[styles.root, { backgroundColor: theme.elevatedSurface }]}>
+    <View collapsable={false} testID="recipe-sections-header" style={[styles.header, styles.content]}><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Manage sections</ThemedText><Pressable accessibilityRole="button" disabled={dragging} onPress={() => { if (!blocked()) router.back(); }} style={visualStyles.sheetAction}><ThemedText themeColor="link">Done</ThemedText></Pressable></View>
+    <Animated.ScrollView testID="recipe-sections-scroll" style={styles.sectionScroll} ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false}>
       <ThemedText themeColor="textSecondary">Hold a handle to reorder sections. Changes save with the recipe.</ThemedText>
       <RecipeReorderList key={interactionId} items={sections} label={(s) => s.name} sectionRows enabled={isCurrent()} busy={dragging} scrollRef={scrollRef} dragBlocked={lock} interactionId={interactionId}
         onStart={() => { if (latestInteraction.current !== interactionId) return; if (!focused.current || !isCurrent()) { cancel(); return; } active.current = true; setDragging(true); void dragGrabFeedback(); }}
@@ -82,7 +85,7 @@ export function RecipeSectionsSheet({ nameSheetRoute, initialSections, isCurrent
         onEdit={entry} onRemove={(key) => { if (!blocked() && isCurrent()) setRemoving(current.current.find((s) => s.key === key) ?? null); }}
         onMove={(key, direction) => { if (blocked() || !isCurrent()) return null; const index = current.current.findIndex((s) => s.key === key); const target = index + direction; if (index < 0 || target < 0 || target >= current.current.length) return null; const keys = current.current.map((s) => s.key); [keys[index], keys[target]] = [keys[target], keys[index]]; reorder(keys); return target + 1; }} />
     </Animated.ScrollView>
-    <View style={[styles.content, { paddingBottom: insets.bottom + 16 }]}><PrimaryButton title="Add section" disabled={dragging || sections.length >= 20} onPress={() => entry()} /></View>
+    <View collapsable={false} testID="recipe-sections-footer" style={[styles.content, styles.footer, { paddingBottom: insets.bottom + 16 }]}><PrimaryButton title="Add section" disabled={dragging || sections.length >= 20} onPress={() => entry()} /></View>
     <Modal transparent animationType="fade" visible={removing !== null} onRequestClose={() => setRemoving(null)}><View style={styles.overlay}><View style={[styles.confirm, { backgroundColor: theme.surface }]}>
       <ThemedText accessibilityRole="header" style={styles.confirmTitle}>Remove {removing?.name} section?</ThemedText><ThemedText>Its ingredients will be kept and moved to Other ingredients.</ThemedText>
       <Pressable accessibilityRole="button" style={[styles.confirmAction, { borderColor: theme.error, backgroundColor: theme.errorSurface }]} onPress={() => { if (removing && !blocked() && isCurrent()) publish(current.current.filter((s) => s.key !== removing.key), removing.key); setRemoving(null); }}><ThemedText themeColor="error">Remove section</ThemedText></Pressable>
@@ -92,7 +95,8 @@ export function RecipeSectionsSheet({ nameSheetRoute, initialSections, isCurrent
 }
 const styles = StyleSheet.create({
   root: { flex: 1 }, content: { paddingHorizontal: 22, paddingTop: 20, paddingBottom: 28, gap: 14 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 44 },
+  sectionScroll: { flex: 1, minHeight: 0 }, footer: { flexShrink: 0 },
+  header: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 44 },
   overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', padding: 24 },
   confirm: { borderRadius: 16, gap: 16, maxWidth: 440, padding: 24, width: '100%' }, confirmTitle: { fontSize: 22, fontWeight: '700' },
   confirmAction: { alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, minHeight: 48 },

@@ -936,7 +936,19 @@ describe('Recipes through the actual Expo Router', () => {
     await act(async () => router.navigate('/recipes/recipe-1/edit'));
     await fireEvent.press(await screen.findByRole('button', { name: 'Manage sections' }));
     await fireEvent(screen.getByLabelText('Reorder Mash, position 2 of 2'), 'accessibilityAction', { nativeEvent: { actionName: 'decrement' } });
-    expect(screen.getByTestId('recipe-sections-root')).toBeTruthy();
+    const manager = screen.getByTestId('recipe-sections-root');
+    const header = screen.getByTestId('recipe-sections-header');
+    const body = screen.getByTestId('recipe-sections-scroll');
+    const footer = screen.getByTestId('recipe-sections-footer');
+    // Native Screens needs these frames; Jest itself cannot reproduce flattening.
+    expect(manager.props.collapsable).toBe(false);
+    expect(header.props.collapsable).toBe(false);
+    expect(footer.props.collapsable).toBe(false);
+    expect(manager.children.slice(0, 3)).toEqual([header, body, footer]);
+    expect(within(header).getByText('Manage sections')).toBeTruthy();
+    expect(within(body).getByText('Hold a handle to reorder sections. Changes save with the recipe.')).toBeTruthy();
+    expect(within(footer).getByRole('button', { name: 'Add section' })).toBeTruthy();
+    expect(StyleSheet.flatten(body.props.style).flex).toBe(1);
     expect(screen.queryByTestId('native-sheet-content')).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Edit section Chicken' }));
     await fireEvent.changeText(await screen.findByLabelText('Section name'), 'Sauce');

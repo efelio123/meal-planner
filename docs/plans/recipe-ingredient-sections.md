@@ -205,3 +205,15 @@ route and retain naming, movement and manager return behavior. Earlier full
 mobile/API runs are historical and do not cover this follow-up. No API, database
 or dependency edits were needed; database tests and full suites were not rerun.
 Physical iPhone presentation/keyboard review is still pending.
+
+### Manage sections header overlap follow-up
+
+Felipe's next iPhone screenshot shows the manager instructions overlapping its
+title. Preserve the root/header/footer as non-collapsible native sibling Views
+and give the scrolling body a bounded shrinking frame, matching the accepted
+Add meal sheet. No padding compensation or draft/ordering changes. Root and
+mobile AGENTS plus the native-sheet plan now record this recurring native frame
+rule for future sheets. All 38 actual-router recipe tests, TypeScript and lint
+pass; the manager test guards the native header/body/footer hierarchy and bounded
+scroll frame. Physical layout recheck remains pending. Earlier full mobile/API
+results are historical; no database or dependency changes or API retest here.

@@ -82,6 +82,21 @@ For this SDK migration, also follow https://docs.expo.dev/router/migrate/sdk-57-
   the status bar and the bottom above the keyboard/safe area, with no large
   empty gap or clipped controls. Long content must scroll without blocking an
   intentional downward drag or quick flick from the sheet header.
+- For a native sheet with a fixed header, scrolling body and fixed footer,
+  preserve the root/header/footer as real native Views with `collapsable={false}`.
+  Keep them as siblings of one bounded scrolling body (`flex: 1`, able to shrink).
+  iOS react-native-screens sizes sheet scrolling from native child frames; a
+  layout-only header can be flattened and let the body start over the title or
+  extend under the footer. Do not compensate with guessed top/bottom padding.
+  Compare the accepted Add meal / Food selection structure before building a new
+  sheet; see the Manage sections regression in `recipe-section-sheets.tsx`.
+- Recipe sheets that own their scroll/frame layout render directly through their
+  owning stack's native-sheet route. Reuse that accepted route and its detents
+  before pushing it; an extra general container can leave content blank or
+  disrupt native sizing. Do not assume a passing content test proves the frame.
+  Review the initial and expanded detents on iPhone, including short/long lists,
+  larger text, nested returns and keyboard show/hide. Keep a regression check for
+  the native header/body/footer hierarchy and report device review separately.
 - For stacked sheets, dismissing the top layer must reveal the previous layer
   with its search and form draft intact. A drag never saves or confirms a
   destructive action. Household, user, or session changes must clear the

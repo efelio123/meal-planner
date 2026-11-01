@@ -82,7 +82,9 @@ a material product or technical decision changes.
   or a full-screen modal. Preserve nested Back/dismiss behavior, underlying
   drafts and searches, keyboard/safe-area layout, and household/session scope.
   Keep full detail/manage pages as stack screens and destructive confirmations
-  explicit. The mobile-specific rules are in `apps/mobile/AGENTS.md`.
+  explicit. Native sheets with fixed headers/footers must preserve those native
+  frames so the scrolling body cannot overlap them; follow the concrete layout
+  and phone-review rules in `apps/mobile/AGENTS.md` when building any new sheet.
 - For routine feature and bug-fix UI checks, test the current appearance only;
   do not switch between light and dark mode each time. Run a dedicated light-
   and dark-mode visual pass before major deployments.

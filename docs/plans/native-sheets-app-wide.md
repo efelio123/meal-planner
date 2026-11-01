@@ -177,3 +177,22 @@ If a flow cannot safely use native sheets (especially Unit over Ingredient
 Details or the web fallback), stop that flow, keep its existing working
 presentation, and report the limitation for a separate decision rather than
 introducing a new dependency or custom drag framework.
+
+## Recurring fixed-header overlap — November 1, 2026
+
+Manage recipe sections repeated the earlier Add meal/header overlap: the title
+and scrolling instruction text drew over each other on iPhone despite passing
+route tests. The installed react-native-screens 4.30.1 native implementation
+(`RNSScreenContentWrapper.mm`, `coerceChildScrollViewComponentSizeToSize`) warns
+that a header alongside a ScrollView must use `collapsable: false`, and derives
+the scrolling frame from that native header frame. Layout-only View flattening
+is not reproduced by Jest.
+
+Follow the working fixed-header sheet pattern: preserve root/header/footer
+native Views, bound the single scroll owner between them, and render through
+the accepted owning-stack/direct sheet route. For single-scroll entry forms,
+keep title/fields/actions inside that scroll owner instead. Never add guessed
+spacers to hide overlap. The concrete standing rule now lives in
+`apps/mobile/AGENTS.md`; device acceptance must cover initial/expanded detents,
+long lists, larger text and keyboard/nested returns. Structure tests protect
+this native contract but cannot establish actual device geometry.
