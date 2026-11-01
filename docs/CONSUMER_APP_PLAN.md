@@ -77,6 +77,15 @@ signing profile expires November 7 at 7:00 PM Arizona time; rebuild/re-sign befo
 then to keep the trial running. See `docs/plans/family-trial-release.md` for
 provenance, operational paths and recovery.
 
+November 1 continuation: the family-trial inventory is reconciled with the
+live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
+B11 stays on unreproduced regression watch. Remaining requested features are
+F09 ingredient sections, F10 recipe copying, F12 calendar sync, F14 themes,
+F15 member permissions and F16 widgets. Proposed next work is F09, then F10;
+`docs/plans/recipe-ingredient-sections.md` is a draft awaiting review, with no
+feature implementation or live rollout authorized yet. The two-iPhone testing
+week continues on the accepted release.
+
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for
 future pages. The source audit classifies all 64 page-route files and 11 layout
