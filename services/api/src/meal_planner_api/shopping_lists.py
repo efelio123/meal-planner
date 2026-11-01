@@ -323,3 +323,14 @@ def clear_list(user: CurrentUser, household_id: str, engine: Engine | None = Non
             "household_id": household_id,
         }).all()
         return len(deleted)
+
+
+def clear_purchased_items(user: CurrentUser, household_id: str, engine: Engine | None = None) -> dict:
+    with (engine or get_engine()).begin() as connection:
+        lock_household(connection, household_id, user.id)
+        removed_ids = connection.execute(text("""
+            DELETE FROM shopping_list_items
+            WHERE household_id=:household_id AND is_checked IS TRUE
+            RETURNING id::text
+        """), {"household_id": household_id}).scalars().all()
+        return {"removed_count": len(removed_ids), "removed_item_ids": sorted(removed_ids)}

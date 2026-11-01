@@ -338,7 +338,7 @@ export function OwnerInvitationScreen({ householdId: routeHouseholdId }: { house
   if (!canUseScreen) return null;
 
   return (
-    <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+    <Screen layout="tab-stack" contentAlignment="top">
       <View style={{ gap: 16 }}>
         <ThemedText accessibilityRole="header" type="subtitle">Invite a member to {targetHousehold?.name}</ThemedText>
         <ThemedText themeColor="textSecondary">

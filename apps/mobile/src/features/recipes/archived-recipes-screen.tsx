@@ -56,7 +56,7 @@ export function ArchivedRecipesScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Archived recipes' }} />
-      <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+      <Screen layout="tab-stack" contentAlignment="top">
         <View style={styles.content}>
           {household ? <>
             <ThemedText themeColor="link" style={styles.household}>⌂  {household.name}</ThemedText>

@@ -245,6 +245,23 @@ describe('mobile API client', () => {
     expect(new Headers(fetchMock.mock.calls[0][1].headers).get('Authorization')).toBe('Bearer clear-list-token');
   });
 
+  it('clears purchased rows through a separate resource without a filter or body', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ removed_count: 1, removed_item_ids: ['row-1'] }), { status: 200 }));
+    await expect(api.clearPurchasedShoppingItems(jest.fn().mockResolvedValue('token'), 'home-1')).resolves.toEqual({ removed_count: 1, removed_item_ids: ['row-1'] });
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(new URL(url).pathname).toBe('/v1/households/home-1/shopping-list/purchased-items');
+    expect(new URL(url).search).toBe('');
+    expect(options.method).toBe('DELETE');
+    expect(options.body).toBeUndefined();
+  });
+
+  it('never falls back to clear-all if the purchased-only API is unavailable', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ detail: 'Not Found' }), { status: 404 }));
+    await expect(api.clearPurchasedShoppingItems(jest.fn().mockResolvedValue('token'), 'home-1')).rejects.toMatchObject({ status: 404 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(new URL(fetchMock.mock.calls[0][0]).pathname).toBe('/v1/households/home-1/shopping-list/purchased-items');
+  });
+
   it('uses one household-scoped unit-options request with a fresh token', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ shopping_units: { built_in: [], household: [] }, recipe_measurement_units: [] }), { status: 200 }));
     const getToken = jest.fn().mockResolvedValue('catalog-options-token');
@@ -394,4 +411,17 @@ describe('mobile API client', () => {
       expect.objectContaining({ pathname: '/v1/households/home-1/meal-plan/shopping', method: 'POST', body: needs, authorization: 'Bearer review-add-token' }),
     ]);
   });
+});
+
+
+it('sends explicit planning dates and both shopping-review endpoints without a legacy offset', async () => {
+  const fetcher = jest.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({}), { status: 200 }));
+  fetcher.mockClear();
+  const token = jest.fn().mockResolvedValue('range-token');
+  await api.mealPlan(token, 'home-1', '2026-12-24');
+  await api.mealPlanShoppingReview(token, 'home-1', '2026-12-24', '2027-01-06');
+  expect(String(fetcher.mock.calls[0][0])).toContain('/meal-plan?start_date=2026-12-24');
+  expect(String(fetcher.mock.calls[0][0])).not.toContain('week_offset');
+  expect(String(fetcher.mock.calls[1][0])).toContain('week_start=2026-12-24&week_end=2027-01-06');
+  fetcher.mockRestore();
 });

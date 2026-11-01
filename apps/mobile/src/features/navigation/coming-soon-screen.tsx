@@ -5,7 +5,7 @@ import { ThemedText } from '@/components/themed-text';
 
 export function ComingSoonScreen({ title }: { title: string }) {
   return (
-    <Screen contentAlignment="top" nativeTabScreen safeAreaEdges={['top', 'left', 'right']}>
+    <Screen layout="tab-root" contentAlignment="top">
       <View accessibilityLabel={`${title}. Coming soon.`} accessibilityRole="summary">
         <ThemedText accessibilityRole="header" style={{ fontSize: 30, fontWeight: '700', lineHeight: 34 }}>
           {title}

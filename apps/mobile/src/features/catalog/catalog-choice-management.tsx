@@ -4,8 +4,9 @@ import { SymbolView } from 'expo-symbols';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Modal, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
-import { Screen } from '@/components/screen';
+import { Screen, type StackScreenLayout } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { EmojiText } from '@/components/emoji-text';
 import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import { useHouseholdState } from '@/hooks/use-household-state';
@@ -15,6 +16,7 @@ import { useCatalogContext } from './catalog-context';
 import { CatalogEmojiInputSheet } from './catalog-emoji-input-sheet';
 import { categoryEmojiValidationError } from './catalog-emoji-validation';
 import { useShoppingContextOptional } from '@/features/shopping-list/shopping-context';
+import { initialCreateName, namePrefillParams, namePrefillScope, type NamePrefillParams } from './catalog-name-prefill';
 
 function isKind(value: string | undefined): value is CatalogChoiceKind {
   return value === 'category' || value === 'store' || value === 'shopping-unit';
@@ -30,7 +32,7 @@ async function loadChoices(getToken: GetToken, householdId: string, kind: Catalo
   return (await api.catalogUnits(getToken, householdId)).shopping_units.household.map((unit) => ({ id: unit.id!, name: unit.label, created_at: '', updated_at: '' }));
 }
 
-export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?: 'catalog' | 'recipes' | 'shopping' } = {}) {
+export function CatalogChoiceManagement({ layout, routeBase = 'catalog' }: { layout: StackScreenLayout; routeBase?: 'catalog' | 'recipes' | 'shopping' | 'plan' }) {
   const params = useLocalSearchParams<{ kind: string; itemType?: string; shoppingTarget?: string; shoppingCatalogItemId?: string }>();
   const kind = isKind(params.kind) ? params.kind : null;
   const itemType = params.itemType === 'food' || params.itemType === 'household' ? params.itemType : undefined;
@@ -50,8 +52,12 @@ export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const searchScope = useRef(scope);
   useEffect(() => { latestGetToken.current = getToken; }, [getToken]);
-  useLayoutEffect(() => { scopeRef.current = scope; }, [scope]);
+  useLayoutEffect(() => {
+    scopeRef.current = scope;
+    if (searchScope.current !== scope) { searchScope.current = scope; setSearch(''); }
+  }, [scope]);
   const refreshChoices = useCallback(async () => {
     if (!householdId || !kind) return;
     const requestGeneration = ++generation.current;
@@ -78,7 +84,7 @@ export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?:
   }, [refreshChoices, revision]);
 
   const title = kind === 'category' ? 'Categories' : kind === 'store' ? 'Stores' : 'Shopping units';
-  const base = routeBase === 'recipes' ? 'recipes/catalog-choices' : routeBase === 'shopping' ? 'shopping/choices' : 'catalog/choices';
+  const base = routeBase === 'recipes' ? 'recipes/catalog-choices' : routeBase === 'shopping' ? 'shopping/choices' : routeBase === 'plan' ? 'plan/shopping-choices' : 'catalog/choices';
   const routeQuery = [
     itemType ? `itemType=${encodeURIComponent(itemType)}` : null,
     params.shoppingTarget === 'details' ? 'shoppingTarget=details' : null,
@@ -86,8 +92,12 @@ export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?:
   ].filter(Boolean).join('&');
   const routeToCreate = useCallback(() => {
     if (!kind) return;
-    router.push(`/(app)/(tabs)/${base}/${kind}/create${routeQuery ? `?${routeQuery}` : ''}` as never);
-  }, [base, kind, routeQuery, router]);
+    router.push({ pathname: `/(app)/(tabs)/${base}/${kind}/create`, params: {
+      ...(itemType ? { itemType } : {}),
+      ...(params.shoppingTarget === 'details' ? { shoppingTarget: 'details', shoppingCatalogItemId: params.shoppingCatalogItemId } : {}),
+      ...namePrefillParams(kind === 'shopping-unit' ? '' : search, namePrefillScope(userId, sessionId, householdId)),
+    } } as never);
+  }, [base, householdId, itemType, kind, params.shoppingCatalogItemId, params.shoppingTarget, router, search, sessionId, userId]);
   const createAction = useCallback(() => (
     <Pressable accessibilityLabel={`Create ${kind === 'shopping-unit' ? 'shopping unit' : kind ?? 'choice'}`} accessibilityRole="button" onPress={routeToCreate} style={styles.headerAction}>
       <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus', android: 'add', web: 'add' }} size={22} tintColor={theme.link} />
@@ -106,7 +116,7 @@ export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?:
   const filterGroup = (groupChoices: ManagedChoice[]) => groupChoices.filter((choice) => choice.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   return (
     <View style={styles.routeRoot}>
-      <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+      <Screen layout={layout} contentAlignment="top">
         <View style={styles.content}>
         <ThemedText themeColor="textSecondary">Manage {title.toLocaleLowerCase()} for this household.</ThemedText>
         {searchable ? <ThemedInput accessibilityLabel={`Search ${title.toLocaleLowerCase()}`} onChangeText={setSearch} placeholder={`Search ${title.toLocaleLowerCase()}`} value={search} /> : null}
@@ -125,7 +135,7 @@ export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?:
                 return (
                   <Link key={choice.id} href={`/(app)/(tabs)/${base}/${kind ?? 'category'}/${choice.id}${routeQuery || choiceType ? `?${[choiceType ? `itemType=${choiceType}` : null, params.shoppingTarget === 'details' ? 'shoppingTarget=details' : null, params.shoppingTarget === 'details' && params.shoppingCatalogItemId ? `shoppingCatalogItemId=${encodeURIComponent(params.shoppingCatalogItemId)}` : null].filter(Boolean).join('&')}` : ''}` as never} asChild>
                     <Pressable accessibilityRole="button" style={StyleSheet.flatten([styles.row, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }])}>
-                      {(choice as ManagedChoice).emoji ? <ThemedText style={styles.choiceEmoji}>{(choice as ManagedChoice).emoji}</ThemedText> : null}
+                      {(choice as ManagedChoice).emoji ? <EmojiText style={styles.choiceEmoji}>{(choice as ManagedChoice).emoji}</EmojiText> : null}
                       <ThemedText style={styles.choiceName}>{choice.name}</ThemedText>
                       <DisclosureChevron />
                     </Pressable>
@@ -143,13 +153,15 @@ export function CatalogChoiceManagement({ routeBase = 'catalog' }: { routeBase?:
   );
 }
 
-export function CatalogChoiceForm(props: { editing?: boolean }) {
+type ChoiceFormProps = { editing?: boolean; layout: StackScreenLayout };
+
+export function CatalogChoiceForm(props: ChoiceFormProps) {
   const { kind } = useLocalSearchParams<{ kind: string }>();
   return kind === 'category' ? <CatalogCategoryForm {...props} /> : <CatalogChoiceFormInternal {...props} />;
 }
 
-function CatalogChoiceFormInternal({ editing = false }: { editing?: boolean }) {
-  const params = useLocalSearchParams<{ kind: string; choiceId?: string; itemType?: string; shoppingTarget?: string; shoppingCatalogItemId?: string }>();
+function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps) {
+  const params = useLocalSearchParams<NamePrefillParams & { kind: string; choiceId?: string; itemType?: string; shoppingTarget?: string; shoppingCatalogItemId?: string; returnToChoicePicker?: string }>();
   const kind = isKind(params.kind) ? params.kind : null;
   const itemType = params.itemType === 'food' || params.itemType === 'household' ? params.itemType : undefined;
   const choiceId = typeof params.choiceId === 'string' ? params.choiceId : null;
@@ -161,7 +173,7 @@ function CatalogChoiceFormInternal({ editing = false }: { editing?: boolean }) {
   const { markChanged, setChoiceResult } = useCatalogContext();
   const shoppingContext = useShoppingContextOptional();
   const householdId = selectedHousehold?.id ?? null;
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => initialCreateName(params, namePrefillScope(userId, sessionId, householdId), editing));
   const [categoryType, setCategoryType] = useState<CatalogItemType | ''>(itemType ?? '');
   const [loadedCategoryType, setLoadedCategoryType] = useState<CatalogItemType | null>(null);
   const [loading, setLoading] = useState(Boolean(editing));
@@ -256,7 +268,8 @@ function CatalogChoiceFormInternal({ editing = false }: { editing?: boolean }) {
           shoppingContext.setCreatedChoice({ scope: shoppingContext.scope, catalogItemId: params.shoppingCatalogItemId, kind, id: saved.id });
         } else setChoiceResult({ kind, id: saved.id, label: saved.name, itemType: kind === 'category' ? categoryType as CatalogItemType : undefined });
       }
-      router.back();
+      if (!editing && layout === 'stack-modal' && params.returnToChoicePicker === '1') router.dismiss(2);
+      else router.back();
     } catch (reason) {
       if (mounted.current && scopeRef.current === startedScope) setError(reason instanceof ApiError ? reason.message : 'We couldn’t save this choice. Please try again.');
     } finally { if (mounted.current && scopeRef.current === startedScope) setSaving(false); }
@@ -284,7 +297,7 @@ function CatalogChoiceFormInternal({ editing = false }: { editing?: boolean }) {
   useLayoutEffect(() => { navigation.setOptions({ title: pageTitle }); }, [navigation, pageTitle]);
   return (
     <View style={styles.routeRoot}>
-      <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}><View style={styles.content}>
+      <Screen layout={layout} contentAlignment="top"><View style={styles.content}>
       <ThemedText themeColor="textSecondary">{editing ? kind === 'store' ? 'Update this shared household store.' : kind === 'shopping-unit' ? 'Update this household shopping-unit label.' : 'Update this shared household category.' : kind === 'category' ? 'Organize reusable catalog items by type.' : params.shoppingTarget === 'details' ? `Save this ${title} for the household. This item’s Catalog default will not change.` : `Add a household ${title} for catalog items.`}</ThemedText>
       {editing && householdId && kind && choiceId && loading ? <ActivityIndicator accessibilityLabel={`Loading ${title}`} /> : null}
       {editing && error && !loading && loadedChoiceScope !== scope ? <PrimaryButton onPress={() => void loadExistingChoice()} title={`Retry loading ${title}`} /> : null}
@@ -309,8 +322,8 @@ function CatalogChoiceFormInternal({ editing = false }: { editing?: boolean }) {
   );
 }
 
-function CatalogCategoryForm({ editing = false }: { editing?: boolean }) {
-  const params = useLocalSearchParams<{ choiceId?: string; itemType?: string }>();
+function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
+  const params = useLocalSearchParams<NamePrefillParams & { choiceId?: string; itemType?: string; returnToChoicePicker?: string }>();
   const itemType = params.itemType === 'food' || params.itemType === 'household' ? params.itemType : undefined;
   const choiceId = typeof params.choiceId === 'string' ? params.choiceId : null;
   const { sessionId, userId } = useAuth();
@@ -326,7 +339,7 @@ function CatalogCategoryForm({ editing = false }: { editing?: boolean }) {
   const latestGetToken = useRef<GetToken>(getToken);
   const requestGeneration = useRef(0);
   const mounted = useRef(true);
-  const [categoryName, setCategoryName] = useState('');
+  const [categoryName, setCategoryName] = useState(() => initialCreateName(params, namePrefillScope(userId, sessionId, householdId), editing));
   const [categoryType, setCategoryType] = useState<CatalogItemType | ''>(itemType ?? '');
   const [emoji, setEmoji] = useState<string | null>(null);
   const [emojiSheetVisible, setEmojiSheetVisible] = useState(false);
@@ -434,7 +447,8 @@ function CatalogCategoryForm({ editing = false }: { editing?: boolean }) {
       if (!mounted.current || scopeRef.current !== requestScope || requestGeneration.current !== generation) return;
       markChanged(editing ? 'all' : 'choices');
       if (!editing) setChoiceResult({ kind: 'category', id: category.id, label: category.name, itemType: category.item_type });
-      router.back();
+      if (!editing && layout === 'stack-modal' && params.returnToChoicePicker === '1') router.dismiss(2);
+      else router.back();
     } catch (reason) {
       if (mounted.current && scopeRef.current === requestScope && requestGeneration.current === generation) {
         setError(reason instanceof ApiError ? reason.message : 'We couldn’t save this category. Please try again.');
@@ -442,7 +456,7 @@ function CatalogCategoryForm({ editing = false }: { editing?: boolean }) {
     } finally {
       if (mounted.current && scopeRef.current === requestScope) setSaving(false);
     }
-  }, [categoryName, categoryType, choiceId, editing, emoji, emojiDraft, emojiSheetVisible, householdId, loadedScope, markChanged, router, scope, setChoiceResult]);
+  }, [categoryName, categoryType, choiceId, editing, emoji, emojiDraft, emojiSheetVisible, householdId, layout, loadedScope, markChanged, params.returnToChoicePicker, router, scope, setChoiceResult]);
 
   const openEmojiSheet = () => {
     Keyboard.dismiss();
@@ -511,21 +525,21 @@ function CatalogCategoryForm({ editing = false }: { editing?: boolean }) {
       <Stack.Toolbar.Button accessibilityLabel="Save category" disabled={saving || loading || emojiSheetVisible} hidesSharedBackground onPress={() => void save()} tintColor={theme.link} variant="plain">Save</Stack.Toolbar.Button>
     </Stack.Toolbar> : null}
     <View style={styles.routeRoot}>
-      <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+      <Screen layout={layout} contentAlignment="top">
         <View style={styles.content}>
           <ThemedText themeColor="textSecondary">{editing ? 'Update this shared household category.' : 'Create a category shared with everyone in your household.'}</ThemedText>
           {editing && loading ? <ActivityIndicator accessibilityLabel="Loading category" /> : null}
           {editing && error && !categoryLoaded ? <PrimaryButton disabled={loading} onPress={() => void loadExistingCategory()} title="Retry loading category" /> : null}
           {categoryLoaded ? <>
-            <View style={[styles.categoryFormCard, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
+            <View style={[visualStyles.groupedSurface, styles.categoryFormCard, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
               <View style={styles.compactFormRow}>
                 <ThemedText themeColor="textSecondary">Name</ThemedText>
-                <ThemedInput accessibilityLabel="category name" onChangeText={setCategoryName} placeholder="Category name" value={categoryName} style={editing ? styles.inlineInput : undefined} />
+                <ThemedInput accessibilityLabel="category name" onChangeText={setCategoryName} placeholder="Category name" value={categoryName} style={styles.inlineInput} />
               </View>
-              <View style={[styles.typeRow, { borderTopColor: theme.border }]}>
+              <View style={[styles.typeRow, !editing && styles.createTypeRow, { borderTopColor: theme.border }]}>
                 <ThemedText themeColor="textSecondary">Type</ThemedText>
                 {editing ? <View testID="category-type-value" style={styles.categoryTrailingValue}><ThemedText>{categoryType === 'food' ? 'Food' : 'Household'}</ThemedText></View> : (
-                  <View style={styles.categoryTypes}>
+                  <View testID="category-type-controls" style={styles.categoryTypes}>
                     {(['food', 'household'] as const).map((value) => (
                       <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: categoryType === value }} onPress={() => setCategoryType(value)} style={[styles.categoryType, { backgroundColor: categoryType === value ? theme.surfaceSelected : theme.surface, borderColor: categoryType === value ? theme.primary : theme.border }]}>
                         <ThemedText>{value === 'food' ? 'Food' : 'Household'}</ThemedText>
@@ -536,7 +550,7 @@ function CatalogCategoryForm({ editing = false }: { editing?: boolean }) {
               </View>
             </View>
             <Pressable accessibilityLabel={`Emoji: ${emoji ?? 'Not set'}`} accessibilityRole="button" onPress={openEmojiSheet} style={[styles.categorySettingRow, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
-              <ThemedText>Emoji</ThemedText><ThemedText style={styles.emojiPreview}>{emoji ?? '—'}</ThemedText><DisclosureChevron />
+              <ThemedText>Emoji</ThemedText><EmojiText style={styles.emojiPreview}>{emoji ?? '—'}</EmojiText><DisclosureChevron />
             </Pressable>
             {editing ? <>
               <View style={[styles.categorySettingRow, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
@@ -586,19 +600,20 @@ const styles = StyleSheet.create({
   group: { gap: 8 },
   choiceCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   row: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 58, paddingHorizontal: 16, paddingVertical: 12 },
-  choiceEmoji: { fontSize: 24, width: 32 },
+  choiceEmoji: { width: 32 },
   choiceName: { flex: 1, fontSize: 17 },
   categoryTypes: { flexDirection: 'row', gap: 8 },
-  categoryType: { alignItems: 'center', borderRadius: 10, borderWidth: 1, flex: 1, justifyContent: 'center', minHeight: 48 },
-  categoryFormCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  categoryType: { alignItems: 'center', borderRadius: 10, borderWidth: 1, flex: 1, minWidth: 0, justifyContent: 'center', minHeight: 48, paddingVertical: 12, paddingHorizontal: 8 },
+  categoryFormCard: { borderWidth: StyleSheet.hairlineWidth },
   compactFormRow: { alignItems: 'center', flexDirection: 'row', gap: 16, justifyContent: 'space-between', minHeight: 58, paddingHorizontal: 16 },
-  inlineInput: { borderColor: 'transparent', flex: 1, paddingHorizontal: 0, textAlign: 'right' },
+  inlineInput: { borderColor: 'transparent', flex: 1, minWidth: 0, paddingHorizontal: 0, textAlign: 'right' },
   typeRow: { alignItems: 'center', borderTopWidth: StyleSheet.hairlineWidth, flexDirection: 'row', justifyContent: 'space-between', minHeight: 54, paddingHorizontal: 16 },
+  createTypeRow: { alignItems: 'stretch', flexDirection: 'column', gap: 8, paddingVertical: 12 },
   categoryTrailingValue: { alignItems: 'flex-end', flex: 1, justifyContent: 'center', minHeight: 36 },
   categoryTrailingText: { textAlign: 'right' },
   categoryCountLabel: { flex: 1 },
   categorySettingRow: { alignItems: 'center', borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, minHeight: 58, paddingHorizontal: 16 },
-  emojiPreview: { flex: 1, fontSize: 24, textAlign: 'right' },
+  emojiPreview: { flex: 1, textAlign: 'right' },
   deleteAction: { alignItems: 'center', borderRadius: 12, borderWidth: 1, justifyContent: 'center', minHeight: 52 },
   confirmOverlay: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'center', padding: 24 },
   confirmCard: { borderRadius: 18, borderWidth: 1, gap: 16, maxWidth: 440, padding: 24, width: '100%' },

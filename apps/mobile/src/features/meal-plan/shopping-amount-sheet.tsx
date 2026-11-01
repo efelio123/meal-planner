@@ -3,6 +3,7 @@ import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, View } from 'rea
 
 import { ThemedInput } from '@/components/themed-controls';
 import { ThemedText } from '@/components/themed-text';
+import { KeyboardAwareSheet } from '@/components/keyboard-aware-sheet';
 import { visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import type { MealPlanNeed } from '@/lib/api';
@@ -33,7 +34,7 @@ export function ShoppingAmountSheet({ need, initialValue, onCancel, onDone }: {
   const unitLabel = need.unit_label;
   const validationMessage = valid ? null : 'Enter a positive amount, or deselect this ingredient to buy none.';
 
-  return <View collapsable={false} style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
+  return <KeyboardAwareSheet style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
     <SheetHeader onCancel={onCancel} />
     <ScrollView
       style={styles.sheetScroll}
@@ -83,7 +84,7 @@ export function ShoppingAmountSheet({ need, initialValue, onCancel, onDone }: {
           <ThemedText style={[styles.doneText, { color: theme.primaryText }]}>Done</ThemedText>
         </Pressable>
     </View>
-  </View>;
+  </KeyboardAwareSheet>;
 }
 
 const styles = StyleSheet.create({

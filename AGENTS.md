@@ -68,6 +68,13 @@ a material product or technical decision changes.
 - For app UI reviews, compare related screens as well as each reference image.
   Similar actions should have consistent styling and interaction states unless
   a difference is intentional and documented.
+- For every new or materially changed mobile page, identify whether its visible
+  frame is a tab root, a page under a native stack header, a full-screen modal,
+  a native sheet, or a standalone page. Reuse the shared layout for that frame.
+  Its last content and actions must scroll fully above visible navigation,
+  safe areas, and the keyboard, and remain reachable after the scroll settles.
+  Check related pages app-wide when a shared clipping defect is reported;
+  do not limit the repair to the first named examples or guess fixed padding.
 - For short mobile selection and entry flows, study
   `docs/plans/native-sheets-app-wide.md` and the existing native-sheet route,
   context, and screen implementation before adding a sheet. Reuse the accepted

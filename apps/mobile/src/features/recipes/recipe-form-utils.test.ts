@@ -24,7 +24,7 @@ const recipe: Recipe = {
 
 describe('recipe form and presentation helpers', () => {
   it('accepts positive whole, decimal, fraction, and mixed-fraction amounts, but not ranges or invalid fractions', () => {
-    for (const amount of ['1', '0.25', '1/2', '1 1/2']) expect(isValidRecipeAmount(amount)).toBe(true);
+    for (const amount of ['1', '0.25', '1/2', '1 1/2', '2 2/3']) expect(isValidRecipeAmount(amount)).toBe(true);
     for (const amount of ['0', '-1', '1-2', '1/0', '0/2', 'one']) expect(isValidRecipeAmount(amount)).toBe(false);
     expect(isValidRecipeAmount('')).toBe(true);
   });
@@ -61,6 +61,16 @@ describe('recipe form and presentation helpers', () => {
     expect(formatRecipeAmount('1/2')).toBe('1/2');
     expect(ingredientDraftFromRecipe({ ...recipe.ingredients![0], amount: '1.500000' }).amount).toBe('1.5');
     expect(ingredientMeasure({ ...recipe.ingredients![0], amount: '2.000000' })).toBe('2 cup');
+  });
+
+  it.each([null, '', '   '])('shows a blank amount (%s) as To taste regardless of selected unit', (amount) => {
+    for (const unit of [
+      { unit_label: 'Tablespoon', custom_unit_label: null },
+      { unit_label: null, custom_unit_label: 'pinch' },
+      { unit_label: null, custom_unit_label: null },
+    ]) expect(ingredientMeasure({ amount, ...unit })).toBe('To taste');
+    const draft = { ...ingredientDraftFromRecipe(recipe.ingredients![0]), amount: amount ?? '' };
+    expect(ingredientInputFromDraft(draft)).toMatchObject({ amount: null, unit_code: 'cup' });
   });
 
   it('reorders directions without mutating the source and ignores out-of-bounds moves', () => {

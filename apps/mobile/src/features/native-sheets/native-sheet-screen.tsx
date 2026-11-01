@@ -12,6 +12,7 @@ export function NativeSheetScreen({ direct = false }: { direct?: boolean }) {
   const theme = useTheme();
   const flow = useNativeSheetFlow();
   const requestedFallbackBack = useRef(false);
+  const removalSubscription = useRef<{ id: string; unsubscribe: () => void } | null>(null);
   const entry = flow.get(sheetId);
 
   useEffect(() => {
@@ -25,30 +26,27 @@ export function NativeSheetScreen({ direct = false }: { direct?: boolean }) {
   }, [entry, router]);
 
   useEffect(() => {
-    if (!entry) return;
-    return navigation.addListener('beforeRemove', () => {
-      // Removing the registry entry rerenders this route before the native
-      // dismissal finishes. It is already leaving; do not issue a second Back.
+    if (!entry || removalSubscription.current?.id === entry.id) return;
+    removalSubscription.current?.unsubscribe();
+    const unsubscribe = navigation.addListener('removed', () => {
+      // SDK 58 reports completed removal after unmount. Effect cleanup alone
+      // may also mean Activity hid a retained screen, so it must not drop drafts.
       requestedFallbackBack.current = true;
       flow.remove(entry.id);
+      unsubscribe();
+      removalSubscription.current = null;
     });
+    removalSubscription.current = { id: entry.id, unsubscribe };
+    // Activity disconnects effects while another modal covers this route.
+    // Keep one listener until actual removal, including when Save pops both
+    // the covering modal and this hidden picker. The event owns cleanup.
   }, [entry, flow, navigation]);
-
-  useEffect(() => {
-    if (!entry) return;
-    return () => {
-      // Native gesture removal can bypass the JS navigation notification.
-      // Unmount is the final cleanup point for the entry and dismiss callback.
-      requestedFallbackBack.current = true;
-      flow.remove(entry.id);
-    };
-  }, [entry, flow]);
 
   if (!entry) return null;
 
-  // Stacked Recipes form sheets need the scrollable sheet content to be the
-  // native route's root, as in the accepted gesture prototype. Keep the
-  // container for the existing shared Catalog/time-zone route.
+  // Recipes content owns its native root: a single ScrollView for details,
+  // or distinct header/results/footer siblings for a keyboard-aware picker.
+  // Keep the container for the existing shared Catalog/time-zone route.
   if (direct) return entry.content;
 
   return <View testID="native-sheet-content" style={[styles.content, { backgroundColor: theme.elevatedSurface }]}>

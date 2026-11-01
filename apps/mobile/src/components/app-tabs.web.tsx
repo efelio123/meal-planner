@@ -7,7 +7,8 @@ import {
   TabListProps,
 } from 'expo-router/ui';
 import { SymbolView } from 'expo-symbols';
-import { Pressable, View, StyleSheet } from 'react-native';
+import type { Ref } from 'react';
+import { Pressable, View, StyleSheet, type ViewInstance } from 'react-native';
 
 import { ExternalLink } from './external-link';
 import { ThemedText } from './themed-text';
@@ -31,7 +32,11 @@ export default function AppTabs() {
   );
 }
 
-export function TabButton({ children, isFocused, ...props }: TabTriggerSlotProps) {
+// Router's slot type still uses the legacy View component as its ref type.
+// A custom trigger forwards the actual native instance under RN's strict API.
+type TabButtonProps = Omit<TabTriggerSlotProps, 'ref'> & { ref?: Ref<ViewInstance> };
+
+export function TabButton({ children, isFocused, ...props }: TabButtonProps) {
   return (
     <Pressable {...props} style={({ pressed }) => pressed && styles.pressed}>
       <ThemedView

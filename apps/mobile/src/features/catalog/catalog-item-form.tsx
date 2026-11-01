@@ -1,9 +1,9 @@
 import { useAuth } from '@clerk/expo';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Keyboard, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, Pressable, StyleSheet, View, type TextInputInstance } from 'react-native';
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
-import { Screen } from '@/components/screen';
+import { Screen, type StackScreenLayout } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
 import { MoreDetailsToggle } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
@@ -13,6 +13,8 @@ import { ChoicePicker, type ChoiceOption } from './choice-picker';
 import { useCatalogContext, type CatalogChoiceKind } from './catalog-context';
 import { useRecipeContext } from '@/features/recipes/recipe-context';
 import { useShoppingContextOptional } from '@/features/shopping-list/shopping-context';
+import { initialCreateName, namePrefillParams, namePrefillScope, type NamePrefillParams } from './catalog-name-prefill';
+import { recipeUnitChoices } from './recipe-unit-options';
 
 type FormState = {
   name: string;
@@ -28,17 +30,19 @@ const emptyForm: FormState = { name: '', itemType: 'food', categoryId: '', shopp
 function byName(choices: { id: string; name: string }[]) { return choices.map((choice) => ({ id: choice.id, label: choice.name })); }
 function unitId(choice: CatalogShoppingUnit) { return choice.id ? `custom:${choice.id}` : `built-in:${choice.code}`; }
 
-export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMode = false }: { recipeIngredientMode?: boolean; shoppingOriginMode?: boolean } = {}) {
+export function CatalogItemForm({ layout, recipeIngredientMode = false, shoppingOriginMode = false, shoppingRouteBase = 'shopping', recipeUnitSheetRoute }: { layout: StackScreenLayout; recipeIngredientMode?: boolean; shoppingOriginMode?: boolean; shoppingRouteBase?: 'shopping' | 'plan'; recipeUnitSheetRoute?: string }) {
   const { getToken, selectedHousehold } = useHouseholdState();
   const theme = useTheme();
   const { sessionId, userId } = useAuth();
   const router = useRouter();
-  const params = useLocalSearchParams<{ itemId?: string; originScope?: string; shoppingOriginScope?: string }>();
+  const params = useLocalSearchParams<NamePrefillParams & { itemId?: string; originScope?: string; shoppingOriginScope?: string }>();
   const itemId = typeof params.itemId === 'string' ? params.itemId : null;
   const { changeKind, choiceResult, markChanged, revision, setChoiceResult } = useCatalogContext();
   const { setCreatedFood } = useRecipeContext();
   const shoppingContext = useShoppingContextOptional();
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const householdId = selectedHousehold?.id ?? null;
+  const prefillScope = namePrefillScope(userId, sessionId, householdId);
+  const [form, setForm] = useState<FormState>(() => ({ ...emptyForm, name: initialCreateName(params, prefillScope, Boolean(itemId)) }));
   const [categories, setCategories] = useState<CatalogCategory[]>([]);
   const [stores, setStores] = useState<{ id: string; name: string }[]>([]);
   const [units, setUnits] = useState<CatalogUnits | null>(null);
@@ -48,7 +52,7 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
   const [moreDetails, setMoreDetails] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectionMessage, setSelectionMessage] = useState<string | null>(null);
-  const itemNameRef = useRef<TextInput>(null);
+  const itemNameRef = useRef<TextInputInstance>(null);
   const formRef = useRef(form);
   const updateForm = useCallback((update: FormState | ((current: FormState) => FormState)) => {
     const next = typeof update === 'function' ? update(formRef.current) : update;
@@ -58,7 +62,6 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
   const latestGetToken = useRef<GetToken>(getToken);
   const loadGeneration = useRef(0);
   const mounted = useRef(true);
-  const householdId = selectedHousehold?.id ?? null;
   const scope = `${userId ?? ''}:${sessionId ?? ''}:${householdId ?? ''}:${itemId ?? ''}`;
   const scopeRef = useRef(scope);
   const previousScope = useRef(scope);
@@ -162,18 +165,25 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
   ] : [];
   const categoryChoices: ChoiceOption[] = categories.filter((category) => category.item_type === form.itemType).map((category) => ({ id: category.id, label: category.name, emoji: category.emoji }));
   const storeChoices = byName(stores);
-  const recipeChoices = units?.recipe_measurement_units.filter((unit) => !form.recipeDimension || unit.dimension === form.recipeDimension).map((unit) => ({ id: unit.code, label: unit.label })) ?? [];
+  const recipeChoices = recipeUnitChoices(units?.recipe_measurement_units ?? []);
   const selectedCategoryOption = categoryChoices.find((choice) => choice.id === form.categoryId);
   const selectedCategory = selectedCategoryOption ? `${selectedCategoryOption.emoji ? `${selectedCategoryOption.emoji} ` : ''}${selectedCategoryOption.label}` : '';
   const selectedStore = storeChoices.find((choice) => choice.id === form.storeId)?.label ?? '';
   const selectedUnit = shoppingChoices.find((choice) => choice.id === form.shoppingUnitId)?.label ?? '';
   const selectedRecipeUnit = recipeChoices.find((choice) => choice.id === form.recipeUnitCode)?.label ?? '';
-  const routeToChoices = (kind: CatalogChoiceKind, mode: 'create' | 'manage') => {
-    const params = kind === 'category' ? `?itemType=${form.itemType}` : '';
+  const choiceSheetRoute = recipeIngredientMode ? '/recipes/sheet/choice'
+    : shoppingOriginMode ? (shoppingRouteBase === 'plan' ? '/plan/sheet/shopping-choice' : '/shopping/sheet/choice') : '/catalog/sheet/choice';
+  const routeToChoices = (kind: CatalogChoiceKind, mode: 'create' | 'manage', query = '') => {
     const suffix = mode === 'create' ? '/create' : '';
     const base = recipeIngredientMode ? '/(app)/(tabs)/recipes/catalog-choices'
-      : shoppingOriginMode ? '/(app)/(tabs)/shopping/choices' : '/(app)/(tabs)/catalog/choices';
-    router.push(`${base}/${kind}${suffix}${params}` as never);
+      : shoppingOriginMode ? (shoppingRouteBase === 'plan' ? '/(app)/(tabs)/plan/shopping-choices' : '/(app)/(tabs)/shopping/choices') : '/(app)/(tabs)/catalog/choices';
+    const destination = { pathname: `${base}/${kind}${suffix}`, params: {
+      ...(kind === 'category' ? { itemType: form.itemType } : {}),
+      ...(mode === 'create' ? namePrefillParams(query, prefillScope) : {}),
+      ...(shoppingOriginMode ? { returnToChoicePicker: '1' } : {}),
+    } };
+    if (shoppingOriginMode) router.push(destination as never);
+    else router.replace(destination as never);
   };
 
   const save = async () => {
@@ -236,7 +246,7 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
   return (
     <View style={styles.routeRoot}>
     <Stack.Screen options={{ title: itemId ? 'Edit item' : recipeIngredientMode ? 'Create Food item' : 'Add item' }} />
-    <Screen contentAlignment="top" nativeTabBottomInset safeAreaEdges={['left', 'right']}>
+    <Screen layout={layout} contentAlignment="top">
       <View style={styles.content}>
         <ThemedText themeColor="textSecondary">Save an item once for everyone in your household to use in the catalog.</ThemedText>
         {initialLoading ? <ActivityIndicator accessibilityLabel="Loading item" /> : null}
@@ -252,24 +262,23 @@ export function CatalogItemForm({ recipeIngredientMode = false, shoppingOriginMo
           ))}
         </View> : <ThemedText themeColor="textSecondary">Food</ThemedText>}
         {selectionMessage ? <ThemedText themeColor="textSecondary">{selectionMessage}</ThemedText> : null}
-        <ChoicePicker compact label="Category" choices={categoryChoices} selectedId={form.categoryId} value={selectedCategory} emptyChoiceLabel="No category" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create category" manageLabel="Manage categories" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(categoryId) => { updateForm((current) => ({ ...current, categoryId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('category', 'create')} onManage={() => routeToChoices('category', 'manage')} />
-        <ChoicePicker compact label="Typical shopping unit (optional)" choices={shoppingChoices} searchable selectedId={form.shoppingUnitId} value={selectedUnit} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create shopping unit" manageLabel="Manage shopping units" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(shoppingUnitId) => { updateForm((current) => ({ ...current, shoppingUnitId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('shopping-unit', 'create')} onManage={() => routeToChoices('shopping-unit', 'manage')} />
+        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Category" choices={categoryChoices} selectedId={form.categoryId} value={selectedCategory} emptyChoiceLabel="No category" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create category" manageLabel="Manage categories" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(categoryId) => { updateForm((current) => ({ ...current, categoryId })); setSelectionMessage(null); }} onCreate={(query) => routeToChoices('category', 'create', query)} onManage={() => routeToChoices('category', 'manage')} />
+        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Typical shopping unit (optional)" choices={shoppingChoices} searchable selectedId={form.shoppingUnitId} value={selectedUnit} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create shopping unit" manageLabel="Manage shopping units" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(shoppingUnitId) => { updateForm((current) => ({ ...current, shoppingUnitId })); setSelectionMessage(null); }} onCreate={(query) => routeToChoices('shopping-unit', 'create', query)} onManage={() => routeToChoices('shopping-unit', 'manage')} />
         <ThemedText themeColor="textSecondary">A typical shopping unit only; the catalog does not track quantities on hand.</ThemedText>
-        <ChoicePicker compact label="Preferred store (optional)" choices={storeChoices} selectedId={form.storeId} value={selectedStore} emptyChoiceLabel="No preferred store" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={0} createLabel="Create store" manageLabel="Manage stores" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(storeId) => { updateForm((current) => ({ ...current, storeId })); setSelectionMessage(null); }} onCreate={() => routeToChoices('store', 'create')} onManage={() => routeToChoices('store', 'manage')} />
-        <>
+        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Preferred store (optional)" choices={storeChoices} selectedId={form.storeId} value={selectedStore} emptyChoiceLabel="No preferred store" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={0} createLabel="Create store" manageLabel="Manage stores" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(storeId) => { updateForm((current) => ({ ...current, storeId })); setSelectionMessage(null); }} onCreate={(query) => routeToChoices('store', 'create', query)} onManage={() => routeToChoices('store', 'manage')} />
+        {form.itemType === 'food' ? <>
           <MoreDetailsToggle expanded={moreDetails} onPress={() => setMoreDetails((value) => !value)} />
           {moreDetails ? (
             <View style={styles.content}>
-              {form.itemType === 'food' ? <>
-                <ThemedText themeColor="textSecondary">Optional recipe measurements do not convert shopping units.</ThemedText>
-                <ChoicePicker label="Recipe measurement" choices={[
-                  { id: 'volume', label: 'Volume' }, { id: 'mass', label: 'Mass' }, { id: 'count', label: 'Count' },
-                ]} compact selectedId={form.recipeDimension} value={form.recipeDimension ? form.recipeDimension[0].toUpperCase() + form.recipeDimension.slice(1) : ''} emptyChoiceLabel="No recipe measurement" onSelect={(value) => updateForm((current) => ({ ...current, recipeDimension: value as FormState['recipeDimension'], recipeUnitCode: '' }))} />
-                {form.recipeDimension ? <ChoicePicker compact label="Base unit for recipes" choices={recipeChoices} selectedId={form.recipeUnitCode} value={selectedRecipeUnit} onSelect={(recipeUnitCode) => updateForm((current) => ({ ...current, recipeUnitCode }))} /> : null}
-              </> : null}
+                <ThemedText themeColor="textSecondary">Used when adding this food to a recipe. You can change it for each recipe.</ThemedText>
+                <ChoicePicker sheetRoute={recipeUnitSheetRoute ?? choiceSheetRoute} compact searchable label="Default unit for recipes (optional)" choices={recipeChoices} selectedId={form.recipeUnitCode} value={selectedRecipeUnit} emptyChoiceLabel="No default unit" disabled={initialLoading || !units} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} onSelect={(code) => {
+                  const unit = units?.recipe_measurement_units.find((candidate) => candidate.code === code);
+                  if (code && !unit) return;
+                  updateForm((current) => ({ ...current, recipeDimension: unit?.dimension ?? '', recipeUnitCode: unit?.code ?? '' }));
+                }} />
             </View>
           ) : null}
-        </>
+        </> : null}
         {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
         <PrimaryButton disabled={saving || initialLoading || Boolean(itemId && loadedItemScope !== scope)} onPress={() => void save()} title={saving ? 'Saving…' : itemId ? 'Save changes' : recipeIngredientMode ? 'Create & use ingredient' : shoppingOriginMode ? 'Create & add to Shopping' : 'Add to catalog'} />
       </View>

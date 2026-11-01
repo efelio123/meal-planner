@@ -129,7 +129,7 @@ export function AuthEmailCodeForm({ mode }: { mode: Mode }) {
   const alternate = mode === 'sign-in' ? '/(auth)/sign-up' : '/(auth)/sign-in';
   const alternateText = mode === 'sign-in' ? 'Need an account? Sign up' : 'Already have an account? Sign in';
   return (
-    <Screen>
+    <Screen layout="standalone">
       <View style={styles.content}>
         <Text style={[styles.title, { color: theme.text }]}>{mode === 'sign-in' ? 'Welcome back' : 'Create your account'}</Text>
         <Text style={styles.description}>We’ll send a verification code to your email. No password needed.</Text>

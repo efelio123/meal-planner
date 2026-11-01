@@ -123,7 +123,7 @@ export function MemberDetailScreen() {
   };
 
   return (
-    <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+    <Screen layout="tab-stack" contentAlignment="top">
       <View style={styles.content}>
         {loading ? <ThemedText themeColor="textSecondary">Loading member…</ThemedText> : null}
         {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}

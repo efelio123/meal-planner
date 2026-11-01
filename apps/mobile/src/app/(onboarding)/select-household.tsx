@@ -31,7 +31,7 @@ export default function SelectHousehold() {
   };
 
   return (
-    <Screen>
+    <Screen layout="standalone">
       <View style={styles.content}>
         <ThemedText style={styles.title}>Choose a household</ThemedText>
         {households.map((household) => (

@@ -25,7 +25,7 @@ export function CatalogManagementHome() {
   const router = useRouter();
 
   return (
-    <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+    <Screen layout="tab-stack" contentAlignment="top">
       <View style={styles.content}>
         <View style={styles.options}>
           {rows.map((row) => (

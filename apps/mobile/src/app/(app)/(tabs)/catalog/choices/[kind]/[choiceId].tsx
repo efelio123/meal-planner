@@ -1,2 +1,2 @@
 import { CatalogChoiceForm } from '@/features/catalog/catalog-choice-management';
-export default function EditCatalogChoice() { return <CatalogChoiceForm editing />; }
+export default function EditCatalogChoice() { return <CatalogChoiceForm layout="tab-stack" editing />; }

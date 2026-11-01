@@ -104,3 +104,49 @@ def test_review_token_changes_when_a_meal_moves_within_the_same_week() -> None:
 
     assert original["needs"][0]["amount"] == moved["needs"][0]["amount"] == "1"
     assert original["review_token"] != moved["review_token"]
+
+
+@pytest.mark.parametrize(("kind", "recipe_id", "detail", "normalized"), [
+    ("recipe", "recipe-id", None, None),
+    ("leftovers", None, "  Chicken tacos  ", "Chicken tacos"),
+    ("eating_out", None, "  ", None),
+    ("leftovers", None, "\t\n", None),
+    ("eating_out", None, "x" * 160, "x" * 160),
+])
+def test_special_meal_values_normalize_without_inventing_recipe_links(kind, recipe_id, detail, normalized):
+    from meal_planner_api.meal_planning import _entry_values
+    assert _entry_values(kind, recipe_id, detail) == (kind, recipe_id, normalized)
+
+
+@pytest.mark.parametrize(("kind", "recipe_id", "detail"), [
+    ("recipe", None, None), ("recipe", "recipe-id", "Restaurant"),
+    ("leftovers", "recipe-id", None), ("eating_out", "recipe-id", "Cafe"),
+    ("notes", None, "Anything"), ("leftovers", None, "x" * 161),
+])
+def test_special_meal_values_reject_invalid_variants(kind, recipe_id, detail):
+    from meal_planner_api.meal_planning import _entry_values
+    with pytest.raises(HTTPException) as caught:
+        _entry_values(kind, recipe_id, detail)
+    assert caught.value.status_code == 422
+
+
+@pytest.mark.parametrize(("start", "end", "days"), [
+    ("2028-02-29", "2028-02-29", 1), ("2026-03-08", "2026-03-14", 7),
+    ("2026-12-24", "2027-01-06", 14), ("2026-10-24", "2026-11-23", 31),
+])
+def test_explicit_review_ranges_are_inclusive_calendar_dates(start, end, days):
+    from meal_planner_api.meal_planning import _review_range
+    first, last = _review_range(start, end)
+    assert (last - first).days + 1 == days
+
+
+@pytest.mark.parametrize(("start", "end"), [
+    ("2026-10-05", "2026-10-04"), ("2026-10-05", "2026-11-05"),
+    ("2026-02-29", "2026-03-01"), ("2026-10-06", None),
+    ("9999-12-27", None),
+])
+def test_invalid_review_ranges_are_rejected_before_queries(start, end):
+    from meal_planner_api.meal_planning import _review_range
+    with pytest.raises(HTTPException) as caught:
+        _review_range(start, end)
+    assert caught.value.status_code == 422

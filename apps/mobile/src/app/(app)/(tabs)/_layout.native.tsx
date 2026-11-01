@@ -1,4 +1,5 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { useShoppingBadge } from '@/features/shopping-list/shopping-list-provider';
+import { NativeTabs } from 'expo-router/native-tabs';
 import { Platform } from 'react-native';
 
 import { CatalogProvider } from '@/features/catalog/catalog-context';
@@ -8,6 +9,7 @@ import { useTheme } from '@/hooks/use-theme';
 
 export default function NativeTabLayout() {
   const theme = useTheme();
+  const badge = useShoppingBadge();
 
   return (
     <CatalogProvider>
@@ -30,7 +32,8 @@ export default function NativeTabLayout() {
         <NativeTabs.Trigger.Label>Recipes</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="book.closed" md="menu_book" />
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="shopping" disableAutomaticContentInsets={Platform.OS === 'ios'}>
+      <NativeTabs.Trigger accessibilityLabel={badge.accessibilityLabel} name="shopping" disableAutomaticContentInsets={Platform.OS === 'ios'}>
+        <NativeTabs.Trigger.Badge hidden={!badge.label}>{badge.label}</NativeTabs.Trigger.Badge>
         <NativeTabs.Trigger.Label>Shopping</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon sf="cart" md="shopping_cart" />
       </NativeTabs.Trigger>

@@ -115,7 +115,7 @@ export function RecipeDetailScreen() {
       {Platform.OS === 'ios' && recipe && recipeScope === scope ? <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button accessibilityLabel="Edit recipe" hidesSharedBackground onPress={openEdit} tintColor={theme.link} variant="plain">Edit</Stack.Toolbar.Button>
       </Stack.Toolbar> : null}
-      <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+      <Screen layout="tab-stack" contentAlignment="top">
         <View style={styles.content}>
           {loading && !activeRecipe ? <ActivityIndicator accessibilityLabel="Loading recipe" color={theme.activity} /> : null}
           {activeRecipe ? <>

@@ -1,4 +1,6 @@
-import { Stack, useRouter } from 'expo-router';
+import { useCallback } from 'react';
+import { useShoppingList } from '@/features/shopping-list/use-shopping-list';
+import { Stack, useRouter, useFocusEffect } from 'expo-router';
 import { Platform } from 'react-native';
 import { AppBackButton } from '@/components/app-back-button';
 import { recipeSheetOptions } from '@/features/native-sheets/recipe-sheet-options';
@@ -8,8 +10,14 @@ import { useTheme } from '@/hooks/use-theme';
 
 export default function ShoppingStackLayout() {
   const theme = useTheme();
+  const { refreshOnFocus } = useShoppingList();
+  useFocusEffect(useCallback(() => { refreshOnFocus(); }, [refreshOnFocus]));
   const router = useRouter();
   const { get } = useNativeSheetFlow();
+  const choiceModalOptions = {
+    presentation: 'fullScreenModal' as const,
+    headerLeft: () => <AppBackButton accessibilityLabel="Back" onPress={() => router.back()} />,
+  };
   return <Stack screenOptions={{
     headerStyle: { backgroundColor: theme.surface },
     headerTintColor: theme.text,
@@ -24,9 +32,9 @@ export default function ShoppingStackLayout() {
       presentation: 'fullScreenModal',
       headerLeft: () => <AppBackButton accessibilityLabel="Back to Shopping item" onPress={() => router.back()} />,
     }} />
-    <Stack.Screen name="choices/[kind]/index" options={{ title: 'Catalog choices', presentation: 'fullScreenModal' }} />
-    <Stack.Screen name="choices/[kind]/create" options={{ title: 'Create choice', presentation: 'fullScreenModal' }} />
-    <Stack.Screen name="choices/[kind]/[choiceId]" options={{ title: 'Edit choice', presentation: 'fullScreenModal' }} />
+    <Stack.Screen name="choices/[kind]/index" options={{ ...choiceModalOptions, title: 'Catalog choices' }} />
+    <Stack.Screen name="choices/[kind]/create" options={{ ...choiceModalOptions, title: 'Create choice' }} />
+    <Stack.Screen name="choices/[kind]/[choiceId]" options={{ ...choiceModalOptions, title: 'Edit choice' }} />
     <Stack.Screen name="sheet/picker" options={{ ...recipeSheetOptions([0.65, 0.94], theme.elevatedSurface, Platform.OS), sheetInitialDetentIndex: 'last' }} />
     <Stack.Screen name="sheet/details" options={{ ...recipeSheetOptions([0.68, 0.94], theme.elevatedSurface, Platform.OS), sheetInitialDetentIndex: 'last' }} />
     <Stack.Screen name="sheet/choice" options={({ route }) => {

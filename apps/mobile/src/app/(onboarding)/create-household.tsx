@@ -40,7 +40,7 @@ export default function CreateHousehold() {
     }
   };
 
-  return <Screen><View style={styles.content}>
+  return <Screen layout="standalone"><View style={styles.content}>
     <Text style={[styles.title, { color: theme.text }]}>Create household</Text>
     <ThemedInput accessibilityLabel="Household name" autoCapitalize="words" onChangeText={setName} placeholder="Household name" value={name} />
     <TimeZonePicker onChange={setTimeZone} value={timeZone} />

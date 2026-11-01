@@ -101,7 +101,7 @@ def _cleanup(engine: Engine, households: list[str], users: list[str]) -> None:
 
 def test_meal_plan_migration_has_household_scoped_keys_and_preserves_manual_shopping_rows(meal_plan_engine: Engine) -> None:
     with meal_plan_engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "household_shopping_catalog_items"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "meal_plan_special_entries"
         entry_constraints = set(connection.execute(text("""
             SELECT conname FROM pg_constraint WHERE conrelid='household_meal_plan_entries'::regclass
         """)).scalars())
@@ -195,10 +195,22 @@ async def test_plan_entries_are_household_scoped_unique_and_revision_checked(mea
             other_after_denials = await _as(client, outsider, "GET", f"/v1/households/{other}/meal-plan")
             assert other_after_denials.json()["entries"][0]["id"] == other_entry.json()["entry"]["id"]
             assert other_after_denials.json()["entries"][0]["edit_revision"] == 1
+            stale_delete = await _as(client, owner, "DELETE", f"/v1/households/{household}/meal-plan/entries/{entry['id']}?expected_revision=1")
+            assert stale_delete.status_code == 409
+            assert stale_delete.json()["detail"]["code"] == "MEAL_PLAN_REVISION_CONFLICT"
+            another_occurrence = await _as(client, owner, "POST", entry_path, json={
+                "planned_for": (date.fromisoformat(monday) + timedelta(days=2)).isoformat(),
+                "meal_slot": "dinner", "recipe_id": recipe,
+            })
+            assert another_occurrence.status_code == 201
             deleted = await _as(client, owner, "DELETE", f"/v1/households/{household}/meal-plan/entries/{entry['id']}?expected_revision=2")
             assert deleted.status_code == 204
             listed = await _as(client, owner, "GET", f"/v1/households/{household}/meal-plan")
-            assert listed.json()["entries"] == []
+            assert [item["id"] for item in listed.json()["entries"]] == [another_occurrence.json()["entry"]["id"]]
+            recipe_after = await _as(client, owner, "GET", f"/v1/households/{household}/recipes/{recipe}")
+            assert recipe_after.status_code == 200
+            assert recipe_after.json()["recipe"]["id"] == recipe
+            assert recipe_after.json()["recipe"]["archived_at"] is None
     finally:
         app.dependency_overrides.clear()
         _cleanup(meal_plan_engine, [household, other], [owner, member, outsider, removed])
@@ -696,6 +708,161 @@ async def test_deleted_household_hides_plan_while_retaining_entries(meal_plan_en
             assert hidden.status_code == 404
             with meal_plan_engine.connect() as connection:
                 assert connection.execute(text("SELECT count(*) FROM household_meal_plan_entries WHERE household_id=:id AND id=:entry"), {"id": household, "entry": entry_id}).scalar_one() == 1
+    finally:
+        app.dependency_overrides.clear()
+        _cleanup(meal_plan_engine, [household], [owner])
+
+
+@pytest.mark.anyio
+async def test_special_entries_keep_revision_ownership_and_shopping_semantics(meal_plan_engine: Engine) -> None:
+    with meal_plan_engine.begin() as connection:
+        owner = _user(connection, "special-owner")
+        member = _user(connection, "special-member")
+        outsider = _user(connection, "special-outsider")
+        household = _household(connection, owner, "Special meals")
+        connection.execute(text("INSERT INTO household_members (household_id,user_id,role) VALUES (:home,:user,'member')"), {"home": household, "user": member})
+        food = _food(connection, household, "Beans")
+        recipe = _recipe(connection, household, owner, [(food, "2", "cup", None)])
+    app.dependency_overrides.clear()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            base = f"/v1/households/{household}/meal-plan"
+            week = (await _as(client, owner, "GET", base)).json()
+            monday = week["week_start"]
+            path = f"{base}/entries"
+            leftovers = await _as(client, member, "POST", path, json={"planned_for": monday, "meal_slot": "breakfast", "entry_type": "leftovers", "detail": "  Chicken tacos  "})
+            assert leftovers.status_code == 201, leftovers.text
+            left = leftovers.json()["entry"]
+            assert left["recipe_id"] is None and left["detail"] == "Chicken tacos" and left["entry_type"] == "leftovers"
+            out = await _as(client, owner, "POST", path, json={"planned_for": monday, "meal_slot": "lunch", "entry_type": "eating_out", "detail": "  "})
+            assert out.status_code == 201 and out.json()["entry"]["detail"] is None
+            review_path = f"{base}/shopping-review?week_start={monday}"
+            empty = await _as(client, owner, "GET", review_path)
+            assert empty.status_code == 200 and empty.json()["needs"] == []
+            for bad in [
+                {"entry_type": "recipe"}, {"entry_type": "recipe", "recipe_id": recipe, "detail": "Cafe"},
+                {"entry_type": "leftovers", "recipe_id": recipe}, {"entry_type": "eating_out", "detail": "x" * 161},
+                {"entry_type": "other"}, {"entry_type": "leftovers", "detail": 5},
+            ]:
+                result = await _as(client, owner, "POST", path, json={"planned_for": monday, "meal_slot": "dinner", **bad})
+                assert result.status_code == 422, result.text
+            duplicate = await _as(client, owner, "POST", path, json={"planned_for": monday, "meal_slot": "breakfast", "recipe_id": recipe})
+            assert duplicate.status_code == 409
+            denied = await _as(client, outsider, "PATCH", f"{path}/{left['id']}", json={"planned_for": monday, "meal_slot": "breakfast", "entry_type": "eating_out", "expected_revision": 1})
+            assert denied.status_code == 404
+            changed = await _as(client, owner, "PATCH", f"{path}/{left['id']}", json={"planned_for": monday, "meal_slot": "breakfast", "recipe_id": recipe, "expected_revision": 1})
+            assert changed.status_code == 200 and changed.json()["entry"]["entry_type"] == "recipe"
+            review = (await _as(client, owner, "GET", review_path)).json()
+            assert len(review["needs"]) == 1 and review["needs"][0]["amount"] == "2"
+            assert len(review["needs"][0]["sources"]) == 1
+            restored = await _as(client, owner, "PATCH", f"{path}/{left['id']}", json={"planned_for": monday, "meal_slot": "breakfast", "entry_type": "leftovers", "detail": "Dinner", "expected_revision": 2})
+            assert restored.status_code == 200 and restored.json()["entry"]["edit_revision"] == 3
+            stale = await _as(client, owner, "PATCH", f"{path}/{left['id']}", json={"planned_for": monday, "meal_slot": "breakfast", "entry_type": "eating_out", "detail": "Cafe", "expected_revision": 2})
+            assert stale.status_code == 409
+            stale_add = await _as(client, owner, "POST", f"{base}/shopping", json={"week_start": monday, "review_token": review["review_token"], "request_id": str(uuid4()), "selected_need_keys": [review["needs"][0]["need_key"]]})
+            assert stale_add.status_code == 409 and stale_add.json()["detail"]["code"] == "MEAL_PLAN_REVIEW_STALE"
+            assert (await _as(client, owner, "GET", review_path)).json()["needs"] == []
+            listed = (await _as(client, owner, "GET", base)).json()["entries"]
+            assert len(listed) == 2 and all(row["recipe_id"] is None and row["ingredient_count"] == 0 for row in listed)
+            removed = await _as(client, owner, "DELETE", f"{path}/{left['id']}?expected_revision=3")
+            assert removed.status_code == 204
+            assert len((await _as(client, owner, "GET", base)).json()["entries"]) == 1
+            assert (await _as(client, owner, "GET", f"/v1/households/{household}/recipes/{recipe}")).status_code == 200
+    finally:
+        app.dependency_overrides.clear()
+        _cleanup(meal_plan_engine, [household], [owner, member, outsider])
+
+
+@pytest.mark.anyio
+async def test_explicit_windows_and_inclusive_shopping_ranges_preserve_plan_data(meal_plan_engine: Engine) -> None:
+    with meal_plan_engine.begin() as connection:
+        owner = _user(connection, "range-owner")
+        outsider = _user(connection, "range-outsider")
+        household = _household(connection, owner, "Personal date windows")
+        food = _food(connection, household, "Range rice")
+        recipe = _recipe(connection, household, owner, [(food, "2", "cup", None)])
+    user = CurrentUser(owner, "range@example.com", "Range Test")
+    for day in ["2026-12-23", "2026-12-24", "2026-12-30", "2027-01-06", "2027-01-23", "2027-01-24"]:
+        create_entry(user, household, day, "dinner", recipe, meal_plan_engine)
+    create_entry(user, household, "2027-01-02", "lunch", None, meal_plan_engine, entry_type="leftovers", detail="Rice")
+    app.dependency_overrides.clear()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            base = f"/v1/households/{household}/meal-plan"
+            explicit = await _as(client, owner, "GET", f"{base}?start_date=2026-12-24")
+            assert explicit.status_code == 200, explicit.text
+            window = explicit.json()
+            assert (window["week_start"], window["week_end"], window["week_offset"]) == ("2026-12-24", "2026-12-30", None)
+            assert [entry["planned_for"] for entry in window["entries"]] == ["2026-12-24", "2026-12-30"]
+            assert (await _as(client, outsider, "GET", f"{base}?start_date=2026-12-24")).status_code == 404
+            assert (await _as(client, owner, "GET", f"{base}?start_date=2026-12-24&week_offset=0")).status_code == 422
+            assert (await _as(client, owner, "GET", f"{base}?start_date=9999-12-31")).status_code == 422
+            legacy = (await _as(client, owner, "GET", base)).json()
+            assert legacy["week_offset"] == 0 and date.fromisoformat(legacy["week_start"]).weekday() == 0
+            with meal_plan_engine.connect() as connection:
+                today = connection.execute(text("SELECT timezone('America/Phoenix', CURRENT_TIMESTAMP)::date")).scalar_one()
+            assert legacy["local_today"] == today.isoformat()
+            reviews = {}
+            for days, amount in [(1, "2"), (7, "4"), (14, "6"), (31, "8")]:
+                end = (date(2026, 12, 24) + timedelta(days=days - 1)).isoformat()
+                response = await _as(client, owner, "GET", f"{base}/shopping-review?week_start=2026-12-24&week_end={end}")
+                assert response.status_code == 200, response.text
+                review = reviews[days] = response.json()
+                assert review["week_end"] == end
+                assert len(review["needs"]) == 1 and review["needs"][0]["amount"] == amount
+                assert all(source["meal_slot"] == "dinner" for source in review["needs"][0]["sources"])
+            for query in ["week_start=2026-12-24&week_end=2026-12-23", "week_start=2026-12-24&week_end=2027-01-24", "week_start=2026-02-30&week_end=2026-03-01", "week_start=2026-12-24"]:
+                assert (await _as(client, owner, "GET", f"{base}/shopping-review?{query}")).status_code == 422
+            same_total = (await _as(client, owner, "GET", f"{base}/shopping-review?week_start=2026-12-24&week_end=2026-12-31")).json()
+            assert same_total["needs"][0]["amount"] == reviews[7]["needs"][0]["amount"]
+            assert same_total["review_token"] != reviews[7]["review_token"]
+            need = reviews[31]["needs"][0]
+            payload = {"week_start": "2026-12-24", "week_end": "2027-01-23", "review_token": reviews[14]["review_token"], "request_id": str(uuid4()), "selected_need_keys": [need["need_key"]]}
+            stale = await _as(client, owner, "POST", f"{base}/shopping", json=payload)
+            assert stale.status_code == 409 and stale.json()["detail"]["code"] == "MEAL_PLAN_REVIEW_STALE"
+            payload.update(review_token=reviews[31]["review_token"], amount_overrides={need["need_key"]: "1/2"})
+            added = await _as(client, owner, "POST", f"{base}/shopping", json=payload)
+            assert added.status_code == 201 and not added.json()["replayed"]
+            replay = await _as(client, owner, "POST", f"{base}/shopping", json=payload)
+            assert replay.status_code == 201 and replay.json()["replayed"]
+            reused = await _as(client, owner, "POST", f"{base}/shopping", json={**payload, "week_end": "2027-01-22"})
+            assert reused.status_code == 409 and reused.json()["detail"]["code"] == "MEAL_PLAN_REQUEST_REUSED"
+            assert (await _as(client, outsider, "POST", f"{base}/shopping", json=payload)).status_code == 404
+            with meal_plan_engine.connect() as connection:
+                assert connection.execute(text("SELECT count(*) FROM household_meal_plan_entries WHERE household_id=:home"), {"home": household}).scalar_one() == 7
+                assert connection.execute(text("SELECT amount FROM shopping_list_items WHERE household_id=:home"), {"home": household}).scalar_one() == Decimal("0.5")
+    finally:
+        app.dependency_overrides.clear()
+        _cleanup(meal_plan_engine, [household], [owner, outsider])
+
+
+@pytest.mark.anyio
+async def test_legacy_tokens_and_preexisting_successful_request_hashes_remain_compatible(meal_plan_engine: Engine) -> None:
+    import hashlib
+
+    with meal_plan_engine.begin() as connection:
+        owner = _user(connection, "legacy-range-owner")
+        household = _household(connection, owner, "Legacy retry")
+    app.dependency_overrides.clear()
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+            base = f"/v1/households/{household}/meal-plan"
+            legacy = await _as(client, owner, "GET", f"{base}/shopping-review?week_start=2026-10-05")
+            expected_token = hashlib.sha256(b'{"shopping":[],"sources":[],"week_start":"2026-10-05"}').hexdigest()
+            assert legacy.status_code == 200 and legacy.json()["review_token"] == expected_token
+            explicit = (await _as(client, owner, "GET", f"{base}/shopping-review?week_start=2026-10-05&week_end=2026-10-11")).json()
+            other_end = (await _as(client, owner, "GET", f"{base}/shopping-review?week_start=2026-10-05&week_end=2026-10-12")).json()
+            assert len({expected_token, explicit["review_token"], other_end["review_token"]}) == 3
+            request_id = str(uuid4())
+            # Frozen historical wire identity, independent of current hash helpers.
+            historical = ('{"keys":["old-need"],"review_token":"' + 'a' * 64 + '","week_start":"2026-10-05"}').encode()
+            with meal_plan_engine.begin() as connection:
+                connection.execute(text("INSERT INTO shopping_list_meal_plan_requests (household_id,request_id,created_by_user_id,request_hash) VALUES (:home,:request,:owner,:hash)"), {"home": household, "request": request_id, "owner": owner, "hash": hashlib.sha256(historical).hexdigest()})
+            payload = {"week_start": "2026-10-05", "review_token": "a" * 64, "request_id": request_id, "selected_need_keys": ["old-need"]}
+            replay = await _as(client, owner, "POST", f"{base}/shopping", json=payload)
+            assert replay.status_code == 201 and replay.json() == {"items": [], "replayed": True}
+            changed = await _as(client, owner, "POST", f"{base}/shopping", json={**payload, "week_end": "2026-10-11"})
+            assert changed.status_code == 409 and changed.json()["detail"]["code"] == "MEAL_PLAN_REQUEST_REUSED"
     finally:
         app.dependency_overrides.clear()
         _cleanup(meal_plan_engine, [household], [owner])

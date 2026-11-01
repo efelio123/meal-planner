@@ -1,3 +1,4 @@
+import { useShoppingBadge } from '@/features/shopping-list/shopping-list-provider';
 import { Tabs } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 
@@ -9,6 +10,7 @@ import { useTheme } from '@/hooks/use-theme';
 
 export default function WebTabLayout() {
   const theme = useTheme();
+  const badge = useShoppingBadge();
 
   return (
     <CatalogProvider>
@@ -26,7 +28,7 @@ export default function WebTabLayout() {
     >
       <Tabs.Screen name="plan" options={{ title: 'Plan' }} />
       <Tabs.Screen name="recipes" options={{ title: 'Recipes' }} />
-      <Tabs.Screen name="shopping" options={{ title: 'Shopping' }} />
+      <Tabs.Screen name="shopping" options={{ title: 'Shopping', tabBarBadge: badge.label, tabBarAccessibilityLabel: badge.accessibilityLabel }} />
       <Tabs.Screen name="catalog" options={{ title: 'Catalog' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
     </Tabs>

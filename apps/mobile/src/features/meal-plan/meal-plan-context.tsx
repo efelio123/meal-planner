@@ -3,7 +3,7 @@ import { useAuth } from '@clerk/expo';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import type { MealSlot, Recipe } from '@/lib/api';
 
-export type RecipeCreateReturn = { scope: string; sheetId: string; plannedFor: string; mealSlot: MealSlot; weekOffset: number };
+export type RecipeCreateReturn = { scope: string; sheetId: string; plannedFor: string; mealSlot: MealSlot; windowStart: string };
 type RecipeCreateResult = { sheetId: string; recipe: Recipe };
 type ShoppingAddNotice = { householdId: string; count: number; requestId: string; scope: string };
 type MealPlanContextValue = {

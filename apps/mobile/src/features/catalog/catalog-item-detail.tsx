@@ -5,6 +5,7 @@ import { ActivityIndicator, Modal, Platform, Pressable, StyleSheet, View } from 
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
+import { EmojiText } from '@/components/emoji-text';
 import { visualStyles } from '@/components/visual-roles';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { ApiError, api, type CatalogItem, type GetToken } from '@/lib/api';
@@ -110,7 +111,7 @@ export function CatalogItemDetail() {
     {Platform.OS === 'ios' && itemScope === scope && item ? <Stack.Toolbar placement="right">
       <Stack.Toolbar.Button accessibilityLabel="Edit item" hidesSharedBackground onPress={() => router.push(`/(app)/(tabs)/catalog/item/${item.id}/edit` as never)} tintColor={theme.link} variant="plain">Edit</Stack.Toolbar.Button>
     </Stack.Toolbar> : null}
-    <Screen contentAlignment="top" safeAreaEdges={['left', 'right']}>
+    <Screen layout="tab-stack" contentAlignment="top">
       <View style={styles.content}>
         {householdId && loading ? <ActivityIndicator accessibilityLabel="Loading catalog item" color={theme.activity} /> : null}
         {householdId && itemScope === scope && item?.household_id === householdId ? <>
@@ -119,7 +120,7 @@ export function CatalogItemDetail() {
             <ThemedText accessibilityRole="header" style={styles.title}>{item.name}</ThemedText>
             <View style={styles.badges}>
               <View style={[styles.badge, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{item.item_type === 'food' ? 'Food' : 'Household'}</ThemedText></View>
-              <View style={[styles.badge, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{categoryEmoji ? `${categoryEmoji} ` : ''}{item.category_name ?? 'Uncategorized'}</ThemedText></View>
+              <View accessible accessibilityLabel={`${categoryEmoji ? `${categoryEmoji} ` : ''}${item.category_name ?? 'Uncategorized'}`} style={[styles.badge, styles.categoryBadge, { backgroundColor: theme.surfaceSelected }]}>{categoryEmoji ? <EmojiText size={16}>{categoryEmoji}</EmojiText> : null}<ThemedText style={styles.categoryName}>{item.category_name ?? 'Uncategorized'}</ThemedText></View>
             </View>
           </View>
           <View style={styles.detailsSection}>
@@ -132,7 +133,7 @@ export function CatalogItemDetail() {
           {item.item_type === 'food' ? <View style={styles.detailsSection}>
             <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Recipe measurement</ThemedText>
             <View style={[styles.detailCard, visualStyles.groupedSurface, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
-              <DetailRow label="Base unit" value={item.recipe_measurement_unit_label ?? 'Not set'} last />
+              <DetailRow label="Default unit" value={item.recipe_measurement_unit_label ?? 'Not set'} last />
             </View>
           </View> : null}
           <Pressable accessibilityRole="button" onPress={() => setConfirming(true)} style={styles.removeAction}>
@@ -171,6 +172,8 @@ const styles = StyleSheet.create({
   initialText: { fontSize: 30, fontWeight: '700', lineHeight: 38 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center' },
   badge: { borderRadius: 18, paddingHorizontal: 14, paddingVertical: 6 },
+  categoryBadge: { alignItems: 'center', flexDirection: 'row', gap: 4, maxWidth: '100%' },
+  categoryName: { flexShrink: 1 },
   detailsSection: { gap: 8 },
   detailCard: { borderWidth: StyleSheet.hairlineWidth },
   detailRow: { alignItems: 'center', flexDirection: 'row', gap: 16, justifyContent: 'space-between', minHeight: 54, paddingHorizontal: 16, paddingVertical: 12 },

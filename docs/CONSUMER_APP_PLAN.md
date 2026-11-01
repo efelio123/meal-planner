@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: October 13, 2026
+Last updated: October 31, 2026
 
 ## Purpose of this document
 
@@ -54,7 +54,309 @@ Current limitations that make the private system unsuitable for public consumers
 
 The Mac Mini deployment should remain the functioning family dashboard and a development laboratory. It should not become the public consumer production server.
 
-## Current consumer-app progress (October 4, 2026)
+## Current consumer-app progress (October 31, 2026)
+
+Release checkpoint: the accepted family-trial improvements and approved SDK 58
+patches are prepared on `codex/family-trial-release` in PR #15. Application commit
+`bb55042` passes hosted Mobile/API CI, including all 187 API tests with no skips.
+Isolated final mobile normal/cold runs each pass 735 tests with no skips, plus
+types/lint, Expo compatibility, Doctor 20/20 and native JS exports. The fresh Mac
+backup was restore-verified, and a migration rehearsal preserved every original
+value in all 18 data tables. An unsigned native Release build succeeds. This is
+not yet a deployed trial update: Xcode account/profile recovery, Render auto-
+deploy inspection before merge, final physical light/dark review and both phone
+installs remain pending. Live Mac API/database and existing phone apps are
+unchanged. See `docs/plans/family-trial-release.md` for exact gates and recovery.
+
+Batch C scope (October 27): Felipe requests bottom-clipping review across the
+whole app rather than only the original three pages, and a standing rule for
+future pages. The source audit classifies all 64 page-route files and 11 layout
+files and finds additional nested pages without explicit bottom-inset handling.
+`docs/plans/app-wide-page-reachability.md` proposes shared typed layout contracts,
+all-page migration, keyboard-action fixes, Household disclosure cleanup, and
+specific category create/edit alignment. Felipe approved the expanded plan and
+it is implemented on `codex/app-wide-reachability`, retaining the accepted B05/B
+fixes. Screen now requires an explicit layout, supplied by route wrappers for
+shared modal/stack forms. Measured sheet/keyboard overlap keeps fixed actions
+reachable, and Create/Edit category alignment follows the approved treatment.
+Full normal and cache-disabled mobile runs each pass 55 suites / 400 tests, no
+skips; TypeScript, lint, and web export pass. The page-family physical checklist
+in `docs/qa/app-wide-reachability.md` remains pending. No backend, dependencies,
+live Mac runtime/data, native build, hosted deployment, or unrelated work changed.
+An emoji-clipping follow-up replaces constrained text metrics with a shared
+natural-metric emoji renderer across category and recipe displays. Six targeted
+suites / 126 tests, TypeScript, and lint pass; glyph appearance still needs an
+iPhone retest. The earlier full 400-test results precede this typography edit.
+Felipe then reports display clipping fixed in most places, with Category emoji
+input still clipped. Shared EmojiInput now uses padded native multiline glyph
+layout for Category and Recipe entry while retaining explicit Done semantics.
+Three targeted suites / 110 tests, TypeScript, and lint pass; the editable field
+was awaiting his physical retest. Felipe subsequently reports “okay this all
+looks good now” at `fa3186f`; the reviewed UI/emoji fixes are accepted on his
+iPhone. This is not an exhaustive per-route/state matrix result or Android
+acceptance. Next agreed inventory batch is D: Shopping re-add must uncheck an
+existing purchased entry even when its amount is unchanged.
+Felipe approved `docs/plans/shopping-readd-correctness.md`, implemented on
+`codex/shopping-readd-correctness` October 28. Re-add uses a state-only unchecked
+PATCH, preserves current Shopping amount/unit/store, and merges the canonical
+row. Every Add-picker tap has Add intent; ordinary editing stays on the main
+list and retains purchased state. Duplicate adds recover by Catalog identity;
+deleted rows reconcile with retry in the same open picker. Pending operations,
+old loads and household/session changes are guarded. Felipe reports “okay this
+looks good” and accepts the reviewed fix October 28. Full cross-phone and Android
+acceptance are not inferred from that report. No live Mac runtime/data or
+deployment changed. Felipe then approved F08 search-to-create name prefill and
+assigned implementation directly to the chat agent. It is implemented on
+`codex/search-create-prefill`: scoped current search initializes the editable
+name once across existing creation origins, including Categories/managers,
+without overwriting drafts or crossing household/session scope. Ten targeted
+mobile suites / 219 tests, TypeScript and lint pass; actual-router manager
+Create/Cancel coverage passes in a subsequent 89-test run. Phone acceptance
+remains pending. No API/schema, dependency, live Mac or deployment changes.
+See `docs/plans/search-create-name-prefill.md` for validation and phone checks.
+October 29 follow-up: Felipe reports missing Back arrows on Shopping-origin
+Store Create/Manage. Shopping's full-screen choice modals now explicitly reuse
+AppBackButton on Manage/Create/Edit routes, also covering Units and Categories,
+on `codex/shopping-choice-back-navigation`. Route tests now press the visible
+arrow and verify one-level returns with drafts intact. Physical retest remains
+pending; see the focused plan for results. No API/schema or live Mac changes.
+Felipe then clarifies that Back must reveal the picker dialog rather than the
+item form. Shopping now retains that native picker below its full-screen
+Create/Manage pages, preserving its query and updating its choices after
+management. Done closes the picker; direct Create success still selects and
+returns to the form, while manager subpages return to their manager. Focus
+guards and Activity-aware removal cleanup cover the retained layer. Full mobile
+validation passes 58 suites / 479 tests, TypeScript and lint. The clarified
+native flow was awaiting physical retest at that validation pass. Felipe then
+reports “Okay looks great” October 29 and accepts the reviewed Shopping picker
+flow. Individual checklist cases, other origins and Android acceptance are not
+inferred from that report. Felipe then approved F02 and assigned implementation
+directly to the chat agent. It is implemented on `codex/recipe-unit-list`:
+one optional default recipe-unit field, all API-backed measurement choices and
+automatic internal dimension selection. Existing selections, ingredient
+overrides and shopping preferences remain unchanged. Plan's Food wrapper uses
+its existing unit-sheet route with per-flow opening height. Seven targeted
+suites / 184 tests pass after one test-fixture correction; TypeScript and lint
+pass. Felipe subsequently accepts the reviewed change October 29 (“Okay looks
+good”); individual device-checklist cases and Android acceptance are not inferred
+from that report. See `docs/plans/recipe-measurement-unit-list.md`. F02 needed
+no API/schema, dependency, live Mac or deployment change; the earlier 479-test
+full result predates F02.
+
+F03 was then approved and implemented directly on `codex/clear-purchased-items`:
+Clear purchased items and Clear entire list, all-Store household scope and one
+bulk confirmation. The new API atomically removes currently purchased rows and
+returns their IDs; mobile reconciles those IDs and refreshes safely across
+shared updates, failures and household/session changes. 218 targeted mobile
+tests / 5 suites and 25 API tests on verified local disposable PostgreSQL pass,
+plus TypeScript and both mobile/API lint. Felipe accepts the reviewed change
+October 29 ("Okay looks good"); individual device-checklist cases and Android
+acceptance are not inferred. No schema/dependency, Mac runtime/data, push/merge
+or deployment change. Full
+suite results predate this slice. See
+`docs/plans/clear-purchased-shopping-items.md` for validation and phone review.
+
+F05 Shopping list search was then approved and implemented directly on
+`codex/shopping-list-search`: local name matching with existing Store/sort,
+Purchased matches visible during search, scoped query preservation and unchanged
+household-wide cleanup. Shopping reuses measured keyboard clearance only while
+its inline search is focused, preserving the native tab/sheet inset contract.
+274 tests across 8 targeted mobile suites, TypeScript and lint pass; physical
+review remains pending. No API/schema, dependency, live Mac or deployment changes.
+See `docs/plans/shopping-list-search.md` for validation and device checks.
+October 29 phone follow-up: Felipe reports search mostly looks good, but a gap
+above the keyboard. Moved measured keyboard clearance inside Screen's native
+safe area to avoid reserving the tab bottom inset twice. Four targeted suites /
+179 tests, types and lint pass; physical retest is pending. The earlier 274-test
+result predates this correction. No API or Mac runtime/data changes.
+Felipe subsequently accepts the reviewed Shopping search and keyboard-spacing
+correction October 29 ("Okay that looks good now") after `23140e9`. Individual
+device-checklist cases and Android acceptance are not inferred; deployment and
+native builds remain separate.
+
+F04 Category/Store headings were approved and implemented directly October 30
+on `codex/shopping-group-headings`: identity-based groups/counts inside To buy/
+Purchased, alphabetic displayed labels/items, missing-value groups last and no
+new collapse controls. Category emoji reuse EmojiText; accepted search, Store
+filters, swipe actions and household-wide cleanup are preserved. Six targeted
+mobile suites / 256 tests, TypeScript and lint pass; physical review remains
+pending. No API/schema, dependency, keyboard-layout, live Mac or deployment
+changes. See `docs/plans/shopping-group-headings.md` for results and phone checks.
+Felipe subsequently accepts the reviewed headings October 30 and requests
+header-tap collapsing. He chose tappable headers even during search; the plan
+was revised before implementation. The follow-up is implemented directly on
+`codex/shopping-group-collapse`: independent normal/query choices per mode,
+section and group; new queries open matches, temporary collapses remain usable,
+and clearing search restores normal choices. Counts/shared arrows stay visible;
+scope changes and successful full clear reset choices. Seven targeted suites /
+281 tests, types and lint pass. Felipe accepts the reviewed collapsing October
+30 ("Okay this looks great"); individual device-checklist cases and Android
+acceptance are not inferred. No API/schema, dependency, keyboard-layout, Mac
+runtime/data or deployment changes.
+See `docs/plans/shopping-group-collapse.md`. Broader device cases are not inferred.
+
+F01 recipe ingredient reordering is implemented on
+`codex/recipe-ingredient-reordering`; Felipe accepts the reviewed interaction,
+separator polish and grab feedback October 30. Recipes Create/Edit and Plan
+Create reuse three-line handles, stable occurrence keys, guarded completed drops
+and the existing ordered Save/revision contract. A single animated parent scroll
+supports edge auto-scroll. Sortables 1.10.1 is pinned; its automatic haptics are
+disabled. Expo Haptics 58.0.7 supplies one subtle grab cue, with no movement/drop
+cues. Separately installed apps gain that module on their next native rebuild.
+
+Latest grab-feedback validation: 60 targeted tests, TypeScript, lint and iOS JS
+export pass. The earlier full mobile result (61 suites / 594 tests) and targeted
+disposable-PostgreSQL order test cover the initial implementation, before the
+separator/haptic follow-ups. SDK 58 patch-update recommendations remain open.
+`docs/plans/recipe-ingredient-reordering.md` records all decisions and validation.
+Broader physical/Android cases are not inferred; no Mac trial deployment or data
+changes have been made.
+
+
+F06 planned-meal swipe deletion is approved and implemented directly October 30
+on `codex/planned-meal-swipe-delete`, from planning commit `6559fe4`. Plan and
+Shopping share the accepted circular trash action, expanding pill and exact
+`0.65 * max(width, 260)` rule. Stable reveal, canceled/release Edit suppression,
+ordinary editing and action/scroll/navigation cleanup are covered. Removal affects
+one scheduled occurrence, reconciles confirmed IDs before refresh and requires
+fresh data/new action after unconfirmed failures or conflicts. The existing
+Edit-sheet confirmation and web removal path remain.
+
+Final validation: 62 mobile suites / 633 tests, TypeScript, lint, whitespace and
+iOS JS export pass, plus 1 targeted meal-plan integration test against verified
+local disposable PostgreSQL. Felipe accepts the reviewed swipe feature on his
+phone October 31 at `55382a0`; broader checklist/Android coverage is not inferred;
+no API/schema, dependency, Mac trial, native build or deployment changes. See
+`docs/plans/planned-meal-swipe-delete.md` for scope and review checks. F13 Shopping
+badge is approved and implemented directly October 31 on
+`codex/shopping-tab-badge`, from `65c8e50`. Native/web tabs and Shopping share one
+validated user/session/household data owner. Count all unchecked household rows,
+independent of filters/search; hide zero/unknown, show `99+` with exact accessible
+count. Canonical mutations, Plan batch reconciliation, rollback and scoped
+refresh keep the list and badge aligned. Foreground/browser visibility and
+Shopping tab return refresh without polling or real-time delivery; nested sheet
+return preserves the accepted list behavior.
+
+F13 validation: 64 mobile suites / 665 tests, TypeScript, lint, whitespace and iOS
+JS export pass; import-only test polish has 13 additional passing targeted tests.
+Felipe accepts the reviewed badge on his phone October 31 at `5bebb90`; broader
+checklist/Android/browser coverage is not inferred. No API/schema, dependency,
+Mac trial, native build or deployment changes. Local servers remain running.
+See `docs/plans/shopping-tab-badge.md` for lifecycle decisions and review checks.
+
+F07 Leftovers/Eating out is approved and implemented directly October 31 on
+`codex/meal-plan-special-entries`, from `698433e`. Shared native Add/Edit offers
+both fixed choices with optional meal/restaurant text; typed occurrences preserve
+recipe behavior, revisions and occupancy. Special entries have no recipe link or
+ingredient-shopping needs. Counts, dots, editing and the accepted swipe work for
+all kinds; recipe-create return and per-kind drafts are guarded.
+
+The additive `meal_plan_special_entries` migration preserves old recipe rows and
+refuses downgrade while special entries exist. All 66 mobile suites / 679 tests,
+all 176 API tests on verified disposable PostgreSQL, types, mobile/API lint,
+whitespace and iOS JS export pass. Local development was backed up and migrated
+with legacy plan-data/row-count preservation checks; its API was restarted and
+Expo remains running for review. Felipe subsequently accepts the reviewed phone
+interaction at the scope recorded below; broader device cases remain unverified.
+Mac trial data/runtime and native apps remain unchanged; coordinated
+trial phone/API upgrade and a fresh Mac backup are still separate. See
+`docs/plans/meal-plan-special-entries.md` for validation and rollout boundaries.
+October 31 follow-up: Felipe requests compact side-by-side choices and one-tap
+addition. Add now submits a blank-detail special occurrence immediately; optional
+details remain in Edit with explicit Save. Pending, retry and late-dismissal
+navigation guards preserve normal recipe flow. Latest validation: 65 targeted
+Plan tests, types, lint, whitespace and iOS JS export pass. The earlier full
+mobile/API results predate this client-only follow-up. Felipe accepts the reviewed
+interaction on his phone October 31 at `f6a969a`, including compact choices and
+immediate special-meal Add. Individual checklist cases and Android coverage are
+not inferred. No API/schema/database, dependency or server-process change.
+
+F11 personal planning windows and custom shopping ranges are approved and
+implemented directly October 31 on `codex/personal-planning-ranges`. The seven-day
+strip snaps by day, with weekly arrows, precise calendar selection and Today
+aligned to a per-user device-local weekday. Shopping review defaults to that
+window and supports From/Through periods of 1-31 inclusive days. Applying a new
+range resets selections/manual amounts; canceling preserves them. Explicit API
+endpoints bind review tokens and request hashes, retaining legacy retry behavior.
+No schema or dependency change. Full mobile: 69 suites / 714 tests; full API:
+187 tests on verified disposable PostgreSQL, all without skips. After a subsequent
+compiler-oriented selected-day memoization rewrite, all 105 Plan tests, types,
+mobile/API lint, whitespace and iOS JS export pass; the full mobile result predates
+only that rewrite. Local API restarted for phone review and Expo remains running.
+Physical acceptance and broader device/CI/native checks remain pending. Mac trial
+data/runtime and installed phones are unchanged. See
+`docs/plans/personal-planning-ranges.md` for behavior, validation and boundaries.
+
+October 31 F11 review follow-up: Felipe accepts the reviewed range UI and reports
+that editing an existing Shopping match closes review and changes tabs. The
+approved repair is implemented on the same feature branch: shared Shopping edit
+and nested Store/Unit/Catalog screens now stay on Plan, and return reconciliation
+preserves unaffected review dates/choices/amounts with a fresh token. All 497
+affected tests across 32 suites pass (broad pass plus complete router rerun),
+with types, lint, whitespace and iOS JS export. No API/schema/dependency or server
+restart; full mobile/PostgreSQL results above remain historical. Phone review of
+the navigation repair remains pending. See
+`docs/plans/shopping-review-in-place-edit.md` for exact coverage and limits.
+
+Family-trial batch B (October 27): Felipe approved recipe entry/refresh fixes
+on `codex/recipe-entry-reliability`, retaining SDK 58 and the B05 follow-up.
+New ingredients now inherit the Catalog recipe unit, including Food created
+within a recipe; existing recipe-specific/custom/no-unit choices are preserved.
+Ingredient amounts use the ordinary keyboard for mixed fractions. Recipes now
+connects its existing refresh state to pull-to-refresh in grid/list without
+resetting search. Four targeted suites / 34 tests, TypeScript, and lint pass;
+Felipe accepts these three fixes on iPhone. No API/schema, dependency,
+live Mac, or deployment changes. See the family-trial inventory for scope and
+validation limits. Felipe accepted the nested Store edit fix on iPhone after
+`4e4cad6`; that does not imply completion of every B05 native acceptance case.
+He subsequently accepted fraction entry and recipe refresh on iPhone and
+confirmed unit defaults populate. A small follow-up restores blank amount ->
+To taste in editor and saved recipe displays while retaining the selected unit
+and storing a null amount. Two targeted suites / 33 tests, TypeScript, and lint
+pass. Felipe confirmed all three fixes, including To taste, look good on his
+iPhone at `5d8d5fa`. Batch B is accepted at that device scope; Android, hosted CI,
+native builds, and trial deployment remain separate. Next proposed work is
+batch C: page reachability, keyboard-safe actions, and category form consistency.
+
+SDK 58 migration (October 25): Felipe's installed iPhone Expo Go rejects the
+SDK 57 project. He approved upgrading directly in a separate branch,
+`codex/expo-sdk-58-upgrade`, preserving the committed B05 repair. The approved
+plan in `docs/plans/expo-sdk-58-upgrade.md` covers React Native 0.88 / React 19.3,
+compatible Clerk 4.x, required Router/strict-type migrations, isolated local
+dependencies, and coordinated validation. This does not update installed trial
+apps, the Mac runtime/database, or the separate website/Android work. Native
+rebuilds and physical-device acceptance remain separate gates.
+The local upgrade is now implemented and validated: SDK 58.0.19 / Router
+58.0.26, React Native 0.88.0 / React 19.3.0, and Clerk 4.14.1. Normal and
+cache-disabled mobile runs each passed 53 suites / 350 tests with no skips;
+TypeScript, lint, Expo compatibility, Doctor (20/20), and web/iOS/Android JS
+exports passed. Required Router migrations include explicit protected-route
+fallbacks, completed-removal sheet cleanup, and complete-state household
+history resets. Six high upstream tooling-chain audit findings remain recorded
+in the upgrade plan; none are critical. This is local automated validation,
+not native build/device acceptance, hosted CI, or a deployment to the trial.
+On October 26 Felipe confirmed that the SDK 58 app opens in iPhone Expo Go;
+this is launch acceptance, with broader device checks still pending.
+
+Post-trial improvement planning (October 25): Felipe and his wife completed more
+than a week of use and supplied the 29-item inventory in
+`docs/plans/family-trial-improvements.md`. A local Mac database backup was
+restore-tested before new work (19 tables, 70 Catalog items, 9 recipes; matching
+table counts, live data unchanged). B11's blank Catalog editor is currently
+unreproduced on retest. Members should default to Shopping additions and
+check/uncheck access, with owner-configurable per-member permissions in a
+separate future plan. Each user's Plan window is personal; Review shopping
+needs should default to its seven days but allow an arbitrary start/end range.
+Felipe approved B05 first and assigned bug-fix implementation to the chat agent
+on focused branches from main. See `docs/plans/recipe-choice-navigation-repair.md`.
+Other features and live deployment are not approved by this first repair.
+The B05 repair is implemented on `codex/recipe-choice-navigation-fix`: selectors
+and Create/Manage destinations share their owner stack and use one replacement
+action rather than Back plus a scheduled Push. Targeted navigation/shared-flow
+checks passed (8 suites / 103 tests across final relevant runs), with TypeScript
+and lint passing. Native iPhone/Android acceptance and deployment remain pending;
+the existing trial native configuration is preserved separately from this
+main-based branch. See the repair plan for exact validation limitations.
 
 - The separate `meal-planner` repository has an Expo/React Native mobile app and a FastAPI `/v1` API. Clerk passwordless email-code authentication, household onboarding, and the global light/dark theme are implemented.
 - Local PostgreSQL 17, Alembic migrations, and the identity/household schema are in place. The existing invitation-code acceptance contract enforces verified-email matching, expiry, and single use.

@@ -37,7 +37,6 @@ export function ingredientMeasure(ingredient: Pick<RecipeIngredient, 'amount' | 
     ? builtInUnits[ingredient.unit_label.toLocaleLowerCase()] ?? ingredient.unit_label
     : ingredient.custom_unit_label;
   const amount = formatRecipeAmount(ingredient.amount);
-  if (amount && unit) return `${amount} ${unit}`;
-  if (amount) return amount;
-  return unit ?? 'To taste';
+  if (!amount.trim()) return 'To taste';
+  return unit ? `${amount} ${unit}` : amount;
 }

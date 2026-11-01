@@ -1,6 +1,6 @@
 import { useAuth } from '@clerk/expo';
-import { useNavigation, useRouter } from 'expo-router';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useIsFocused, useRouter } from 'expo-router';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { SymbolView } from 'expo-symbols';
 
@@ -16,20 +16,14 @@ import { useRecipes } from './use-recipes';
 export function RecipeLibraryScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const navigation = useNavigation();
   const { width } = useWindowDimensions();
   const { sessionId, userId } = useAuth();
-  const [isFocused, setIsFocused] = useState(() => navigation.isFocused());
+  const isFocused = useIsFocused();
   const { viewMode, setViewMode } = useRecipeContext();
   const { error, householdId, loading, recipes, refresh, refreshing } = useRecipes(false, undefined, undefined, isFocused);
   const [search, setSearch] = useState('');
   const viewScope = `${userId ?? ''}:${sessionId ?? ''}:${householdId ?? ''}`;
   const previousScope = useRef(viewScope);
-  useEffect(() => {
-    const focusSubscription = navigation.addListener('focus', () => setIsFocused(true));
-    const blurSubscription = navigation.addListener('blur', () => setIsFocused(false));
-    return () => { focusSubscription(); blurSubscription(); };
-  }, [navigation]);
   useLayoutEffect(() => {
     if (previousScope.current === viewScope) return;
     previousScope.current = viewScope;
@@ -40,7 +34,7 @@ export function RecipeLibraryScreen() {
   const cardWidth = Math.max(132, (width - 60) / 2);
 
   return (
-    <Screen contentAlignment="top" nativeTabScreen manualNativeTabInsets safeAreaEdges={['top', 'left', 'right']}>
+    <Screen layout="tab-root" contentAlignment="top" onRefresh={refresh} refreshing={refreshing} testID="recipe-library">
       <View style={styles.content}>
         <TabPageHeader title="Recipes" actions={<CircularAddButton accessibilityLabel="Create recipe" onPress={() => router.push('/(app)/(tabs)/recipes/create' as never)} />} />
         <View style={[styles.searchField, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}>

@@ -1,13 +1,30 @@
+import { calendarDay } from './planning-dates';
+// SDK 58 initializes the full route tree asynchronously; cold imports on Windows
+// exceed Jest's unit-test default. This is not an app startup performance check.
 import type { PropsWithChildren } from 'react';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import { renderRouter } from 'expo-router/testing-library';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Platform, StyleSheet } from 'react-native';
-import { ApiError, api, type CatalogItem, type MealPlanEntry, type MealPlanWeek, type Recipe } from '@/lib/api';
+import { AppState, Platform, StyleSheet } from 'react-native';
+import { ApiError, api, type CatalogItem, type MealPlanEntry, type MealPlanWeek, type Recipe, type ShoppingListItem } from '@/lib/api';
+
+jest.mock('react-native-sortables', () => jest.requireActual('../recipes/testing/sortables-mock'));
+jest.setTimeout(30000);
+// The native tab's system label is not a rendered text node in Jest. Observe
+// the real tab consumer; native badge wiring is covered by native-tabs-config.
+let mockTabBadge: { accessibilityLabel: string } | null = null;
+jest.mock('@/features/shopping-list/shopping-list-provider', () => {
+  const actual = jest.requireActual<typeof import('@/features/shopping-list/shopping-list-provider')>('@/features/shopping-list/shopping-list-provider');
+  return { ...actual, useShoppingBadge: () => {
+    const badge = actual.useShoppingBadge(); mockTabBadge = badge; return badge;
+  } };
+});
+function shoppingTabLabel() { return mockTabBadge?.accessibilityLabel; }
+
 
 // Route coverage does not exercise Shopping's native swipe animation.
-jest.mock('@/features/shopping-list/shopping-swipe-row', () => ({ ShoppingSwipeRow: ({ children }: PropsWithChildren) => children }));
+jest.mock('@/components/swipe-to-delete-row', () => jest.requireActual('../../components/testing/swipe-to-delete-mock'));
 
 const mockGetToken = jest.fn().mockResolvedValue('session-token');
 const household = { id: 'household-a', name: 'Home', time_zone: 'America/Phoenix', role: 'owner' as const };
@@ -63,7 +80,9 @@ jest.mock('@/lib/api', () => {
     me: jest.fn(), shoppingList: jest.fn(), mealPlan: jest.fn(), createMealPlanEntry: jest.fn(),
     updateMealPlanEntry: jest.fn(), deleteMealPlanEntry: jest.fn(), mealPlanShoppingReview: jest.fn(),
     addMealPlanNeedsToShopping: jest.fn(), recipes: jest.fn(), recipe: jest.fn(), createRecipe: jest.fn(),
-    catalogItems: jest.fn(), catalogUnits: jest.fn(),
+    catalogItems: jest.fn(), catalogUnits: jest.fn(), catalogItem: jest.fn(), catalogStores: jest.fn(), catalogCategories: jest.fn(),
+    shoppingListItem: jest.fn(), updateShoppingListItem: jest.fn(), deleteShoppingListItem: jest.fn(),
+    createCatalogStore: jest.fn(), updateCatalogStore: jest.fn(), createCatalogShoppingUnit: jest.fn(), updateCatalogItem: jest.fn(),
   } };
 });
 jest.mock('@/components/animated-icon', () => ({ AnimatedSplashOverlay: () => null }));
@@ -81,10 +100,13 @@ const mockedStorage = jest.mocked(AsyncStorage);
 async function waitForLoadedPlan() {
   await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenCalled());
   await waitFor(() => expect(screen.getByText('Breakfast')).toBeTruthy());
+  const strip = screen.queryByTestId('meal-plan-week-strip');
+  if (strip) await fireEvent(strip, 'layout', { nativeEvent: { layout: { width: 350, height: 90, x: 0, y: 0 } } });
 }
 
 describe('meal planning through the Expo Router', () => {
   beforeEach(() => {
+    mockTabBadge = null;
     Platform.OS = 'android';
     jest.clearAllMocks();
     mockGetToken.mockResolvedValue('session-token');
@@ -93,13 +115,17 @@ describe('meal planning through the Expo Router', () => {
     mockedStorage.removeItem.mockResolvedValue();
     mockedApi.me.mockResolvedValue(me);
     mockedApi.shoppingList.mockResolvedValue({ shopping_list: { id: 'list-1', household_id: household.id, items: [] } });
-    mockedApi.mealPlan.mockImplementation(async (_token, _householdId, weekOffset = 0) => ({ ...emptyWeek(), week_offset: weekOffset }));
+    mockedApi.mealPlan.mockImplementation(async (_token, _householdId, window = 0) => ({ ...emptyWeek(), week_start: typeof window === 'string' ? window : calendarDay('2026-10-05', window * 7), week_end: calendarDay(typeof window === 'string' ? window : calendarDay('2026-10-05', window * 7), 6), week_offset: typeof window === 'number' ? window : null }));
     mockedApi.recipes.mockResolvedValue({ recipes: [recipe()] });
     mockedApi.createMealPlanEntry.mockResolvedValue({ entry: { id: 'entry-1', planned_for: '2026-10-05', meal_slot: 'breakfast', recipe_id: 'recipe-soup', edit_revision: 1 } });
     mockedApi.updateMealPlanEntry.mockResolvedValue({ entry: { id: 'entry-1', planned_for: '2026-10-05', meal_slot: 'breakfast', recipe_id: 'recipe-soup', edit_revision: 2 } });
     mockedApi.deleteMealPlanEntry.mockResolvedValue(undefined);
     mockedApi.addMealPlanNeedsToShopping.mockReset();
     mockedApi.addMealPlanNeedsToShopping.mockResolvedValue({ items: [], replayed: false });
+    mockedApi.catalogItem.mockReset().mockResolvedValue({ item: food });
+    mockedApi.catalogStores.mockReset().mockResolvedValue({ stores: [] });
+    mockedApi.catalogCategories.mockReset().mockResolvedValue({ categories: [] });
+    mockedApi.shoppingListItem.mockReset(); mockedApi.updateShoppingListItem.mockReset(); mockedApi.deleteShoppingListItem.mockReset();
     mockedApi.catalogItems.mockResolvedValue({ items: [food] });
     mockedApi.catalogUnits.mockResolvedValue({ shopping_units: { built_in: [], household: [] }, recipe_measurement_units: [] });
     mockedApi.createRecipe.mockResolvedValue({ recipe: recipe({ id: 'recipe-new', name: 'New Household Soup' }) });
@@ -107,20 +133,288 @@ describe('meal planning through the Expo Router', () => {
 
   afterEach(() => { Platform.OS = originalPlatform; jest.restoreAllMocks(); });
 
+  const planned = (id: string, slot: MealPlanEntry['meal_slot'], day = '2026-10-05'): MealPlanEntry => ({
+    id, planned_for: day, meal_slot: slot, recipe_id: 'recipe-soup', recipe_name: 'Soup', edit_revision: 1,
+    cover_kind: 'initials', cover_emoji: null, ingredient_count: 1,
+  });
+  async function reveal(id: string) {
+    const card = await screen.findByTestId(`plan-swipe-${id}`);
+    await act(async () => { card.props.onDragStart(); card.props.onDragEnd(); card.props.onReveal(); });
+    return screen.getByTestId(`plan-swipe-${id}`);
+  }
+  it.each(['breakfast', 'lunch', 'dinner'] as const)('swipes %s away without opening Edit or removing another occurrence', async (slot) => {
+    let entries = [{ ...planned('target', slot), archived_at: slot === 'dinner' ? '2026-10-01T00:00:00Z' : null }, planned('tomorrow', slot, '2026-10-06')];
+    mockedApi.mealPlan.mockImplementation(async () => ({ ...emptyWeek(), entries }));
+    mockedApi.deleteMealPlanEntry.mockImplementation(async () => { entries = entries.filter((item) => item.id !== 'target'); });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await reveal('target');
+    const removeLabel = `Remove Soup, ${slot[0].toUpperCase()}${slot.slice(1)}, Monday, October 5 from plan`;
+    expect(await screen.findByRole('button', { name: removeLabel })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: `Edit Soup, ${slot[0].toUpperCase()}${slot.slice(1)}` }));
+    expect(rendered.getPathname()).toBe('/plan');
+    expect(screen.getByRole('button', { name: removeLabel })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: removeLabel }));
+    await waitFor(() => expect(mockedApi.deleteMealPlanEntry).toHaveBeenCalledWith(expect.any(Function), household.id, 'target', 1));
+    await screen.findByRole('button', { name: `Add ${slot[0].toUpperCase()}${slot.slice(1)}` });
+    expect(screen.getByText('0 meals')).toBeTruthy();
+    expect(rendered.getPathname()).toBe('/plan');
+    await fireEvent.press(within(screen.getByTestId('meal-plan-week-strip')).getAllByRole('button')[1]);
+    expect(await screen.findByTestId('plan-swipe-tomorrow')).toBeTruthy();
+    expect(StyleSheet.flatten(screen.getByTestId('meal-plan-day-dot-2026-10-05').props.style).backgroundColor).toBe('transparent');
+  });
+
+  it('keeps a confirmed removal and remaining meal visible when refreshing fails', async () => {
+    mockedApi.mealPlan.mockResolvedValueOnce({ ...emptyWeek(), entries: [planned('target', 'breakfast'), planned('other', 'dinner')] }).mockRejectedValue(new Error('offline'));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await reveal('target');
+    await fireEvent.press(screen.getByRole('button', { name: /Remove Soup, Breakfast/ }));
+    await screen.findByRole('button', { name: 'Retry' });
+    expect(screen.getByRole('button', { name: 'Add Breakfast' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Edit Soup, Dinner' })).toBeTruthy();
+    expect(screen.getByText('1 meal')).toBeTruthy();
+    expect(mockedApi.deleteMealPlanEntry).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a short reveal open through begin-only scrolling, closes after actual scroll, and switches between rows', async () => {
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast'), planned('second', 'dinner')] });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await reveal('first');
+    const page = screen.getByTestId('meal-plan-screen');
+    await act(async () => { page.props.onScrollBeginDrag({ nativeEvent: { contentOffset: { y: 0 } } }); page.props.onScroll({ nativeEvent: { contentOffset: { y: 2 } } }); });
+    expect(screen.getByRole('button', { name: /Remove Soup, Breakfast/ })).toBeTruthy();
+    await act(async () => { page.props.onScroll({ nativeEvent: { contentOffset: { y: 20 } } }); });
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    await reveal('first');
+    const second = screen.getByTestId('plan-swipe-second');
+    await act(async () => { second.props.onDragStart(); });
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    await act(async () => { second.props.onDragEnd(); second.props.onReveal(); });
+    expect(screen.getByRole('button', { name: /Remove Soup, Dinner/ })).toBeTruthy();
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+  });
+
+  it.each(['Today', 'Next week', 'Previous week', 'Add Lunch'] as const)('closes the revealed action when pressing %s', async (action) => {
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast')] });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await reveal('first');
+    await fireEvent.press(screen.getByRole('button', { name: action }));
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+  });
+
+  it('blocks a late full-swipe callback after changing dates and returning', async () => {
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast'), planned('other', 'breakfast', '2026-10-06')] });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    const old = await reveal('first');
+    const dayButtons = within(screen.getByTestId('meal-plan-week-strip')).getAllByRole('button');
+    await fireEvent.press(dayButtons[1]);
+    await fireEvent.press(within(screen.getByTestId('meal-plan-week-strip')).getAllByRole('button')[0]);
+    await act(async () => { await expect(old.props.onRemove()).rejects.toThrow('selected meal changed'); });
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Edit Soup, Breakfast' })).toBeTruthy();
+  });
+
+  it('reconciles a revision conflict, exposes the changed meal and requires a new gesture', async () => {
+    const old = planned('first', 'breakfast');
+    mockedApi.mealPlan.mockResolvedValueOnce({ ...emptyWeek(), entries: [old] }).mockResolvedValue({ ...emptyWeek(), entries: [{ ...old, edit_revision: 2, recipe_name: 'Changed Soup' }] });
+    mockedApi.deleteMealPlanEntry.mockRejectedValue(new ApiError(409, 'Meal changed on another device.', 'MEAL_PLAN_REVISION_CONFLICT'));
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await reveal('first');
+    await fireEvent.press(screen.getByRole('button', { name: /Remove Soup, Breakfast/ }));
+    await screen.findByText('Meal changed on another device.');
+    expect(screen.getByRole('button', { name: 'Edit Changed Soup, Breakfast' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Remove Changed Soup/ })).toBeNull();
+    expect(mockedApi.deleteMealPlanEntry).toHaveBeenCalledTimes(1);
+    expect(rendered.getPathname()).toBe('/plan');
+  });
+
+  it('closes the action on refresh and background without allowing its old removal callback', async () => {
+    const listeners: ((state: 'active' | 'background') => void)[] = [];
+    jest.spyOn(AppState, 'addEventListener').mockImplementation((type, callback) => {
+      if (type === 'change') listeners.push(callback);
+      return { remove: jest.fn() };
+    });
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast')] });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    const old = await reveal('first');
+    await act(async () => { screen.getByTestId('meal-plan-screen').props.refreshControl.props.onRefresh(); });
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    expect(screen.getByTestId('plan-swipe-first')).not.toBe(old);
+    await act(async () => { await expect(old.props.onRemove()).rejects.toThrow(); });
+    await reveal('first');
+    await act(async () => { listeners.forEach((listener) => listener('background')); });
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+  });
+
+  it('suppresses the release press after a canceled swipe but keeps later ordinary editing usable', async () => {
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast')] });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    // renderRouter installs its clock; control time only after router setup.
+    let now = Date.now();
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const card = await screen.findByTestId('plan-swipe-first');
+    await act(async () => { card.props.onDragStart(); card.props.onDragEnd(); });
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit Soup, Breakfast' }));
+    expect(rendered.getPathname()).toBe('/plan');
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+    now += 600;
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit Soup, Breakfast' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/sheet/edit'));
+  });
+  it('closes a revealed meal action across tab departure/return and rejects the old callback', async () => {
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast')] });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    const old = await reveal('first');
+    await act(async () => { router.navigate('/recipes'); });
+    await act(async () => { router.navigate('/plan'); });
+    await screen.findByTestId('plan-swipe-first');
+    expect(screen.queryByRole('button', { name: /Remove Soup, Breakfast/ })).toBeNull();
+    await act(async () => { await expect(old.props.onRemove()).rejects.toThrow(); });
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+  });
+  it('keeps the existing Edit and confirmed removal path on web without a swipe-only action', async () => {
+    Platform.OS = 'web';
+    mockedApi.mealPlan.mockResolvedValue({ ...emptyWeek(), entries: [planned('first', 'breakfast')] });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    expect(screen.queryByTestId('plan-swipe-first')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit Soup, Breakfast' }));
+    expect(rendered.getPathname()).toBe('/plan/sheet/edit');
+    await fireEvent.press(await screen.findByRole('button', { name: 'Remove from plan' }));
+    expect(await screen.findByText('Remove this meal from the plan?')).toBeTruthy();
+    expect(mockedApi.deleteMealPlanEntry).not.toHaveBeenCalled();
+  });
+
   it('fits all seven days in one week row and lets the last day be selected', async () => {
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await waitForLoadedPlan();
 
     const weekStrip = screen.getByTestId('meal-plan-week-strip');
-    expect(StyleSheet.flatten(weekStrip.props.style)).toMatchObject({ flexDirection: 'row', width: '100%' });
+    expect(StyleSheet.flatten(weekStrip.props.style)).toMatchObject({ overflow: 'hidden', width: '100%' });
     const days = within(weekStrip).getAllByRole('button');
     expect(days).toHaveLength(7);
-    days.forEach((day) => expect(StyleSheet.flatten(day.props.style)).toMatchObject({ flex: 1, minWidth: 0 }));
+    days.forEach((day) => expect(StyleSheet.flatten(day.props.style)).toMatchObject({ width: 50 }));
 
     await fireEvent.press(days[6]);
     expect(screen.getByText('Sunday, October 11')).toBeTruthy();
     expect(days[6].props.accessibilityState.selected).toBe(true);
+  });
+
+
+  it.each([
+    ['leftovers', 'Leftovers', 'Which meal? (optional)', 'breakfast'],
+    ['leftovers', 'Leftovers', 'Which meal? (optional)', 'lunch'],
+    ['leftovers', 'Leftovers', 'Which meal? (optional)', 'dinner'],
+    ['eating_out', 'Eating out', 'Restaurant (optional)', 'breakfast'],
+    ['eating_out', 'Eating out', 'Restaurant (optional)', 'lunch'],
+    ['eating_out', 'Eating out', 'Restaurant (optional)', 'dinner'],
+  ] as const)('adds/edits/swipes %s in %s %s %s without needing a loaded recipe library', async (kind, title, field, slot) => {
+    let saved: MealPlanEntry | null = null;
+    mockedApi.mealPlan.mockImplementation(async () => ({ ...emptyWeek(), entries: saved ? [saved] : [] }));
+    // Special entries remain usable even while the recipe library is unavailable.
+    mockedApi.recipes.mockRejectedValue(new Error('offline recipes'));
+    mockedApi.createMealPlanEntry.mockImplementation(async (_token, _home, values) => {
+      saved = { ...values, id: 'special', edit_revision: 1 };
+      return { entry: saved };
+    });
+    mockedApi.updateMealPlanEntry.mockImplementation(async (_token, _home, id, values) => {
+      saved = { ...values, id, edit_revision: values.expected_revision + 1 };
+      return { entry: saved };
+    });
+    mockedApi.deleteMealPlanEntry.mockImplementation(async () => { saved = null; });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    const slotLabel = slot[0].toUpperCase() + slot.slice(1);
+    await fireEvent.press(screen.getByRole('button', { name: `Add ${slotLabel}` }));
+    await fireEvent.press(await screen.findByRole('button', { name: title }));
+    await screen.findByRole('button', { name: `Edit ${title}, ${slotLabel}` });
+    expect(mockedApi.createMealPlanEntry).toHaveBeenCalledWith(expect.any(Function), household.id, {
+      planned_for: '2026-10-05', meal_slot: slot, entry_type: kind, recipe_id: null, detail: null,
+    });
+    expect(screen.getByText('1 meal')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: `Edit ${title}, ${slotLabel}` }));
+    expect(screen.getByLabelText(field).props.value).toBe('');
+    await fireEvent.changeText(screen.getByLabelText(field), 'Friday dinner');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByRole('button', { name: `Edit ${title}, ${slotLabel}` });
+    expect(screen.getByText('Friday dinner')).toBeTruthy();
+    expect(mockedApi.updateMealPlanEntry).toHaveBeenCalledWith(expect.any(Function), household.id, 'special', expect.objectContaining({ expected_revision: 1, recipe_id: null, entry_type: kind, detail: 'Friday dinner' }));
+    await reveal('special');
+    await fireEvent.press(screen.getByRole('button', { name: new RegExp(`Remove ${title}, ${slotLabel}`) }));
+    await screen.findByRole('button', { name: `Add ${slotLabel}` });
+    expect(screen.getByText('0 meals')).toBeTruthy();
+    expect(rendered.getPathname()).toBe('/plan');
+  });
+
+  it('changes a recipe occurrence to Leftovers and back without carrying incompatible fields', async () => {
+    let saved: MealPlanEntry = planned('switch', 'dinner');
+    mockedApi.mealPlan.mockImplementation(async () => ({ ...emptyWeek(), entries: [saved] }));
+    mockedApi.updateMealPlanEntry.mockImplementation(async (_token, _home, id, values) => {
+      saved = { ...values, id, edit_revision: values.expected_revision + 1, recipe_name: values.recipe_id ? 'Soup' : null };
+      return { entry: saved };
+    });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit Soup, Dinner' }));
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Leftovers' }));
+    await fireEvent.changeText(screen.getByLabelText('Which meal? (optional)'), 'Roast chicken');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit Leftovers, Dinner' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose a recipe' }));
+    await fireEvent.press(await screen.findByRole('radio', { name: /Soup/ }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await screen.findByRole('button', { name: 'Edit Soup, Dinner' });
+    expect(mockedApi.updateMealPlanEntry).toHaveBeenLastCalledWith(expect.any(Function), household.id, 'switch', {
+      planned_for: '2026-10-05', meal_slot: 'dinner', recipe_id: 'recipe-soup', expected_revision: 2,
+    });
+  });
+
+  it('adds the special entry to the selected day and slot once, and keeps failure retryable', async () => {
+    const pending = deferred<{ entry: MealPlanEntry }>();
+    mockedApi.createMealPlanEntry.mockReturnValueOnce(pending.promise).mockResolvedValueOnce({ entry: { id: 'retry-special', planned_for: '2026-10-06', meal_slot: 'lunch', entry_type: 'leftovers', recipe_id: null, detail: null, edit_revision: 1 } });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(screen.getByRole('button', { name: 'Add Dinner' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Monday, October 5' }));
+    await fireEvent.press(await screen.findByRole('radio', { name: /Tuesday, October 6/ }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Lunch' }));
+    const quickAdd = await screen.findByRole('button', { name: 'Leftovers' });
+    await fireEvent.press(quickAdd);
+    await fireEvent.press(quickAdd);
+    expect(mockedApi.createMealPlanEntry).toHaveBeenCalledTimes(1);
+    expect(mockedApi.createMealPlanEntry).toHaveBeenCalledWith(expect.any(Function), household.id, { planned_for: '2026-10-06', meal_slot: 'lunch', entry_type: 'leftovers', recipe_id: null, detail: null });
+    expect(screen.getByRole('button', { name: 'Eating out' }).props.accessibilityState.disabled).toBe(true);
+    await act(async () => { pending.reject(new Error('offline')); });
+    await screen.findByText('We couldn’t add this meal. Please try again.');
+    expect(rendered.getPathname()).toBe('/plan/sheet/add');
+    await fireEvent.press(screen.getByRole('button', { name: 'Leftovers' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan'));
+    expect(mockedApi.createMealPlanEntry).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not navigate away from a new page when a dismissed quick-add finishes late', async () => {
+    const pending = deferred<{ entry: MealPlanEntry }>();
+    mockedApi.createMealPlanEntry.mockReturnValueOnce(pending.promise);
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(screen.getByRole('button', { name: 'Add Dinner' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Eating out' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancel' }));
+    await act(async () => { router.navigate('/recipes'); });
+    await act(async () => { pending.resolve({ entry: { id: 'late-special', planned_for: '2026-10-05', meal_slot: 'dinner', entry_type: 'eating_out', recipe_id: null, detail: null, edit_revision: 1 } }); });
+    expect(rendered.getPathname()).toBe('/recipes');
+    expect(mockedApi.createMealPlanEntry).toHaveBeenCalledTimes(1);
   });
 
   it('starts at Plan, stacks a day picker, preserves the add draft, and returns from recipe creation to the same sheet', async () => {
@@ -130,13 +424,13 @@ describe('meal planning through the Expo Router', () => {
     }] };
     let entryCreated = false;
     mockedApi.mealPlan.mockImplementation(async (_token, _householdId, weekOffset = 0) => ({
-      ...(entryCreated ? withNewEntry : emptyWeek()), week_offset: weekOffset,
+      ...(entryCreated ? withNewEntry : emptyWeek()), week_offset: typeof weekOffset === 'number' ? weekOffset : null,
     }));
     mockedApi.createMealPlanEntry.mockImplementation(async () => {
       entryCreated = true;
       return { entry: { id: 'entry-new', planned_for: '2026-10-06', meal_slot: 'dinner', recipe_id: 'recipe-new', edit_revision: 1 } };
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     expect(await screen.findByText('Plan')).toBeTruthy();
     expect(rendered.getPathname()).toBe('/plan');
@@ -157,8 +451,9 @@ describe('meal planning through the Expo Router', () => {
     expect(rendered.getPathname()).toBe('/plan/recipe-create');
     await fireEvent.changeText(screen.getByLabelText('Recipe name'), 'New Household Soup');
     await fireEvent.press(screen.getAllByRole('button', { name: 'Add ingredient' })[0]);
-    expect(await screen.findByText('Milk')).toBeTruthy();
-    await fireEvent.press(screen.getByText('Milk'));
+    const foodResults = within(await screen.findByTestId('recipe-food-results'));
+    expect(await foodResults.findByText('Milk')).toBeTruthy();
+    await fireEvent.press(foodResults.getByText('Milk'));
     await fireEvent.changeText(await screen.findByLabelText('Ingredient amount'), '1');
     await fireEvent.press(screen.getAllByRole('button', { name: 'Add ingredient' })[0]);
     await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
@@ -178,7 +473,7 @@ describe('meal planning through the Expo Router', () => {
   it('does not open shopping review if a pending week has no week start', async () => {
     const pendingWeek = deferred<MealPlanWeek>();
     mockedApi.mealPlan.mockReturnValueOnce(pendingWeek.promise);
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenCalledTimes(1));
 
@@ -205,14 +500,14 @@ describe('meal planning through the Expo Router', () => {
         existing_matches: [], default_selected: true,
       }],
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
     await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
     expect(await screen.findByText('Review what to buy')).toBeTruthy();
     await waitFor(() => expect(screen.getAllByText('1.5 Cup').length).toBeGreaterThan(0));
-    await waitFor(() => expect(screen.getAllByText('Soup · Mon').length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText('Soup · Oct 5, 2026').length).toBeGreaterThan(0));
     expect(screen.getAllByRole('checkbox')).toHaveLength(2);
     expect(screen.getByText('Already on Shopping')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Edit Beans on Shopping' })).toBeTruthy();
@@ -238,7 +533,7 @@ describe('meal planning through the Expo Router', () => {
         existing_matches: [], default_selected: true,
       }],
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -269,7 +564,7 @@ describe('meal planning through the Expo Router', () => {
         existing_matches: [], default_selected: true,
       }],
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -277,7 +572,7 @@ describe('meal planning through the Expo Router', () => {
     expect(await screen.findByText('3 Pound to buy · 3 Pound needed')).toBeTruthy();
 
     await fireEvent.press(screen.getByRole('button', { name: 'Show Chicken meal sources' }));
-    expect(await screen.findByText('Fri · Chicken stew')).toBeTruthy();
+    expect(await screen.findByText('Oct 9, 2026 · Chicken stew')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Edit amount to buy for Chicken' }));
     expect(await screen.findByRole('header', { name: 'Amount to buy' })).toBeTruthy();
     const amountInput = screen.getByLabelText('Amount to buy');
@@ -288,9 +583,9 @@ describe('meal planning through the Expo Router', () => {
     expect(rendered.getPathname()).toBe('/plan/shopping-review');
     expect(await screen.findByText('1 Pound to buy · 3 Pound needed')).toBeTruthy();
     expect(screen.getByText('Used in 3 meals')).toBeTruthy();
-    expect(screen.getByText('Mon · Chicken tacos')).toBeTruthy();
-    expect(screen.getByText('Wed · Chicken salad')).toBeTruthy();
-    expect(screen.getByText('Fri · Chicken stew')).toBeTruthy();
+    expect(screen.getByText('Oct 5, 2026 · Chicken tacos')).toBeTruthy();
+    expect(screen.getByText('Oct 7, 2026 · Chicken salad')).toBeTruthy();
+    expect(screen.getByText('Oct 9, 2026 · Chicken stew')).toBeTruthy();
 
     await fireEvent.press(screen.getByRole('button', { name: 'Add 1 selected to Shopping' }));
     await waitFor(() => expect(mockedApi.addMealPlanNeedsToShopping).toHaveBeenCalledWith(expect.any(Function), household.id, expect.objectContaining({
@@ -307,7 +602,7 @@ describe('meal planning through the Expo Router', () => {
         existing_matches: [], default_selected: true,
       }],
     });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -350,7 +645,7 @@ describe('meal planning through the Expo Router', () => {
     mockedApi.mealPlanShoppingReview.mockResolvedValueOnce(review)
       .mockResolvedValueOnce({ ...review, review_token: '2'.repeat(64) })
       .mockResolvedValueOnce({ ...review, review_token: '3'.repeat(64), needs: [{ ...need, amount: '4' }] });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -373,6 +668,9 @@ describe('meal planning through the Expo Router', () => {
   });
 
   it('retries an uncertain shopping response with the same idempotency request ID', async () => {
+    mockedApi.shoppingList.mockResolvedValueOnce({ shopping_list: { id: 'list-1', household_id: household.id, items: [] } }).mockResolvedValue({ shopping_list: {
+      id: 'list-1', household_id: household.id, items: [{ id: 'generated-eggs', name: 'Eggs', is_checked: false, checked_at: null, checked_by_user_id: null, created_by_user_id: user.id, created_at: '', catalog_item_id: 'food-eggs' }],
+    } });
     mockedApi.mealPlanShoppingReview.mockResolvedValue({
       week_start: '2026-10-05', week_end: '2026-10-11', review_token: 'c'.repeat(64), needs: [{
         need_key: 'eggs-unit', catalog_item_id: 'food-eggs', name: 'Eggs', amount: '2',
@@ -384,7 +682,7 @@ describe('meal planning through the Expo Router', () => {
     mockedApi.addMealPlanNeedsToShopping.mockRejectedValueOnce(new Error('response connection lost'))
       .mockRejectedValueOnce(new Error('response connection lost again'))
       .mockResolvedValueOnce({ items: [{ id: 'generated-eggs', name: 'Eggs' }], replayed: true });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -406,6 +704,7 @@ describe('meal planning through the Expo Router', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Retry add safely' }));
     await waitFor(() => expect(mockedApi.addMealPlanNeedsToShopping).toHaveBeenCalledTimes(3));
     expect(mockedApi.addMealPlanNeedsToShopping.mock.calls[2][2]).toEqual(adjustedRequest);
+    await waitFor(() => expect(shoppingTabLabel()).toBe('Shopping, 1 item to buy'));
     expect(await screen.findByText('1 item added from this week’s meals.')).toBeTruthy();
     expect(rendered.getPathname()).toBe('/shopping');
   });
@@ -422,12 +721,12 @@ describe('meal planning through the Expo Router', () => {
     mockedApi.mealPlanShoppingReview.mockResolvedValue(review);
     const addResponse = deferred<{ items: { id: string; name: string }[]; replayed: boolean }>();
     mockedApi.addMealPlanNeedsToShopping.mockReturnValueOnce(addResponse.promise);
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
     await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
-    expect((await screen.findAllByText('Soup · Mon')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Soup · Oct 5, 2026')).length).toBeGreaterThan(0);
     await fireEvent.press(screen.getByRole('button', { name: 'Add 1 selected to Shopping' }));
     await waitFor(() => expect(mockedApi.addMealPlanNeedsToShopping).toHaveBeenCalledTimes(1));
 
@@ -465,7 +764,7 @@ describe('meal planning through the Expo Router', () => {
         id: 'plan-item-1', name: 'Milk', is_checked: false, checked_at: null, checked_by_user_id: null,
         created_by_user_id: user.id, created_at: '', meal_plan_source: true, amount: null, unit_label: null,
       }] } });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -484,7 +783,7 @@ describe('meal planning through the Expo Router', () => {
 
   it('shows a retryable safe error when the household week cannot load', async () => {
     mockedApi.mealPlan.mockRejectedValueOnce(new Error('private database detail')).mockResolvedValueOnce(emptyWeek());
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     expect(await screen.findByText('We couldn’t load this week. Please try again.')).toBeTruthy();
     expect(screen.queryByText('private database detail')).toBeNull();
@@ -495,7 +794,7 @@ describe('meal planning through the Expo Router', () => {
 
   it('keeps Add meal open with its selected recipe when saving fails', async () => {
     mockedApi.createMealPlanEntry.mockRejectedValueOnce(new ApiError(409, 'That day and meal already has a planned recipe.', 'MEAL_PLAN_SLOT_OCCUPIED'));
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByText('Plan');
     await waitForLoadedPlan();
@@ -517,7 +816,7 @@ describe('meal planning through the Expo Router', () => {
     };
     mockedApi.mealPlan.mockResolvedValueOnce({ ...emptyWeek(), entries: [plannedEntry] });
     mockedApi.updateMealPlanEntry.mockRejectedValueOnce(new Error('private database detail'));
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await fireEvent.press(await screen.findByRole('button', { name: 'Edit Soup, Dinner' }));
     await screen.findByText('Edit meal');
@@ -540,7 +839,7 @@ describe('meal planning through the Expo Router', () => {
       .mockResolvedValueOnce(emptyWeek())
       .mockResolvedValueOnce(emptyWeek());
     mockedApi.updateMealPlanEntry.mockResolvedValue({ entry: { ...plannedEntry, recipe_id: 'recipe-stew', recipe_name: 'Stew', meal_slot: 'breakfast', edit_revision: 2 } });
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await fireEvent.press(await screen.findByRole('button', { name: 'Edit Soup, Dinner' }));
     expect(await screen.findByText('Edit meal')).toBeTruthy();
@@ -579,7 +878,7 @@ describe('meal planning through the Expo Router', () => {
       .mockResolvedValueOnce({ ...emptyWeek(), entries: [refreshedEntry] })
       .mockResolvedValueOnce({ ...emptyWeek(), entries: [refreshedEntry] });
     mockedApi.updateMealPlanEntry.mockRejectedValueOnce(new ApiError(409, 'This planned meal changed on another device. Refresh before saving.', 'MEAL_PLAN_REVISION_CONFLICT'));
-    const rendered = renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await fireEvent.press(await screen.findByRole('button', { name: 'Edit Soup, Dinner' }));
     await screen.findByText('Edit meal');
@@ -590,4 +889,228 @@ describe('meal planning through the Expo Router', () => {
     expect(rendered.getPathname()).toBe('/plan');
     expect(mockedApi.mealPlan).toHaveBeenCalledTimes(3);
   });
+  it('slides by a day and defaults shopping review to the new seven-day window', async () => {
+    mockedApi.mealPlanShoppingReview.mockImplementation(async (_token, _home, start, end) => ({ week_start: start, week_end: end!, review_token: 'a'.repeat(64), needs: [] }));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    const scroll = screen.getByTestId('planning-day-scroll');
+    await fireEvent(scroll, 'scrollBeginDrag', { nativeEvent: { contentOffset: { x: 700, y: 0 } } });
+    await fireEvent(scroll, 'scroll', { nativeEvent: { contentOffset: { x: 750, y: 0 } } });
+    await fireEvent(scroll, 'scrollEndDrag', { nativeEvent: { contentOffset: { x: 750, y: 0 } } });
+    await fireEvent(scroll, 'momentumScrollEnd', { nativeEvent: { contentOffset: { x: 750, y: 0 } } });
+    await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenLastCalledWith(expect.any(Function), household.id, '2026-10-06'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Review shopping needs' }));
+    await waitFor(() => expect(mockedApi.mealPlanShoppingReview).toHaveBeenLastCalledWith(expect.any(Function), household.id, '2026-10-06', '2026-10-12'));
+  });
+
+  it('cancels date drafts without changing amounts, then applies a new range and clears adjustments', async () => {
+    mockedApi.mealPlanShoppingReview.mockImplementation(async (_token, _home, start, end) => ({
+      week_start: start, week_end: end!, review_token: 'b'.repeat(64), needs: [{
+        need_key: 'rice', catalog_item_id: 'food-rice', name: 'Rice', amount: '3',
+        recipe_unit_code: 'cup', recipe_unit_dimension: 'volume', unit_label: 'Cup', custom_unit_label: null,
+        sources: [{ planned_for: start, meal_slot: 'dinner', recipe_name: 'Soup', amount: '3', unit_label: 'Cup', note: null }], existing_matches: [], default_selected: true,
+      }],
+    }));
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit amount to buy for Rice' }));
+    await fireEvent.changeText(await screen.findByLabelText('Amount to buy'), '1');
+    await fireEvent.press(screen.getByRole('button', { name: 'Done editing amount' }));
+    await screen.findByText('1 Cup to buy · 3 Cup needed');
+    await fireEvent.press(screen.getByRole('button', { name: 'Change shopping end date' }));
+    const calendar = within(await screen.findByTestId('planning-date-sheet'));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Wednesday, October 14' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Cancel date change' }));
+    expect(screen.getByText('1 Cup to buy · 3 Cup needed')).toBeTruthy();
+    expect(mockedApi.mealPlanShoppingReview).toHaveBeenCalledTimes(1);
+    await fireEvent.press(screen.getByRole('button', { name: 'Change shopping end date' }));
+    const nextCalendar = within(await screen.findByTestId('planning-date-sheet'));
+    await fireEvent.press(nextCalendar.getByRole('button', { name: 'Wednesday, October 14' }));
+    await fireEvent.press(nextCalendar.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(mockedApi.mealPlanShoppingReview).toHaveBeenLastCalledWith(expect.any(Function), household.id, '2026-10-05', '2026-10-14'));
+    await screen.findByText('3 Cup to buy · 3 Cup needed');
+    await act(async () => { router.back(); });
+    expect(rendered.getPathname()).toBe('/plan');
+    expect(screen.getByText('October 5 – October 11, 2026')).toBeTruthy();
+  });
+
+  it('chooses an exact Plan start in the shared calendar and preserves a selected day still in view', async () => {
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(within(screen.getByTestId('meal-plan-week-strip')).getAllByRole('button')[4]);
+    await fireEvent.press(screen.getByRole('button', { name: 'Choose planning start date' }));
+    const calendar = within(await screen.findByTestId('planning-date-sheet'));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Thursday, October 8' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(mockedApi.mealPlan).toHaveBeenLastCalledWith(expect.any(Function), household.id, '2026-10-08'));
+    expect(await screen.findByText('Friday, October 9')).toBeTruthy();
+    await waitFor(() => expect(mockedStorage.setItem).toHaveBeenCalledWith('meal-planner:planning-weekday:user-a', '4'));
+  });
+
+  it('rejects a 32-day date draft and ignores a delayed review for the previous range', async () => {
+    const old = deferred<Awaited<ReturnType<typeof api.mealPlanShoppingReview>>>();
+    mockedApi.mealPlanShoppingReview.mockReturnValueOnce(old.promise).mockImplementation(async (_token, _home, start, end) => ({ week_start: start, week_end: end!, review_token: 'c'.repeat(64), needs: [] }));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    await waitFor(() => expect(mockedApi.mealPlanShoppingReview).toHaveBeenCalledTimes(1));
+    await fireEvent.press(screen.getByRole('button', { name: 'Change shopping end date' }));
+    const calendar = within(await screen.findByTestId('planning-date-sheet'));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Next month' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Thursday, November 5' }));
+    expect(calendar.getByRole('button', { name: 'Done' })).toBeDisabled();
+    await fireEvent.press(calendar.getByRole('button', { name: 'Previous month' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Wednesday, October 14' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Done' }));
+    await waitFor(() => expect(mockedApi.mealPlanShoppingReview).toHaveBeenCalledTimes(2));
+    await screen.findByText('No recipe ingredients are planned for these dates.');
+    await act(async () => { old.resolve({ week_start: '2026-10-05', week_end: '2026-10-11', review_token: 'd'.repeat(64), needs: [] }); await old.promise; });
+    expect(screen.getByText('October 5 – October 14, 2026')).toBeTruthy();
+    expect(screen.queryByText('October 5 – October 11, 2026')).toBeNull();
+  });
+
+  function prepareReviewShoppingEdit() {
+    let item: ShoppingListItem | null = { id: 'shopping-milk', name: 'Milk', catalog_item_id: food.id, catalog_item_type: 'food', is_checked: true, checked_at: '2026-10-05', checked_by_user_id: user.id, created_by_user_id: user.id, created_at: '', amount: '2', store_id: null };
+    let reviewCount = 0;
+    const extraUnits: { id: string; label: string }[] = [];
+    let currentFood = food;
+    mockedApi.catalogItem.mockImplementation(async () => ({ item: currentFood }));
+    mockedApi.catalogUnits.mockImplementation(async () => ({ shopping_units: { built_in: [], household: [...extraUnits] }, recipe_measurement_units: [] }));
+    const stores = [{ id: 'store-1', name: 'Market', created_at: '', updated_at: '' }];
+    mockedApi.catalogStores.mockImplementation(async () => ({ stores: [...stores] }));
+    mockedApi.shoppingList.mockImplementation(async () => ({ shopping_list: { id: 'list-1', household_id: household.id, items: item ? [item] : [] } }));
+    mockedApi.shoppingListItem.mockImplementation(async () => { if (!item) throw new ApiError(404, 'Item missing'); return { item }; });
+    mockedApi.updateShoppingListItem.mockImplementation(async (_token, _home, _id, values) => { item = { ...item!, ...values }; return { item }; });
+    mockedApi.deleteShoppingListItem.mockImplementation(async () => { item = null; });
+    mockedApi.mealPlanShoppingReview.mockImplementation(async (_token, _home, start, end) => ({ week_start: start, week_end: end!, review_token: (++reviewCount).toString().padStart(64, 'a'), needs: [
+      { need_key: 'milk', catalog_item_id: food.id, name: 'Milk', amount: '1', recipe_unit_code: null, recipe_unit_dimension: null, unit_label: null, custom_unit_label: null, sources: [{ planned_for: start, meal_slot: 'breakfast', recipe_name: 'Soup', amount: '1', unit_label: null, note: null }], existing_matches: item ? [{ kind: 'exact', item_id: item.id, name: item.name }] : [], default_selected: !item },
+      { need_key: 'rice', catalog_item_id: 'rice', name: 'Rice', amount: '3', recipe_unit_code: 'cup', recipe_unit_dimension: 'volume', unit_label: 'Cup', custom_unit_label: null, sources: [
+        { planned_for: start, meal_slot: 'dinner', recipe_name: 'Soup', amount: '1', unit_label: 'Cup', note: null },
+        { planned_for: start, meal_slot: 'lunch', recipe_name: 'Bowl', amount: '2', unit_label: 'Cup', note: null },
+      ], existing_matches: [], default_selected: true },
+      { need_key: 'beans', catalog_item_id: 'beans', name: 'Beans', amount: '1', recipe_unit_code: null, recipe_unit_dimension: null, unit_label: null, custom_unit_label: null, sources: [], existing_matches: [], default_selected: true },
+    ] }));
+    mockedApi.createCatalogStore.mockImplementation(async (_token, _home, name) => { const store = { id: 'new-store', name, created_at: '', updated_at: '' }; stores.push(store); return { store }; });
+    mockedApi.updateCatalogStore.mockImplementation(async (_token, _home, id, name) => { const store = stores.find((row) => row.id === id)!; store.name = name; return { store }; });
+    mockedApi.createCatalogShoppingUnit.mockImplementation(async (_token, _home, name) => { extraUnits.push({ id: 'new-unit', label: name }); return { unit: { id: 'new-unit', name, created_at: '', updated_at: '' } }; });
+    mockedApi.updateCatalogItem.mockImplementation(async (_token, _home, _id, values) => { currentFood = { ...currentFood, ...values }; return { item: currentFood }; });
+    return { getItem: () => item };
+  }
+  async function openMatchedShoppingEdit() {
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk on Shopping' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes' })).not.toBeDisabled());
+    return within(screen.getByTestId('shopping-item-details-sheet'));
+  }
+
+  it.each(['save', 'cancel', 'remove'] as const)('returns from Shopping %s to the same review with unaffected drafts intact', async (action) => {
+    const state = prepareReviewShoppingEdit();
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Change shopping end date' }));
+    const calendar = within(await screen.findByTestId('planning-date-sheet'));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Wednesday, October 14' }));
+    await fireEvent.press(calendar.getByRole('button', { name: 'Done' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit amount to buy for Rice' }));
+    await fireEvent.changeText(await screen.findByLabelText('Amount to buy'), '1');
+    await fireEvent.press(screen.getByRole('button', { name: 'Done editing amount' }));
+    await fireEvent.press(screen.getByRole('checkbox', { name: 'Remove Beans' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Show Rice meal sources' }));
+    const editor = await openMatchedShoppingEdit();
+    expect(rendered.getPathname()).toBe('/plan/sheet/shopping-item');
+    if (action === 'save') { await fireEvent.changeText(editor.getByLabelText('Amount'), '4'); await fireEvent.press(editor.getByRole('button', { name: 'Save changes' })); }
+    else await fireEvent.press(editor.getByRole('button', { name: action === 'cancel' ? 'Cancel' : 'Remove from Shopping' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/shopping-review'));
+    await waitFor(() => expect(mockedApi.mealPlanShoppingReview).toHaveBeenLastCalledWith(expect.any(Function), household.id, '2026-10-05', '2026-10-14'));
+    await waitFor(() => expect(screen.getByRole('button', { name: action === 'remove' ? 'Add 2 selected to Shopping' : 'Add 1 selected to Shopping' })).not.toBeDisabled());
+    expect(screen.getByText('1 Cup to buy · 3 Cup needed')).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: 'Select Beans' })).not.toBeChecked();
+    expect(screen.getByRole('button', { name: 'Hide Rice meal sources' })).toBeTruthy();
+    if (action === 'cancel') expect(mockedApi.updateShoppingListItem).not.toHaveBeenCalled();
+    if (action === 'save') { expect(state.getItem()?.is_checked).toBe(true); expect(state.getItem()?.amount).toBe('4'); }
+    await fireEvent.press(screen.getByRole('button', { name: action === 'remove' ? 'Add 2 selected to Shopping' : 'Add 1 selected to Shopping' }));
+    await waitFor(() => expect(mockedApi.addMealPlanNeedsToShopping).toHaveBeenCalledWith(expect.any(Function), household.id, expect.objectContaining({ week_end: '2026-10-14', amount_overrides: { rice: '1' } })));
+  });
+
+  it('keeps Store manage/create/edit, Unit create and Catalog edit on the Plan stack', async () => {
+    prepareReviewShoppingEdit();
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan(); await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    let editor = await openMatchedShoppingEdit();
+    await fireEvent.changeText(editor.getByLabelText('Amount'), '5');
+    await fireEvent.press(editor.getByRole('button', { name: 'Store (optional): Not selected' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Manage stores' }));
+    expect(rendered.getPathname()).toBe('/plan/shopping-choices/store');
+    await fireEvent.press(await screen.findByText('Market'));
+    await waitFor(() => expect(screen.getByLabelText('store name')).toHaveProp('value', 'Market'));
+    await fireEvent.changeText(screen.getByLabelText('store name'), 'Market edited');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/shopping-choices/store'));
+    await act(async () => { router.back(); });
+    expect(rendered.getPathname()).toBe('/plan/sheet/shopping-choice');
+    await fireEvent.press(await screen.findByRole('button', { name: 'Create store' }));
+    expect(rendered.getPathname()).toBe('/plan/shopping-choices/store/create');
+    await fireEvent.changeText(await screen.findByLabelText('store name'), 'New market');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/sheet/shopping-item'));
+    editor = within(screen.getByTestId('shopping-item-details-sheet'));
+    await waitFor(() => expect(editor.getByRole('button', { name: 'Store (optional): New market' })).toBeTruthy());
+    expect(editor.getByLabelText('Amount')).toHaveProp('value', '5');
+    await fireEvent.press(editor.getByRole('button', { name: 'Unit: Not selected' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add unit' }));
+    expect(rendered.getPathname()).toBe('/plan/shopping-choices/shopping-unit/create');
+    await fireEvent.changeText(await screen.findByLabelText('shopping unit name'), 'Crate');
+    await fireEvent.press(screen.getByRole('button', { name: 'Create' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/sheet/shopping-item'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Unit: Crate' })).toBeTruthy());
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk in Catalog' }));
+    expect(rendered.getPathname()).toBe('/plan/catalog-item/food-milk');
+    await waitFor(() => expect(screen.getByLabelText('Item name')).toHaveProp('value', 'Milk'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Preferred store (optional): Not selected' }));
+    expect(rendered.getPathname()).toBe('/plan/sheet/shopping-choice');
+    await fireEvent.press(await screen.findByRole('button', { name: 'New market' }));
+    await fireEvent.changeText(screen.getByLabelText('Item name'), 'Milk renamed');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/sheet/shopping-item'));
+    await fireEvent.press(within(screen.getByTestId('shopping-item-details-sheet')).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/shopping-review'));
+  });
+
+  it('keeps editor save failures retryable and blocks Add until return revalidation succeeds', async () => {
+    prepareReviewShoppingEdit();
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan(); await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    const editor = await openMatchedShoppingEdit();
+    mockedApi.updateShoppingListItem.mockRejectedValueOnce(new Error('offline'));
+    await fireEvent.press(editor.getByRole('button', { name: 'Save changes' }));
+    await editor.findByText('We couldn’t save this Shopping item. Please try again.');
+    expect(rendered.getPathname()).toBe('/plan/sheet/shopping-item');
+    mockedApi.mealPlanShoppingReview.mockRejectedValueOnce(new Error('review offline'));
+    await fireEvent.press(editor.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/plan/shopping-review'));
+    await screen.findByText('We couldn’t load shopping needs. Please try again.');
+    expect(screen.getByRole('button', { name: 'Add 2 selected to Shopping' })).toBeDisabled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Add 2 selected to Shopping' })).not.toBeDisabled());
+  });
+
+  it('handles a removed matched item in place and does not navigate after a canceled pending save', async () => {
+    prepareReviewShoppingEdit();
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan(); await fireEvent.press(screen.getByRole('button', { name: 'Review shopping needs' }));
+    mockedApi.shoppingListItem.mockRejectedValueOnce(new ApiError(404, 'Item missing'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Edit Milk on Shopping' }));
+    await screen.findByText('This item is no longer on Shopping. Close this editor to refresh your review.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Cancel Shopping edit' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit Milk on Shopping' })).not.toBeDisabled());
+    const editor = await openMatchedShoppingEdit();
+    const pending = deferred<Awaited<ReturnType<typeof api.updateShoppingListItem>>>();
+    mockedApi.updateShoppingListItem.mockReturnValueOnce(pending.promise);
+    await fireEvent.press(editor.getByRole('button', { name: 'Save changes' }));
+    await fireEvent.press(editor.getByRole('button', { name: 'Cancel' }));
+    await act(async () => { pending.resolve({ item: { id: 'shopping-milk', name: 'Milk', catalog_item_id: food.id, is_checked: true, checked_at: null, checked_by_user_id: null, created_by_user_id: user.id, created_at: '' } }); await pending.promise; });
+    expect(rendered.getPathname()).toBe('/plan/shopping-review');
+  });
+
 });

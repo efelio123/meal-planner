@@ -1,4 +1,4 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { NativeTabs } from 'expo-router/native-tabs';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function AppTabs() {

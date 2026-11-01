@@ -8,9 +8,16 @@ const mockPresent = jest.fn();
 const mockPush = jest.fn();
 const mockBack = jest.fn();
 let mockMode: 'light' | 'dark' = 'light';
+let mockScope = 'test-scope';
 
-jest.mock('expo-router', () => ({ useRouter: () => ({ push: mockPush, back: mockBack }) }));
-jest.mock('@/features/native-sheets/native-sheet-context', () => ({ useNativeSheetFlow: () => ({ present: mockPresent, scope: 'test-scope' }) }));
+jest.mock('expo-router', () => ({
+  useRouter: () => ({ push: mockPush, back: mockBack }),
+  useFocusEffect: (callback: () => void) => {
+    const React = jest.requireActual<typeof import('react')>('react');
+    React.useEffect(callback, [callback]);
+  },
+}));
+jest.mock('@/features/native-sheets/native-sheet-context', () => ({ useNativeSheetFlow: () => ({ present: mockPresent, scope: mockScope }) }));
 jest.mock('@/hooks/use-color-scheme', () => ({ useColorScheme: () => mockMode }));
 jest.mock('expo-symbols', () => {
   const ReactModule = jest.requireActual<typeof import('react')>('react');
@@ -40,7 +47,7 @@ async function openPicker(choices: { id: string; label: string; emoji?: string |
   await fireEvent.press(field.getByTestId('choice-picker-field'));
   const [content, sheetOptions] = mockPresent.mock.calls.at(-1)!;
   const sheet = await render(content as React.ReactElement);
-  return { ...field, ...sheet, onSelect, onOpen, onCreate, onManage, sheetOptions };
+  return { ...field, ...sheet, content, onSelect, onOpen, onCreate, onManage, sheetOptions };
 }
 
 describe('Catalog choice native sheet', () => {
@@ -49,6 +56,65 @@ describe('Catalog choice native sheet', () => {
     mockPush.mockClear();
     mockBack.mockClear();
     mockMode = 'light';
+    mockScope = 'test-scope';
+  });
+
+  it('keeps Use custom unit outside long search results and retains a usable custom-entry save', async () => {
+    const onCustomSelect = jest.fn();
+    const field = await render(<ChoicePicker label="Unit" choices={Array.from({ length: 40 }, (_, index) => ({ id: `unit-${index}`, label: `Unit ${index}` }))} value="" searchable onSelect={jest.fn()} onCustomSelect={onCustomSelect} />);
+    await fireEvent.press(field.getByTestId('choice-picker-field'));
+    const [content] = mockPresent.mock.calls.at(-1)!;
+    const sheet = await render(content as React.ReactElement);
+    await fireEvent.changeText(sheet.getByLabelText('Search Unit'), 'Unit 39');
+    expect(sheet.getByRole('button', { name: 'Unit 39' })).toBeTruthy();
+    expect(within(sheet.getByTestId('catalog-choice-scroll')).queryByRole('button', { name: 'Use custom unit' })).toBeNull();
+    await fireEvent.press(sheet.getByRole('button', { name: 'Use custom unit' }));
+    await fireEvent.changeText(sheet.getByLabelText('Custom recipe unit'), 'pinch');
+    await fireEvent.press(sheet.getByRole('button', { name: 'Use custom unit' }));
+    expect(onCustomSelect).toHaveBeenCalledWith('pinch');
+    expect(mockBack).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['Create category', 'Manage categories'])('hands off %s once without issuing a separate Back', async (action) => {
+    const view = await openPicker([{ id: 'produce', label: 'Produce' }]);
+    const button = view.getByRole('button', { name: action });
+    await fireEvent.press(button);
+    await fireEvent.press(button);
+    const callback = action === 'Create category' ? view.onCreate : view.onManage;
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  it('ignores a route action from a previous household/session', async () => {
+    const view = await openPicker([{ id: 'produce', label: 'Produce' }]);
+    mockScope = 'new-household-session';
+    await view.rerender(React.cloneElement(view.content as React.ReactElement));
+    await fireEvent.press(view.getByRole('button', { name: 'Create category' }));
+    expect(view.onCreate).not.toHaveBeenCalled();
+    expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  it.each(['  cost  ', 'Cup & Spoon + 🥬?', '', '   '])('hands the latest query %j to Create, even with partial results', async (query) => {
+    const view = await openPicker([{ id: 'costco', label: 'Costco' }], { label: 'Store', searchable: true, createLabel: 'Create store' });
+    await fireEvent.changeText(view.getByLabelText('Search Store'), 'old query');
+    await fireEvent.changeText(view.getByLabelText('Search Store'), query);
+    if (query.trim() === 'cost') expect(view.getByRole('button', { name: 'Costco' })).toBeTruthy();
+    const create = view.getByRole('button', { name: 'Create store' });
+    await fireEvent.press(create);
+    await fireEvent.press(create);
+    expect(view.onCreate).toHaveBeenCalledTimes(1);
+    expect(view.onCreate).toHaveBeenCalledWith(query.trim());
+    expect(view.onManage).not.toHaveBeenCalled();
+    expect(mockBack).not.toHaveBeenCalled();
+  });
+
+  it('does not turn Manage into a Create or carry its selector query', async () => {
+    const view = await openPicker([], { searchable: true });
+    await fireEvent.changeText(view.getByLabelText('Search Category'), 'Baking');
+    await fireEvent.press(view.getByRole('button', { name: 'Manage categories' }));
+    expect(view.onManage).toHaveBeenCalledTimes(1);
+    expect(view.onManage).toHaveBeenCalledWith();
+    expect(view.onCreate).not.toHaveBeenCalled();
   });
 
   it('keeps a long searchable list and query filtering inside the native route content', async () => {
@@ -111,7 +177,7 @@ describe('Catalog choice native sheet', () => {
       searchable sheetRoute="/shopping/sheet/choice" sheetDetents={[0.58, 0.94]}
       sheetInitialDetentIndex={1} createLabel="Add unit" onSelect={jest.fn()} onCreate={jest.fn()}
     />);
-    fireEvent.press(field.getByTestId('choice-picker-field'));
+    await fireEvent.press(field.getByTestId('choice-picker-field'));
     const [content, options] = mockPresent.mock.calls.at(-1)!;
     expect(options).toEqual({ detents: [0.58, 0.94], initialDetent: 1 });
     const sheet = await render(content as React.ReactElement);

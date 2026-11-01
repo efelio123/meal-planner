@@ -1,66 +1,98 @@
-import { useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View, type TextInput } from 'react-native';
+import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Keyboard, Platform, Pressable, ScrollView, StyleSheet, View, type ScrollViewInstance, type TextInputInstance } from 'react-native';
 import { SymbolView } from 'expo-symbols';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import { PrimaryButton, ThemedInput } from '@/components/themed-controls';
+import { KeyboardAwareSheet } from '@/components/keyboard-aware-sheet';
 import { ThemedText } from '@/components/themed-text';
+import { EmojiText } from '@/components/emoji-text';
 import { DisclosureChevron, visualStyles } from '@/components/visual-roles';
 import { useTheme } from '@/hooks/use-theme';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 
 export type ChoiceOption = { id: string; label: string; group?: string; emoji?: string | null };
 
+type ChoiceData = { choices: ChoiceOption[]; selectedId?: string };
+
+// Native-sheet content is registered outside the field's React subtree. Keep
+// its choices live without remounting (and losing search) when Manage returns.
+function createChoiceData(initial: ChoiceData) {
+  let snapshot = initial;
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: () => snapshot,
+    subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    update: (next: ChoiceData) => {
+      if (snapshot.choices === next.choices && snapshot.selectedId === next.selectedId) return;
+      snapshot = next;
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+
 type ChoiceSheetProps = {
+  expectedScope: string;
   label: string;
-  choices: ChoiceOption[];
-  selectedId?: string;
+  data: ReturnType<typeof createChoiceData>;
   emptyChoiceLabel?: string;
   searchable: boolean;
   createActionLabel?: string;
   manageActionLabel?: string;
   customValue?: string;
   onSelect: (id: string) => void;
-  onCreate?: () => void;
+  onCreate?: (query: string) => void;
   onManage?: () => void;
   onCustomSelect?: (value: string) => void;
 };
 
-function ChoiceSheet({ label, choices, selectedId, emptyChoiceLabel, searchable, createActionLabel, manageActionLabel, customValue, onSelect, onCreate, onManage, onCustomSelect }: ChoiceSheetProps) {
+function ChoiceSheet({ expectedScope, label, data, emptyChoiceLabel, searchable, createActionLabel, manageActionLabel, customValue, onSelect, onCreate, onManage, onCustomSelect }: ChoiceSheetProps) {
   const theme = useTheme();
   const router = useRouter();
+  const flow = useNativeSheetFlow();
+  const leaving = useRef(false);
+  const { choices, selectedId } = useSyncExternalStore(data.subscribe, data.getSnapshot, data.getSnapshot);
+  useFocusEffect(useCallback(() => { leaving.current = false; }, []));
   const [search, setSearch] = useState('');
   const [customMode, setCustomMode] = useState(false);
   const [customText, setCustomText] = useState(customValue ?? '');
-  const searchInput = useRef<TextInput>(null);
+  const searchInput = useRef<TextInputInstance>(null);
+  const results = useRef<ScrollViewInstance>(null);
   const filtered = choices.filter((choice) => choice.label.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
-  const close = () => { Keyboard.dismiss(); router.back(); };
-  const choose = (id: string) => { searchInput.current?.blur(); Keyboard.dismiss(); onSelect(id); router.back(); };
-  const runRouteAction = (action?: () => void) => {
+  const canLeave = () => {
+    if (leaving.current || flow.scope !== expectedScope) return false;
+    leaving.current = true;
+    searchInput.current?.blur();
     Keyboard.dismiss();
-    router.back();
-    if (action) requestAnimationFrame(action);
+    return true;
+  };
+  const close = () => { if (canLeave()) router.back(); };
+  const choose = (id: string) => { if (canLeave()) { onSelect(id); router.back(); } };
+  const runRouteAction = (action?: () => void) => {
+    // Route atomically on the owner stack. Shopping presents a full-screen
+    // modal above this picker; card destinations elsewhere replace it.
+    if (action && canLeave()) action();
   };
 
-  return <KeyboardAvoidingView testID="catalog-choice-keyboard-area" behavior="padding" style={styles.keyboardArea}>
+  return <KeyboardAwareSheet testID="catalog-choice-keyboard-area" style={styles.keyboardArea}>
     <View accessibilityViewIsModal testID="catalog-choice-sheet" style={[styles.sheet, { backgroundColor: theme.elevatedSurface }]}>
     <View style={styles.sheetHeading}>
       <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>{customMode ? 'Custom unit' : label}</ThemedText>
       <Pressable accessibilityLabel={`Close ${label} choices`} accessibilityRole="button" onPress={close} style={styles.closeButton}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>{customMode ? 'Back' : 'Done'}</ThemedText></Pressable>
     </View>
-    {customMode ? <View style={styles.customEntry}>
+    {customMode ? <ScrollView contentContainerStyle={styles.customEntry} keyboardShouldPersistTaps="handled" automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" style={styles.choices}>
       <ThemedText themeColor="textSecondary">For this ingredient only</ThemedText>
       <ThemedInput accessibilityLabel="Custom recipe unit" autoFocus maxLength={40} onChangeText={setCustomText} placeholder="e.g. pinch" value={customText} />
-      <PrimaryButton disabled={!customText.trim()} onPress={() => { onCustomSelect?.(customText.trim()); router.back(); }} title="Use custom unit" />
-    </View> : <>
-      {searchable ? <ThemedInput ref={searchInput} accessibilityLabel={`Search ${label}`} onChangeText={setSearch} placeholder={`Search ${label.toLocaleLowerCase()}`} value={search} returnKeyType="search" /> : null}
-      <ScrollView testID="catalog-choice-scroll" contentContainerStyle={styles.list} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={styles.choices}>
+      <PrimaryButton disabled={!customText.trim()} onPress={() => { if (canLeave()) { onCustomSelect?.(customText.trim()); router.back(); } }} title="Use custom unit" />
+    </ScrollView> : <>
+      {searchable ? <ThemedInput ref={searchInput} accessibilityLabel={`Search ${label}`} onChangeText={(value) => { setSearch(value); results.current?.scrollTo({ y: 0, animated: false }); }} placeholder={`Search ${label.toLocaleLowerCase()}`} value={search} returnKeyType="search" /> : null}
+      <ScrollView ref={results} testID="catalog-choice-scroll" automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" contentContainerStyle={styles.list} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={styles.choices}>
         <View style={[styles.choiceCard, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
           {emptyChoiceLabel ? <Pressable accessibilityLabel={emptyChoiceLabel} accessibilityRole="button" accessibilityState={{ selected: !selectedId }} onPress={() => choose('')} style={styles.choice}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'circle.slash', android: 'block', web: 'block' }} size={24} tintColor={theme.textSecondary} /><ThemedText style={styles.choiceLabel}>{emptyChoiceLabel}</ThemedText>{!selectedId ? <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={20} tintColor={theme.link} /> : null}</Pressable> : null}
           {filtered.map((choice, index) => <View key={choice.id} style={(index > 0 || Boolean(emptyChoiceLabel)) && { borderTopColor: theme.border, ...visualStyles.groupedDivider }}>
             {choice.group && (index === 0 || filtered[index - 1]?.group !== choice.group) ? <ThemedText style={styles.groupHeading} themeColor="textSecondary">{choice.group}</ThemedText> : null}
             <Pressable accessibilityLabel={choice.label} accessibilityRole="button" accessibilityState={{ selected: choice.id === selectedId }} onPress={() => choose(choice.id)} style={styles.choice}>
-              {choice.emoji ? <ThemedText style={styles.choiceEmoji}>{choice.emoji}</ThemedText> : null}
+              {choice.emoji ? <EmojiText style={styles.choiceEmoji}>{choice.emoji}</EmojiText> : null}
               <ThemedText style={styles.choiceLabel}>{choice.label}</ThemedText>
               {choice.id === selectedId ? <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'checkmark', android: 'check', web: 'check' }} size={20} tintColor={theme.link} /> : null}
             </Pressable>
@@ -70,12 +102,12 @@ function ChoiceSheet({ label, choices, selectedId, emptyChoiceLabel, searchable,
       </ScrollView>
       {onCustomSelect ? <Pressable accessibilityRole="button" onPress={() => { searchInput.current?.blur(); Keyboard.dismiss(); setCustomMode(true); }} style={[styles.customAction, { backgroundColor: theme.surfaceSelected }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'pencil', android: 'edit', web: 'edit' }} size={22} tintColor={theme.link} /><ThemedText themeColor="link">Use custom unit</ThemedText></Pressable> : null}
       {onCreate || onManage ? <View style={[styles.actions, { borderColor: theme.surfaceSelected, backgroundColor: theme.surfaceSelected }]}>
-        {onCreate ? <Pressable accessibilityLabel={createActionLabel} accessibilityRole="button" onPress={() => runRouteAction(onCreate)} style={styles.action}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={26} tintColor={theme.link} /><ThemedText themeColor="link">{createActionLabel}</ThemedText></Pressable> : null}
+        {onCreate ? <Pressable accessibilityLabel={createActionLabel} accessibilityRole="button" onPress={() => runRouteAction(() => onCreate(search.trim()))} style={styles.action}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={26} tintColor={theme.link} /><ThemedText themeColor="link">{createActionLabel}</ThemedText></Pressable> : null}
         {onManage ? <Pressable accessibilityLabel={manageActionLabel} accessibilityRole="button" onPress={() => runRouteAction(onManage)} style={[styles.action, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'gearshape', android: 'settings', web: 'settings' }} size={26} tintColor={theme.link} /><ThemedText themeColor="link">{manageActionLabel}</ThemedText></Pressable> : null}
       </View> : null}
     </>}
     </View>
-  </KeyboardAvoidingView>;
+  </KeyboardAwareSheet>;
 }
 
 export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCreate, onManage, onOpen, onCustomSelect, emptyChoiceLabel, searchable: searchableOverride, createLabel, manageLabel, sheetRoute, sheetDetents, sheetInitialDetentIndex, disabled = false, compact = false }: {
@@ -84,7 +116,9 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
   selectedId?: string;
   choices: ChoiceOption[];
   onSelect: (id: string) => void;
-  onCreate?: () => void;
+  /** Open a destination in the same stack, retaining the picker for modal flows. */
+  onCreate?: (query: string) => void;
+  /** Open a destination in the same stack, retaining the picker for modal flows. */
   onManage?: () => void;
   onOpen?: () => void;
   /** Optional per-field value; does not create a household Catalog choice. */
@@ -104,7 +138,9 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
 }) {
   const theme = useTheme();
   const router = useRouter();
-  const { present } = useNativeSheetFlow();
+  const { present, scope } = useNativeSheetFlow();
+  const [data] = useState(() => createChoiceData({ choices, selectedId }));
+  useLayoutEffect(() => { data.update({ choices, selectedId }); }, [choices, data, selectedId]);
   const searchable = searchableOverride ?? choices.length > 6;
   const createActionLabel = createLabel ?? `Create ${label.toLocaleLowerCase().replace(/ \(optional\)/, '')}`;
   const manageActionLabel = manageLabel ?? `Manage ${label.toLocaleLowerCase().replace(/ \(optional\)/, '')}s`;
@@ -113,9 +149,9 @@ export function ChoicePicker({ label, value, selectedId, choices, onSelect, onCr
     onOpen?.();
     const sheetId = present(
       <ChoiceSheet
+        expectedScope={scope}
         label={label}
-        choices={choices}
-        selectedId={selectedId}
+        data={data}
         emptyChoiceLabel={emptyChoiceLabel}
         searchable={searchable}
         createActionLabel={onCreate ? createActionLabel : undefined}
@@ -159,7 +195,7 @@ const styles = StyleSheet.create({
   list: { gap: 2, paddingBottom: 8 },
   choiceCard: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
   choice: { alignItems: 'center', flexDirection: 'row', gap: 12, justifyContent: 'space-between', minHeight: 58, paddingHorizontal: 16 },
-  choiceEmoji: { fontSize: 24, width: 32 },
+  choiceEmoji: { width: 32 },
   choiceLabel: { flex: 1 },
   groupHeading: { fontSize: 13, fontWeight: '600', paddingBottom: 4, paddingHorizontal: 16, paddingTop: 14 },
   noChoices: { padding: 16 },

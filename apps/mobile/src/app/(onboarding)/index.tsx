@@ -10,7 +10,7 @@ export default function OnboardingChoice() {
   const theme = useTheme();
 
   return (
-    <Screen>
+    <Screen layout="standalone">
       <View style={styles.content}>
         <ThemedText style={styles.title}>Set up your household</ThemedText>
         <ThemedText themeColor="textSecondary" style={styles.body}>

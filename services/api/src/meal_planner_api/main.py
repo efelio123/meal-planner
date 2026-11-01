@@ -30,6 +30,7 @@ from meal_planner_api.onboarding import (
 from meal_planner_api.shopping_lists import (
     add_item,
     clear_list,
+    clear_purchased_items,
     delete_item,
     get_item,
     get_list,
@@ -117,7 +118,9 @@ class UpdateShoppingListItemRequest(BaseModel):
 class CreateMealPlanEntryRequest(BaseModel):
     planned_for: str = Field(min_length=10, max_length=10)
     meal_slot: Literal["breakfast", "lunch", "dinner"]
-    recipe_id: UUID
+    recipe_id: UUID | None = None
+    entry_type: Literal["recipe", "leftovers", "eating_out"] = "recipe"
+    detail: StrictStr | None = None
 
 
 class UpdateMealPlanEntryRequest(CreateMealPlanEntryRequest):
@@ -126,6 +129,7 @@ class UpdateMealPlanEntryRequest(CreateMealPlanEntryRequest):
 
 class AddReviewedMealPlanNeedsRequest(BaseModel):
     week_start: str = Field(min_length=10, max_length=10)
+    week_end: str | None = Field(default=None, min_length=10, max_length=10)
     review_token: str = Field(min_length=64, max_length=64)
     request_id: UUID
     selected_need_keys: list[str] = Field(min_length=1, max_length=500)
@@ -501,19 +505,24 @@ def remove_shopping_list_item(household_id: UUID, item_id: UUID, user: User) -> 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@app.delete("/v1/households/{household_id}/shopping-list/purchased-items", tags=["shopping-list"])
+def clear_purchased_shopping_items(household_id: UUID, user: User) -> dict:
+    return clear_purchased_items(user, str(household_id))
+
+
 @app.get("/v1/households/{household_id}/meal-plan", tags=["meal-plan"])
-def get_meal_plan(household_id: UUID, user: User, week_offset: int = Query(default=0, ge=-520, le=520)) -> dict:
-    return meal_planning.get_week(user, str(household_id), week_offset)
+def get_meal_plan(household_id: UUID, user: User, week_offset: int | None = Query(default=None, ge=-520, le=520), start_date: str | None = Query(default=None, min_length=10, max_length=10)) -> dict:
+    return meal_planning.get_week(user, str(household_id), week_offset, start_date=start_date)
 
 
 @app.post("/v1/households/{household_id}/meal-plan/entries", status_code=status.HTTP_201_CREATED, tags=["meal-plan"])
 def post_meal_plan_entry(household_id: UUID, payload: CreateMealPlanEntryRequest, user: User) -> dict:
-    return {"entry": meal_planning.create_entry(user, str(household_id), payload.planned_for, payload.meal_slot, str(payload.recipe_id))}
+    return {"entry": meal_planning.create_entry(user, str(household_id), payload.planned_for, payload.meal_slot, str(payload.recipe_id) if payload.recipe_id is not None else None, entry_type=payload.entry_type, detail=payload.detail)}
 
 
 @app.patch("/v1/households/{household_id}/meal-plan/entries/{entry_id}", tags=["meal-plan"])
 def patch_meal_plan_entry(household_id: UUID, entry_id: UUID, payload: UpdateMealPlanEntryRequest, user: User) -> dict:
-    return {"entry": meal_planning.update_entry(user, str(household_id), str(entry_id), payload.planned_for, payload.meal_slot, str(payload.recipe_id), payload.expected_revision)}
+    return {"entry": meal_planning.update_entry(user, str(household_id), str(entry_id), payload.planned_for, payload.meal_slot, str(payload.recipe_id) if payload.recipe_id is not None else None, payload.expected_revision, entry_type=payload.entry_type, detail=payload.detail)}
 
 
 @app.delete("/v1/households/{household_id}/meal-plan/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["meal-plan"])
@@ -523,8 +532,8 @@ def delete_meal_plan_entry(household_id: UUID, entry_id: UUID, user: User, expec
 
 
 @app.get("/v1/households/{household_id}/meal-plan/shopping-review", tags=["meal-plan"])
-def get_meal_plan_shopping_review(household_id: UUID, user: User, week_start: str = Query(min_length=10, max_length=10)) -> dict:
-    return meal_planning.get_shopping_review(user, str(household_id), week_start)
+def get_meal_plan_shopping_review(household_id: UUID, user: User, week_start: str = Query(min_length=10, max_length=10), week_end: str | None = Query(default=None, min_length=10, max_length=10)) -> dict:
+    return meal_planning.get_shopping_review(user, str(household_id), week_start, week_end=week_end)
 
 
 @app.post("/v1/households/{household_id}/meal-plan/shopping", status_code=status.HTTP_201_CREATED, tags=["meal-plan"])
@@ -537,4 +546,5 @@ def post_meal_plan_shopping(household_id: UUID, payload: AddReviewedMealPlanNeed
         str(payload.request_id),
         payload.selected_need_keys,
         amount_overrides=payload.amount_overrides,
+        week_end=payload.week_end,
     )
