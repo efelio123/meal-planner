@@ -584,7 +584,10 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
             <View style={styles.section}>
               <View style={styles.sectionHeadingRow}>
                 <ThemedText accessibilityRole="header" style={[visualStyles.sectionTitle, styles.sectionHeadingText]}>Ingredients <ThemedText themeColor="error">*</ThemedText></ThemedText>
-                {sections.length > 0 ? <Pressable accessibilityRole="button" disabled={!editable} onPress={manageSections} style={styles.headingAction}><ThemedText themeColor={editable ? 'link' : 'textSecondary'}>Manage sections</ThemedText></Pressable> : null}
+                <View style={styles.headingLinks}>
+                  <Pressable accessibilityRole="button" disabled={!editable || sections.length >= 20} onPress={openSectionName} style={[styles.headingAction, styles.headingLink]}><ThemedText themeColor={editable && sections.length < 20 ? 'link' : 'textSecondary'}>Add section</ThemedText></Pressable>
+                  {sections.length > 0 ? <Pressable accessibilityRole="button" disabled={!editable} onPress={manageSections} style={[styles.headingAction, styles.headingLink]}><ThemedText themeColor={editable ? 'link' : 'textSecondary'}>Manage sections</ThemedText></Pressable> : null}
+                </View>
               </View>
               {[...sections, { key: null, name: sections.length ? 'Other ingredients' : '' }].map((group) => {
                 const rows = sectionIngredients(ingredients, group.key);
@@ -609,7 +612,6 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
                     }} /> : <ThemedText themeColor="textSecondary">{sections.length ? 'No ingredients in this section yet.' : 'Add at least one Food Catalog item to save this recipe.'}</ThemedText>}
                 </View>;
               })}
-              <Pressable accessibilityRole="button" disabled={!editable || sections.length >= 20} onPress={openSectionName} style={styles.inlineAction}><ThemedText themeColor="link">Add section</ThemedText></Pressable>
               {error === 'Add at least one Food Catalog ingredient.' ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
               <Pressable accessibilityRole="button" disabled={!editable} onPress={() => void openIngredientSearch()} style={styles.inlineAction}>
                 <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus', android: 'add', web: 'add' }} size={21} tintColor={theme.link} />
@@ -678,6 +680,8 @@ const styles = StyleSheet.create({
   fieldLabel: { fontWeight: '600' },
   section: { gap: 12 },
   sectionHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  headingLinks: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'flex-end', columnGap: 8, maxWidth: '70%' },
+  headingLink: { flexShrink: 1, paddingHorizontal: 0 },
   sectionHeadingText: { flex: 1, flexShrink: 1, minWidth: 0 },
   headingAction: { alignItems: 'center', justifyContent: 'center', flexShrink: 0, minHeight: 44, minWidth: 44, paddingHorizontal: 4 },
   sectionTitleRow: { alignItems: 'baseline', flexDirection: 'row', gap: 8 },

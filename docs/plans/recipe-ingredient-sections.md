@@ -265,3 +265,18 @@ header Add submission, invalid-amount disabling on both actions, and Back withou
 saving. Tests inspect the actual native modal screen, not an underlying stack
 screen. Actual iPhone height and keyboard reachability remain unrun. No API/data
 edits or database tests here.
+
+### Add section heading placement — November 1
+
+Felipe requests Add section beside Ingredients alongside Manage sections. Both
+links now occupy the right-hand heading area; Add section is no longer repeated
+below the ingredient groups. The links retain their existing actions, limits and
+44-point minimum touch height, and can wrap within the heading on narrow screens
+or with larger text. The main bottom Add ingredient action stays intact.
+
+In the supplied ingredient-row screenshot Edit and Remove appear aligned with
+each other: they use the same typography and centered 44-point action frames.
+Their action group is top-aligned beside the taller name/amount block, unlike
+the intentionally centered section-management rows. No per-label pixel offsets
+were added. All 45 actual-router recipe tests, TypeScript and lint pass.
+Phone appearance and larger-text wrapping remain unrun; no API/data changes.
