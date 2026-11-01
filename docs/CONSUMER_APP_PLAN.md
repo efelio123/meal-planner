@@ -79,15 +79,16 @@ provenance, operational paths and recovery.
 
 November 1 continuation: the family-trial inventory is reconciled with the
 live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
-B11 stays on unreproduced regression watch. Remaining requested features are
-F09 ingredient sections, F10 recipe copying, F12 calendar sync, F14 themes,
-F15 member permissions and F16 widgets. Felipe approved F09 ingredient-only
+B11 stays on unreproduced regression watch. Remaining features to implement are
+F10 recipe copying, F12 calendar sync, F14 themes, F15 member permissions and
+F16 widgets. Felipe accepts F09 ingredient sections and calls it complete after
+the final November 1 UI adjustments. Felipe approved F09 ingredient-only
 sections and assigned implementation directly to this chat on
 `codex/recipe-ingredient-sections`. The shared recipe editor/detail, native
 section sheets, additive storage migration and compatibility guard are implemented;
 initial validation at `5ce3e85` passed 745 mobile tests normal/cold, 196 API tests,
 types/lint and native JS exports. Subsequent presentation repairs have focused
-validation; phone acceptance remains pending, tracked in
+validation; Felipe's overall feature acceptance is recorded in
 `docs/plans/recipe-ingredient-sections.md`. F10 recipe copying remains separate
 and unimplemented. The live Mac API/database and two-iPhone testing release
 remain unchanged; deploying F09 requires a separately approved rollout.
@@ -97,8 +98,11 @@ Create and Edit, including recipes created from Plan. Implemented on
 `codex/recipe-unsaved-changes`: protect unsaved drafts on Back and native
 pop-to-root, offer Keep editing / Discard changes, preserve retained tab/sheet
 flows, and bypass the warning after a confirmed Save. 214 focused tests and
-types/lint pass; native phone acceptance is pending. See
-`docs/plans/recipe-unsaved-changes.md`. This is not deployed to the Mac trial.
+types/lint pass. Included in the accepted recipe slice; individual native exit
+checks are still unreported. See
+`docs/plans/recipe-unsaved-changes.md`. The branch is committed and the slice is
+complete; merge/deployment and broader release checks remain separate. This is
+not deployed to the Mac trial. F10 recipe copying is next to plan.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

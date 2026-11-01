@@ -1,7 +1,9 @@
 # Warn before discarding an unsaved recipe
 
 Status: approved November 1, 2026. Felipe confirmed Edit coverage and explicitly
-assigned implementation to this chat. Implemented; automated checks pass, phone acceptance pending.
+assigned implementation to this chat. Implemented; automated checks pass. Included
+in the recipe slice Felipe accepts November 1; individual native exit cases
+remain unreported rather than assumed tested.
 Branch: `codex/recipe-unsaved-changes`, based on the ongoing recipe section work
 at `0b3d46f`. Preserve that work; this is an incremental mobile-only follow-up.
 
@@ -99,3 +101,11 @@ Physical iPhone Back/swipe/tab-reselect confirmation and dialog appearance remai
 unrun. Android native/hardware Back remains unrun. Full mobile normal/cold runs,
 native exports and API/database tests were not rerun for this mobile-only change;
 earlier F09 results remain historical. No live Mac rollout or data changes.
+
+## Slice acceptance — November 1
+
+Felipe accepts the overall recipe feature after the final UI adjustments and
+calls it complete. This warning is included in that slice; there is no separate
+report confirming every native Back/swipe/tab reselect combination. Preserve the
+physical checklist above for release review. The accepted code is committed and
+has not been merged or deployed to the live Mac trial in this session.

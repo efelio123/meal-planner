@@ -1,7 +1,8 @@
 # Recipe ingredient sections — F09
 
-Status: implemented November 1, 2026; automated validation passed, phone
-acceptance pending. Felipe approved the first part and assigned implementation here.
+Status: implemented and accepted by Felipe on November 1, 2026. After reviewing
+the UI follow-ups, Felipe confirms the feature is complete. Broader unreported
+device/mode checks remain part of later release validation.
 Planning branch: `codex/recipe-sections-plan`, clean from `origin/main` at `b06be48`.
 Implementation owner: this chat agent, on `codex/recipe-ingredient-sections`. This plan does not authorize a live rollout.
 
@@ -288,3 +289,21 @@ vertically within ingredient cards. The action group now centers itself in the
 card while the name, quantity and notes retain their existing text layout.
 All 6 ingredient-row component tests, TypeScript and lint pass. Physical
 alignment review remains unrun; no API/data changes or database tests.
+
+## Acceptance checkpoint — November 1
+
+Felipe confirms the final ingredient-card alignment looks great and calls this
+feature complete. F09 and its requested editor/UI follow-ups are accepted as the
+current slice. Application work is committed through `f3bfa98` on
+`codex/recipe-unsaved-changes`, which includes the earlier sections implementation
+and subsequent discard-warning work. No further implementation is required for
+this accepted scope.
+
+Earlier per-step statements about unrun physical checks are historical: overall
+review acceptance is now recorded, but Android, the full large-text/keyboard and
+native Back/tab matrix, and a dedicated light/dark release pass have not each been
+reported individually. Retain those checks before a later release. Initial full
+suite/export results do not cover every later small follow-up; their focused
+validation is recorded above. The Mac trial and its database remain unchanged;
+merge, migration and native rollout are separate work. F10 recipe copying is the
+next feature to plan, not part of this acceptance.
