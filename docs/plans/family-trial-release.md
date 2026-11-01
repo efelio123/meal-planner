@@ -193,3 +193,14 @@ in the unexpired device profile, and application/team entitlements match it.
 Developer trust on her phone is the next check, not a proven cause; Felipe was
 asked to inspect VPN & Device Management and open the app. Native launch and
 post-install smoke remain unverified. The live API and family data remain healthy.
+
+
+Felipe's subsequent Xcode build launched the older app. Read-only DerivedData
+metadata confirms the GUI built the preserved original
+`/Users/felipe/meal-planner-trial/.../MealPlanner.xcworkspace`, not the isolated
+release. Its signing refresh did succeed: the new cached Personal Team profile
+covers both phones. Retrying the correct release over SSH now passes provisioning
+and reaches framework signing, where errSecInternalComponent still blocks key
+access. The two-phone script must run locally in Mac Terminal; its explicit cd
+selects the new release regardless of which Xcode window is open. Do not mistake
+launch of the preserved older project for acceptance of the new native build.
