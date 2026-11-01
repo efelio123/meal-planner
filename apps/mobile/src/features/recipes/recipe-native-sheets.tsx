@@ -1,3 +1,4 @@
+import type { RecipeSectionDraft } from './recipe-sections';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
 import { SymbolView } from 'expo-symbols';
@@ -105,7 +106,7 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
   </KeyboardAwareSheet>;
 }
 
-export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, returnToSearch, householdId, expectedFlowScope, getToken, isCurrent, initialUnits, unitSheetRoute, onSave }: {
+export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, returnToSearch, householdId, expectedFlowScope, getToken, isCurrent, initialUnits, unitSheetRoute, sections = [], onSave }: {
   food: RecipeFoodChoice;
   initialDraft: RecipeIngredientDraft;
   existingKey: string | null;
@@ -116,7 +117,8 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
   isCurrent: () => boolean;
   initialUnits: CatalogUnits | null;
   unitSheetRoute: string;
-  onSave: (draft: RecipeIngredientDraft, key: string | null) => void;
+  sections?: RecipeSectionDraft[];
+  onSave: (draft: RecipeIngredientDraft, key: string | null) => boolean | void;
 }) {
   const theme = useTheme();
   const router = useRouter();
@@ -126,6 +128,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
   const [loadingUnits, setLoadingUnits] = useState(!initialUnits);
   const [unitError, setUnitError] = useState<string | null>(null);
   const [retryUnits, setRetryUnits] = useState(0);
+  const [sectionError, setSectionError] = useState('');
   const amountError = ingredientAmountError(draft.amount);
   const unitChoices = recipeUnitChoices(units?.recipe_measurement_units ?? []);
 
@@ -151,7 +154,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
   const save = () => {
     if (amountError || loadingUnits || unitError) return;
     if (!isCurrent() || flow.scope !== expectedFlowScope) return;
-    onSave(draft, existingKey);
+    if (onSave(draft, existingKey) === false) { setSectionError('This ingredient or section changed. Close this sheet and try again.'); return; }
     router.dismiss(dismissCount);
   };
   const cancel = () => { Keyboard.dismiss(); router.dismiss(dismissCount); };
@@ -169,6 +172,8 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
         </View>
         {loadingUnits ? <ActivityIndicator accessibilityLabel="Loading recipe units" color={theme.activity} /> : null}
         {unitError ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{unitError}</ThemedText><PrimaryButton disabled={loadingUnits} onPress={retryUnitLoad} title="Retry units" /></View> : null}
+        {sections.length ? <ChoicePicker label="Section" choices={sections.map((s) => ({ id: s.key, label: s.name }))} selectedId={draft.sectionKey ?? ''} value={sections.find((s) => s.key === draft.sectionKey)?.name ?? 'No section'} emptyChoiceLabel="No section" onOpen={Keyboard.dismiss} onSelect={(key) => setDraft((current) => ({ ...current, sectionKey: key || null }))} /> : null}
+        {sectionError ? <ThemedText accessibilityRole="alert" themeColor="error">{sectionError}</ThemedText> : null}
         <View style={styles.field}><ThemedText themeColor="textSecondary">Note (optional)</ThemedText><ThemedInput accessibilityLabel="Ingredient note" onChangeText={(note) => setDraft((current) => ({ ...current, note }))} placeholder="e.g. finely chopped, to taste" value={draft.note} /></View>
         {amountError ? <ThemedText accessibilityRole="alert" themeColor="error">{amountError}</ThemedText> : null}
         <PrimaryButton disabled={Boolean(amountError) || loadingUnits || Boolean(unitError)} onPress={save} title={existingKey === null ? 'Add ingredient' : 'Save ingredient'} />

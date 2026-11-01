@@ -138,17 +138,21 @@ export function RecipeDetailScreen() {
 
             <View style={styles.section}>
               <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Ingredients</ThemedText>
-              <View style={[styles.ingredientCard, { backgroundColor: theme.surface }]}>
-                {(activeRecipe.ingredients ?? []).map((ingredient, index) => (
-                  <View key={ingredient.id} style={[styles.ingredientRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
-                    <ThemedText themeColor="textSecondary" style={styles.measure}>{ingredientMeasure(ingredient)}</ThemedText>
-                    <View style={styles.ingredientCopy}>
-                      <ThemedText style={styles.ingredientName}>{ingredient.catalog_item_name}</ThemedText>
-                      {ingredient.note ? <ThemedText themeColor="textSecondary">Note: {ingredient.note}</ThemedText> : null}
-                    </View>
+              {[{ position: null, name: activeRecipe.ingredient_sections?.length ? 'Other ingredients' : '' }, ...(activeRecipe.ingredient_sections ?? [])].map((section) => {
+                const rows = (activeRecipe.ingredients ?? []).filter((item) => (item.section_position ?? null) === section.position);
+                if (!rows.length && section.position === null && activeRecipe.ingredient_sections?.length) return null;
+                return <View key={section.position ?? 'unassigned'} style={{ gap: 10 }}>
+                  {section.name ? <ThemedText accessibilityRole="header" style={styles.ingredientName}>{section.name}</ThemedText> : null}
+                  <View style={[styles.ingredientCard, { backgroundColor: theme.surface }]}>
+                    {rows.map((ingredient, index) => <View key={ingredient.id} style={[styles.ingredientRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                      <ThemedText themeColor="textSecondary" style={styles.measure}>{ingredientMeasure(ingredient)}</ThemedText>
+                      <View style={styles.ingredientCopy}><ThemedText style={styles.ingredientName}>{ingredient.catalog_item_name}</ThemedText>
+                        {ingredient.note ? <ThemedText themeColor="textSecondary">Note: {ingredient.note}</ThemedText> : null}</View>
+                    </View>)}
+                    {!rows.length ? <ThemedText themeColor="textSecondary" style={styles.ingredientRow}>No ingredients in this section.</ThemedText> : null}
                   </View>
-                ))}
-              </View>
+                </View>;
+              })}
             </View>
 
             {(activeRecipe.steps?.length ?? 0) > 0 ? <View style={styles.section}>

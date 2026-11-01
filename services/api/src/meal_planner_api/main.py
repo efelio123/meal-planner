@@ -182,7 +182,12 @@ class CatalogCategoryUpdateRequest(BaseModel):
     emoji: str | None = Field(default=None, max_length=16)
 
 
+class RecipeSectionRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+
+
 class RecipeIngredientRequest(BaseModel):
+    section_position: StrictInt | None = Field(default=None, ge=0, le=19)
     catalog_item_id: UUID
     amount: str | None = Field(default=None, max_length=40)
     unit_code: str | None = Field(default=None, max_length=40)
@@ -202,6 +207,7 @@ class RecipeCreateRequest(BaseModel):
     cook_minutes: StrictInt | None = Field(default=None, ge=0, le=59)
     notes: str | None = Field(default=None, max_length=10000)
     source_url: str | None = Field(default=None, max_length=2048)
+    ingredient_sections: list[RecipeSectionRequest] | None = Field(default=None, max_length=20)
     ingredients: list[RecipeIngredientRequest] = Field(min_length=1, max_length=200)
     steps: list[str] | None = Field(default=None, max_length=200)
 
@@ -218,6 +224,7 @@ class RecipeUpdateRequest(BaseModel):
     cook_minutes: StrictInt | None = Field(default=None, ge=0, le=59)
     notes: str | None = Field(default=None, max_length=10000)
     source_url: str | None = Field(default=None, max_length=2048)
+    ingredient_sections: list[RecipeSectionRequest] | None = Field(default=None, max_length=20)
     ingredients: list[RecipeIngredientRequest] | None = Field(default=None, min_length=1, max_length=200)
     steps: list[str] | None = Field(default=None, max_length=200)
 

@@ -16,12 +16,14 @@ import { dragGrabFeedback } from '@/lib/haptics';
 import { ApiError, api, type CatalogUnits, type GetToken, type Recipe, type RecipeInput, type RecipeUpdateInput } from '@/lib/api';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { namePrefillParams, namePrefillScope } from '@/features/catalog/catalog-name-prefill';
+import { RecipeSectionNameSheet, RecipeSectionsSheet } from './recipe-section-sheets';
+import { loadRecipeSections, orderedSectionIngredients, removeRecipeSection, reorderSectionIngredients, sectionedIngredientInputs, sectionIngredients, sectionsMatchSaved, type RecipeSectionDraft } from './recipe-sections';
 import { RecipeIngredientList, type RecipeDragLock } from './recipe-ingredient-list';
-import { moveIngredient, reorderIngredients, saveIngredientByKey } from './recipe-ingredient-order';
+import { moveIngredient, saveIngredientByKey } from './recipe-ingredient-order';
 import { useRecipeContext } from './recipe-context';
 import { RecipeCover } from './recipe-cover';
 import { useMealPlanContext } from '@/features/meal-plan/meal-plan-context';
-import { draftFromRecipe, ingredientDraftFromRecipe, ingredientInputFromDraft, isValidRecipeAmount, moveDirectionStep, newCreateRequestId, newRecipeDraft, recipeOptionalFieldsError, type RecipeDirectionDraft, type RecipeDraft, type RecipeIngredientDraft } from './recipe-form-utils';
+import { draftFromRecipe, isValidRecipeAmount, moveDirectionStep, newCreateRequestId, newRecipeDraft, recipeOptionalFieldsError, type RecipeDirectionDraft, type RecipeDraft, type RecipeIngredientDraft } from './recipe-form-utils';
 import { RecipeCoverSheet, RecipeEmojiSheet, RecipeFoodSheet, RecipeIngredientDetailsSheet, type RecipeFoodChoice } from './recipe-native-sheets';
 
 type SavePayload = RecipeInput | RecipeUpdateInput;
@@ -59,6 +61,9 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
   const [draft, setDraft] = useState<RecipeDraft>(newRecipeDraft);
   const [ingredients, setIngredients] = useState<RecipeIngredientDraft[]>([]);
   const ingredientsRef = useRef(ingredients);
+  const [sections, setSections] = useState<RecipeSectionDraft[]>([]);
+  const sectionsRef = useRef(sections);
+  const targetSection = useRef<string | null>(null);
   const scrollRef = useAnimatedRef<ComponentRef<typeof ScrollView>>();
   const dragBlocked = useSharedValue<RecipeDragLock>({ owner: `${scope}:0`, blocked: false });
   const dragSession = useRef<{ scope: string; generation: number; epoch: number } | null>(null);
@@ -106,7 +111,9 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     return () => subscription.remove();
   }, [cancelDrag]);
   const changeIngredients = useCallback((change: (current: RecipeIngredientDraft[]) => RecipeIngredientDraft[]) => {
-    const next = change(ingredientsRef.current);
+    const changed = change(ingredientsRef.current);
+    if (changed === ingredientsRef.current) return false;
+    const next = orderedSectionIngredients(changed, sectionsRef.current);
     if (next === ingredientsRef.current) return false;
     ingredientsRef.current = next;
     setIngredients(next);
@@ -122,14 +129,14 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     setDragging(true);
     Keyboard.dismiss();
   };
-  const finishDrag = (keys: string[], completed: boolean) => {
+  const finishDrag = (keys: string[], completed: boolean, sectionKey: string | null = null) => {
     const session = dragSession.current;
     if (!session || session.scope !== scope || session.epoch !== dragEpoch || interactionRef.current !== interactionId) return;
     dragSession.current = null;
     dragBlocked.set({ owner: interactionRef.current, blocked: false });
     setDragging(false);
     if (completed && mounted.current && focused.current && session.scope === scopeRef.current && session.generation === requestGeneration.current) {
-      changeIngredients((current) => reorderIngredients(current, keys));
+      changeIngredients((current) => reorderSectionIngredients(current, sectionKey, keys));
     } else {
       setDragEpoch((current) => current + 1);
     }
@@ -155,7 +162,9 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       const recipe = result.recipe;
       originalRevision.current = recipe.edit_revision;
       setDraft(draftFromRecipe(recipe));
-      const loadedIngredients = (recipe.ingredients ?? []).map(ingredientDraftFromRecipe);
+      const loaded = loadRecipeSections(recipe);
+      const loadedIngredients = loaded.ingredients;
+      sectionsRef.current = loaded.sections; setSections(loaded.sections);
       ingredientsRef.current = loadedIngredients;
       setIngredients(loadedIngredients);
       setSteps((recipe.steps ?? []).map((step) => localStep(step.instruction)));
@@ -181,6 +190,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     pendingSave.current = null;
     pendingUpdateBase.current = null;
     setDraft(newRecipeDraft());
+    sectionsRef.current = []; setSections([]); targetSection.current = null;
     ingredientsRef.current = [];
     setIngredients([]);
     setSteps([]);
@@ -217,7 +227,8 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     cook_minutes: Number(draft.cookMinutes || 0),
     notes: draft.notes.trim() || null,
     source_url: draft.sourceUrl.trim() || null,
-    ingredients: ingredients.map(ingredientInputFromDraft),
+    ...(sections.length > 0 ? { ingredient_sections: sections.map(({ name }) => ({ name })) } : {}),
+    ingredients: sectionedIngredientInputs(ingredients, sections),
     steps: cleanSteps,
   });
 
@@ -235,7 +246,10 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       notes: draft.notes.trim() || null,
       source_url: draft.sourceUrl.trim() || null,
     };
-    if (ingredientsDirty) payload.ingredients = ingredients.map(ingredientInputFromDraft);
+    if (ingredientsDirty) {
+      payload.ingredients = sectionedIngredientInputs(ingredients, sections);
+      payload.ingredient_sections = sections.map(({ name }) => ({ name }));
+    }
     if (stepsDirty) payload.steps = cleanSteps;
     return payload;
   };
@@ -251,6 +265,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     if ('cook_hours' in payload && saved.cook_minutes !== cook) return false;
     if ('notes' in payload && saved.notes !== (payload.notes ?? null)) return false;
     if ('source_url' in payload && saved.source_url !== (payload.source_url ?? null)) return false;
+    if (payload.ingredient_sections && !sectionsMatchSaved(saved, payload.ingredient_sections, payload.ingredients)) return false;
     if (payload.ingredients) {
       const submitted = payload.ingredients;
       const current = saved.ingredients ?? [];
@@ -294,6 +309,10 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       if (!editing) {
         const result = await api.createRecipe(() => latestGetToken.current(), householdId, pendingSave.current as RecipeInput);
         if (!mounted.current || scopeRef.current !== requestScope || requestGeneration.current !== generation) return;
+        const payload = pendingSave.current;
+        if (payload.ingredient_sections && !sectionsMatchSaved(result.recipe, payload.ingredient_sections, payload.ingredients)) {
+          setSaveUnknown(true); setError('The server did not confirm the ingredient sections. Your draft is kept; check the saved recipe before retrying.'); return;
+        }
         finishSaved(result.recipe, requestScope);
         return;
       }
@@ -341,6 +360,9 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
         ? await api.updateRecipe(() => latestGetToken.current(), householdId, recipeId!, payload as RecipeUpdateInput)
         : await api.createRecipe(() => latestGetToken.current(), householdId, payload as RecipeInput);
       if (!mounted.current || scopeRef.current !== requestScope || requestGeneration.current !== generation) return;
+      if (payload.ingredient_sections && !sectionsMatchSaved(result.recipe, payload.ingredient_sections, payload.ingredients)) {
+        setSaveUnknown(true); setError('The server did not confirm the ingredient sections. Your draft is kept; check the saved recipe before retrying.'); return;
+      }
       finishSaved(result.recipe, requestScope);
     } catch (reason) {
       if (mounted.current && scopeRef.current === requestScope && requestGeneration.current === generation) {
@@ -369,8 +391,15 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
   }, [editorRouteBase, router, sheetFlow]);
 
   const saveIngredient = useCallback((ingredient: RecipeIngredientDraft, key: string | null) => {
-    if (dragInProgress()) return;
-    changeIngredients((current) => saveIngredientByKey(current, ingredient, key));
+    if (dragInProgress()) return false;
+    if (ingredient.sectionKey && !sectionsRef.current.some((s) => s.key === ingredient.sectionKey)) return false;
+    if (key !== null && !ingredientsRef.current.some((item) => item.key === key)) return false;
+    changeIngredients((current) => {
+      const old = current.find((item) => item.key === key);
+      if (old && (old.sectionKey ?? null) !== (ingredient.sectionKey ?? null)) return [...current.filter((item) => item.key !== key), { ...ingredient, key: key! }];
+      return saveIngredientByKey(current, ingredient, key);
+    });
+    return true;
   }, [changeIngredients, dragInProgress]);
 
   const openIngredientDetails = useCallback((food: RecipeFoodChoice, existing: RecipeIngredientDraft | undefined, key: string | null, returnToSearch: boolean, units: CatalogUnits | null = null) => {
@@ -380,6 +409,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     const isCurrentIngredient = () => isCurrentEditorScope() && requestGeneration.current === openedGeneration;
     const initialDraft = existing ?? {
       key: newCreateRequestId(),
+      sectionKey: targetSection.current,
       catalogItemId: food.id,
       catalogItemName: food.name,
       categoryEmoji: food.categoryEmoji,
@@ -394,6 +424,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       <RecipeIngredientDetailsSheet
         food={food}
         initialDraft={initialDraft}
+        sections={sectionsRef.current}
         existingKey={key}
         returnToSearch={returnToSearch}
         householdId={householdId!}
@@ -402,7 +433,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
         isCurrent={isCurrentIngredient}
         initialUnits={units}
         unitSheetRoute={`${editorRouteBase}/sheet/unit`}
-        onSave={(ingredient, targetKey) => { if (isCurrentIngredient()) saveIngredient(ingredient, targetKey); }}
+        onSave={(ingredient, targetKey) => isCurrentIngredient() ? saveIngredient(ingredient, targetKey) : false}
       />,
       [0.52, 0.92],
     );
@@ -421,7 +452,9 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     } } as never);
   }, [editorRouteBase, householdId, isCurrentEditorScope, router, scope, sessionId, userId]);
 
-  const openIngredientSearch = () => {
+  const openIngredientSearch = (sectionKey: string | null = null) => {
+    if (sectionKey !== null && !sectionsRef.current.some((s) => s.key === sectionKey)) return;
+    targetSection.current = sectionKey;
     if (!householdId || !editorLoaded || loading || saving || saveUnknown || dragInProgress()) return;
     Keyboard.dismiss();
     pushNativeSheet(
@@ -436,6 +469,29 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       />,
       [0.58, 0.94],
     );
+  };
+
+  const changeSections = (next: RecipeSectionDraft[], removedKey?: string) => {
+    if (!isCurrentEditorScope() || dragInProgress() || next.length > 20) return false;
+    sectionsRef.current = next; setSections(next); setIngredientsDirty(true);
+    const current = removedKey ? removeRecipeSection(ingredientsRef.current, removedKey) : ingredientsRef.current;
+    const ordered = orderedSectionIngredients(current, next); ingredientsRef.current = ordered; setIngredients(ordered);
+    return true;
+  };
+  const openSectionName = () => {
+    if (!isCurrentEditorScope() || dragInProgress() || sectionsRef.current.length >= 20) return;
+    const generation = requestGeneration.current;
+    let id = '';
+    const isCurrent = () => isCurrentEditorScope() && requestGeneration.current === generation && sheetFlow.get(id) !== null;
+    id = sheetFlow.present(<RecipeSectionNameSheet isCurrent={isCurrent} onSave={(name) => changeSections([...sectionsRef.current, { key: `section-${newCreateRequestId()}`, name }])} />, { detents: [0.42, 0.78] });
+    router.push({ pathname: '/native-sheet/[sheetId]', params: { sheetId: id } });
+  };
+  const manageSections = () => {
+    if (!isCurrentEditorScope() || dragInProgress()) return;
+    const generation = requestGeneration.current; let id = '';
+    const isCurrent = () => isCurrentEditorScope() && requestGeneration.current === generation && sheetFlow.get(id) !== null;
+    id = sheetFlow.present(<RecipeSectionsSheet initialSections={sectionsRef.current} isCurrent={isCurrent} onChange={changeSections} />, { detents: [0.58, 0.94] });
+    router.push({ pathname: '/native-sheet/[sheetId]', params: { sheetId: id } });
   };
 
   const openRecipeEmojiEntry = () => {
@@ -508,20 +564,27 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
 
             <View style={styles.section}>
               <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Ingredients <ThemedText themeColor="error">*</ThemedText></ThemedText>
-              {ingredients.length > 0 ? <RecipeIngredientList
-                key={`${scope}:${dragEpoch}`} ingredients={ingredients} enabled={sortableEnabled} busy={dragging}
-                scrollRef={scrollRef} dragBlocked={dragBlocked} interactionId={interactionId} onStart={startDrag} onFinish={finishDrag}
-                onEdit={(ingredient) => startIngredient({ id: ingredient.catalogItemId, name: ingredient.catalogItemName, categoryEmoji: ingredient.categoryEmoji }, ingredient)}
-                onRemove={(key) => {
-                  if (dragInProgress()) return;
-                  changeIngredients((current) => current.some((item) => item.key === key) ? current.filter((item) => item.key !== key) : current);
-                }}
-                onMove={(key, direction) => {
-                  if (!sortableEnabled || dragInProgress()) return null;
-                  if (!changeIngredients((current) => moveIngredient(current, key, direction))) return null;
-                  return ingredientsRef.current.findIndex((item) => item.key === key) + 1;
-                }}
-              /> : <ThemedText themeColor="textSecondary">Add at least one Food Catalog item to save this recipe.</ThemedText>}
+              {sections.length > 0 ? <Pressable accessibilityRole="button" disabled={!editable} onPress={manageSections} style={styles.inlineAction}><ThemedText themeColor="link">Manage sections</ThemedText></Pressable> : null}
+              {[{ key: null, name: sections.length ? 'Other ingredients' : '' }, ...sections].map((group) => {
+                const rows = sectionIngredients(ingredients, group.key);
+                return <View key={group.key ?? 'unassigned'} style={{ gap: 10 }}>
+                  {group.name ? <ThemedText accessibilityRole="header" style={styles.fieldLabel}>{group.name}</ThemedText> : null}
+                  {rows.length > 0 ? <RecipeIngredientList
+                    key={`${scope}:${dragEpoch}:${group.key}`} ingredients={rows} enabled={sortableEnabled} busy={dragging}
+                    scrollRef={scrollRef} dragBlocked={dragBlocked} interactionId={interactionId} onStart={startDrag} onFinish={(keys, completed) => finishDrag(keys, completed, group.key)}
+                    onEdit={(ingredient) => startIngredient({ id: ingredient.catalogItemId, name: ingredient.catalogItemName, categoryEmoji: ingredient.categoryEmoji }, ingredient)}
+                    onRemove={(key) => { if (!dragInProgress()) changeIngredients((current) => current.some((item) => item.key === key) ? current.filter((item) => item.key !== key) : current); }}
+                    onMove={(key, direction) => {
+                      if (!sortableEnabled || dragInProgress()) return null;
+                      const current = sectionIngredients(ingredientsRef.current, group.key);
+                      const next = moveIngredient(current, key, direction); if (next === current) return null;
+                      changeIngredients((items) => reorderSectionIngredients(items, group.key, next.map((item) => item.key)));
+                      return next.findIndex((item) => item.key === key) + 1;
+                    }} /> : <ThemedText themeColor="textSecondary">{sections.length ? 'No ingredients in this section yet.' : 'Add at least one Food Catalog item to save this recipe.'}</ThemedText>}
+                  {group.key !== null ? <Pressable accessibilityRole="button" accessibilityLabel={`Add ingredient to ${group.name}`} disabled={!editable} onPress={() => openIngredientSearch(group.key)} style={styles.inlineAction}><ThemedText themeColor="link">Add ingredient</ThemedText></Pressable> : null}
+                </View>;
+              })}
+              <Pressable accessibilityRole="button" disabled={!editable || sections.length >= 20} onPress={openSectionName} style={styles.inlineAction}><ThemedText themeColor="link">Add section</ThemedText></Pressable>
               {error === 'Add at least one Food Catalog ingredient.' ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
               <Pressable accessibilityRole="button" disabled={!editable} onPress={() => void openIngredientSearch()} style={styles.inlineAction}>
                 <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus', android: 'add', web: 'add' }} size={21} tintColor={theme.link} />

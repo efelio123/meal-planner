@@ -88,6 +88,7 @@ def cleanup_household(engine: Engine, household_ids: list[str], user_ids: list[s
         for household_id in household_ids:
             connection.execute(text("DELETE FROM household_recipe_steps WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_recipe_ingredients WHERE household_id = :id"), {"id": household_id})
+            connection.execute(text("DELETE FROM household_recipe_sections WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_recipes WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM catalog_items WHERE household_id = :id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id = :id"), {"id": household_id})
@@ -98,7 +99,7 @@ def cleanup_household(engine: Engine, household_ids: list[str], user_ids: list[s
 
 def test_recipe_migration_is_current_and_keeps_household_scoped_foreign_keys(recipe_engine: Engine) -> None:
     with recipe_engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "meal_plan_special_entries"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "recipe_ingredient_sections"
         constraints = set(connection.execute(text("""
             SELECT conname FROM pg_constraint
             WHERE conrelid IN (

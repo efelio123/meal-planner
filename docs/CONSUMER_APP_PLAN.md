@@ -81,10 +81,15 @@ November 1 continuation: the family-trial inventory is reconciled with the
 live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
 B11 stays on unreproduced regression watch. Remaining requested features are
 F09 ingredient sections, F10 recipe copying, F12 calendar sync, F14 themes,
-F15 member permissions and F16 widgets. Proposed next work is F09, then F10;
-`docs/plans/recipe-ingredient-sections.md` is a draft awaiting review, with no
-feature implementation or live rollout authorized yet. The two-iPhone testing
-week continues on the accepted release.
+F15 member permissions and F16 widgets. Felipe approved F09 ingredient-only
+sections and assigned implementation directly to this chat on
+`codex/recipe-ingredient-sections`. The shared recipe editor/detail, native
+section sheets, additive storage migration and compatibility guard are implemented;
+automated checks pass (745 mobile tests normal/cold, 196 API tests, types/lint
+and native JS exports); phone acceptance remains pending, tracked in
+`docs/plans/recipe-ingredient-sections.md`. F10 recipe copying remains separate
+and unimplemented. The live Mac API/database and two-iPhone testing release
+remain unchanged; deploying F09 requires a separately approved rollout.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

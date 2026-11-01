@@ -90,6 +90,7 @@ def _cleanup(engine: Engine, households: list[str], users: list[str]) -> None:
             connection.execute(text("DELETE FROM household_meal_plan_entries WHERE household_id=:id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_recipe_steps WHERE household_id=:id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_recipe_ingredients WHERE household_id=:id"), {"id": household_id})
+            connection.execute(text("DELETE FROM household_recipe_sections WHERE household_id=:id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_recipes WHERE household_id=:id"), {"id": household_id})
             connection.execute(text("DELETE FROM catalog_items WHERE household_id=:id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id=:id"), {"id": household_id})
@@ -101,7 +102,7 @@ def _cleanup(engine: Engine, households: list[str], users: list[str]) -> None:
 
 def test_meal_plan_migration_has_household_scoped_keys_and_preserves_manual_shopping_rows(meal_plan_engine: Engine) -> None:
     with meal_plan_engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "meal_plan_special_entries"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "recipe_ingredient_sections"
         entry_constraints = set(connection.execute(text("""
             SELECT conname FROM pg_constraint WHERE conrelid='household_meal_plan_entries'::regclass
         """)).scalars())

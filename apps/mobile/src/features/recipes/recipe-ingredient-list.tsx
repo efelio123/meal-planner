@@ -1,4 +1,4 @@
-import type { ComponentRef, PropsWithChildren } from 'react';
+import type { ComponentRef, PropsWithChildren, ReactNode } from 'react';
 import { AccessibilityInfo, Platform, Pressable, ScrollView, StyleSheet, View, type KeyDownEvent } from 'react-native';
 import { GestureDetector, GestureStateManager, useManualGesture, type ManualGestureConfig } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useReducedMotion, useSharedValue, type AnimatedRef, type SharedValue } from 'react-native-reanimated';
@@ -32,7 +32,7 @@ type Props = {
  * cancellation (which iOS can send on a perfectly valid native drag).
  */
 function IngredientHandle({ ingredient, index, count, disabled, touch, onMove }: {
-  ingredient: RecipeIngredientDraft; index: number; count: number; disabled: boolean;
+  ingredient: { key: string; catalogItemName: string }; index: number; count: number; disabled: boolean;
   touch: SharedValue<Touch>; onMove: Props['onMove'];
 }) {
   const theme = useTheme();
@@ -111,7 +111,19 @@ function IngredientRowSurface({ children }: PropsWithChildren) {
   </View>;
 }
 
-export function RecipeIngredientList({ ingredients, enabled, busy, scrollRef, dragBlocked, interactionId, onStart, onFinish, onEdit, onRemove, onMove }: Props) {
+type ReorderProps<T extends { key: string }> = Omit<Props, 'ingredients' | 'onEdit'> & {
+  items: T[]; label: (item: T) => string; detail?: (item: T) => ReactNode;
+  onEdit: (item: T) => void; sectionRows?: boolean;
+};
+export function RecipeIngredientList(props: Props) {
+  return <RecipeReorderList {...props} items={props.ingredients} label={(item) => item.catalogItemName} detail={(item) => {
+    const unit = item.customUnitLabel.trim() || item.unitLabel;
+    const amount = formatRecipeAmount(item.amount.trim());
+    return <><ThemedText themeColor="textSecondary">{amount ? (unit ? `${amount} ${unit}` : amount) : 'To taste'}</ThemedText>
+      {item.note ? <ThemedText themeColor="textSecondary">Note: {item.note}</ThemedText> : null}</>;
+  }} />;
+}
+export function RecipeReorderList<T extends { key: string }>({ items: ingredients, label, detail, sectionRows, enabled, busy, scrollRef, dragBlocked, interactionId, onStart, onFinish, onEdit, onRemove, onMove }: ReorderProps<T>) {
   const theme = useTheme();
   const reducedMotion = useReducedMotion();
   const touch = useSharedValue<Touch>({ key: '', sequence: 0, phase: 'cancelled' });
@@ -126,7 +138,7 @@ export function RecipeIngredientList({ ingredients, enabled, busy, scrollRef, dr
     itemEntering={null} itemExiting={null}
     onDragStart={({ key }) => {
       'worklet';
-      if (dragBlocked.get().owner !== interactionId) return;
+      if (dragBlocked.get().owner !== interactionId || dragBlocked.get().blocked) return;
       drag.value = { key, sequence: touch.value.sequence };
       dragBlocked.set({ owner: interactionId, blocked: true });
       scheduleOnRN(onStart);
@@ -134,6 +146,7 @@ export function RecipeIngredientList({ ingredients, enabled, busy, scrollRef, dr
     onActiveItemDropped={({ key, indexToKey }) => {
       'worklet';
       const active = drag.value;
+      if (active === null) return;
       // A zero-duration reduced-motion drop can finish in the up event itself.
       // Wait one UI frame so the simultaneous up/cancel observer always runs.
       requestAnimationFrame(() => {
@@ -145,19 +158,16 @@ export function RecipeIngredientList({ ingredients, enabled, busy, scrollRef, dr
       });
     }}
     renderItem={({ item, index }) => {
-      const unit = item.customUnitLabel.trim() || item.unitLabel;
-      const amount = formatRecipeAmount(item.amount.trim());
-      const summary = amount ? (unit ? `${amount} ${unit}` : amount) : 'To taste';
+      const name = label(item);
       return <IngredientRowSurface>
         <View style={styles.summary}>
-          <ThemedText numberOfLines={3} style={styles.name}>{item.catalogItemName}</ThemedText>
-          <ThemedText themeColor="textSecondary">{summary}</ThemedText>
-          {item.note ? <ThemedText themeColor="textSecondary">Note: {item.note}</ThemedText> : null}
+          <ThemedText numberOfLines={3} style={styles.name}>{name}</ThemedText>
+          {detail?.(item)}
         </View>
         <View style={styles.actions}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${item.catalogItemName}`} disabled={!enabled || busy} onPress={() => onEdit(item)} style={styles.action}><ThemedText themeColor="link">Edit</ThemedText></Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${item.catalogItemName} from recipe`} disabled={!enabled || busy} onPress={() => onRemove(item.key)} style={styles.action}><ThemedText themeColor="error">Remove</ThemedText></Pressable>
-          <IngredientHandle ingredient={item} index={index} count={ingredients.length} disabled={!enabled || ingredients.length < 2} touch={touch} onMove={onMove} />
+          <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${sectionRows ? 'section ' : ''}${name}`} disabled={!enabled || busy} onPress={() => onEdit(item)} style={styles.action}><ThemedText themeColor="link">Edit</ThemedText></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${sectionRows ? 'section ' : ''}${name}${sectionRows ? '' : ' from recipe'}`} disabled={!enabled || busy} onPress={() => onRemove(item.key)} style={styles.action}><ThemedText themeColor="error">Remove</ThemedText></Pressable>
+          <IngredientHandle ingredient={{ key: item.key, catalogItemName: name }} index={index} count={ingredients.length} disabled={!enabled || ingredients.length < 2} touch={touch} onMove={onMove} />
         </View>
       </IngredientRowSurface>;
     }}

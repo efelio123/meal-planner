@@ -1,9 +1,9 @@
 # Recipe ingredient sections — F09
 
-Status: proposed November 1, 2026; awaiting Felipe's review and explicit approval.
+Status: implemented November 1, 2026; automated validation passed, phone
+acceptance pending. Felipe approved the first part and assigned implementation here.
 Planning branch: `codex/recipe-sections-plan`, clean from `origin/main` at `b06be48`.
-Chat owns planning/review. Implementation follows AGENTS.md ownership unless
-Felipe explicitly assigns it here. This plan does not authorize a live rollout.
+Implementation owner: this chat agent, on `codex/recipe-ingredient-sections`. This plan does not authorize a live rollout.
 
 ## Goal and place in the inventory
 
@@ -127,12 +127,58 @@ forward rather than restoring a backup over new family writes.
 
 ## Review decisions
 
-Approval is requested for the proposed ingredient-only scope and the simpler
-within-section drag plus Section-picker movement between groups. If Felipe wants
-cross-section dragging or direction sections now, revise this plan before code.
-No implementation changes are approved yet.
+Felipe approved the ingredient-only scope, within-section drag and Section-picker
+movement between groups, and assigned implementation here. Cross-section dragging,
+direction sections and F10 recipe copying remain outside this slice. Live rollout
+remains separate.
 
 References: [Expo SDK 58](https://docs.expo.dev/versions/v58.0.0/),
 [Sortables official releases](https://github.com/MatiPl01/react-native-sortables/releases)
 (version 1.10.1 confirmed in the installed package), and
 [native-sheet agreement](native-sheets-app-wide.md).
+
+## Implementation review — November 1
+
+Implemented on `codex/recipe-ingredient-sections`:
+- One shared editor/detail behavior for Recipes and Plan; native name/management
+  sheets reuse the scoped formSheet flow and existing drag/haptic engine.
+- Draft section identity is independent of names and ingredient occurrences.
+  Removal preserves rows, and grouped saves/reconciliation include assignments.
+- New `recipe_ingredient_sections` migration preserves old rows, constrains
+  household/recipe references and refuses a downgrade that would discard groups.
+  API compatibility rejects legacy ingredient replacement on grouped recipes.
+- No dependency changes. The live Mac DB/API, phone builds and Render are untouched.
+
+Validation completed on the final implementation:
+- API Ruff, migration head and all 196 API tests pass on identity-verified local
+  `meal_planner_disposable_test`, with no skips. Includes ownership constraints,
+  old-row migration preservation, downgrade refusal, grouped persistence, legacy
+  protection, idempotent create replay and unchanged cross-section Shopping totals.
+- Full mobile normal and cache-cleared runs each pass 745 tests in 71 suites,
+  with no skips. Types and lint pass. Actual-router cases cover both create
+  origins, moving/renaming/reordering/removing sections, final-section removal,
+  duplicate occurrences and retrying an unconfirmed grouped save with the same ID.
+- iOS and Android JS exports pass. Validation uses an isolated runtime matching
+  the committed lockfile, preserving packages used by the running Expo server.
+- Native iPhone/Android drag, keyboard, large-text, scroll settling and visual
+  acceptance remain unrun. These checks do not prove native device geometry.
+
+Local review setup: after the passing full normal suite, the Windows development
+DB was identity-checked, backed up as a valid custom-format archive at
+`C:/Users/efeli/AppData/Local/Temp/meal-planner-dev-before-recipe-sections-20261101.dump`,
+then migrated to the new head. The local API was restarted and its health/OpenAPI
+confirm the new section inputs. Existing Expo continues on the LAN target;
+its installed packages were not refreshed underneath the running server.
+This is local development only, not the Mac family-trial rollout.
+
+Phone review still to perform:
+1. Open an existing flat recipe: no grouping labels should appear.
+2. Create from Recipes and Plan; add Chicken and Mashed potatoes sections,
+   add ingredients inside each, including a fraction and a blank To taste amount.
+   Save and reopen to verify names, assignments, quantities and notes.
+3. Reorder rows within a group and groups through Manage sections. Move one
+   repeated ingredient through its Section picker; its quantity/note must follow it.
+4. Cancel a section removal, then confirm it. Its ingredients must move to Other
+   ingredients without deletion. Remove the final section to return to a flat list.
+5. Check nested Back/Cancel/dismiss, long lists, larger text, keyboard visibility
+   and the last actions after scrolling settles. Verify a canceled drag keeps order.

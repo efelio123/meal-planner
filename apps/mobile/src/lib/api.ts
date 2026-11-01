@@ -99,7 +99,9 @@ export type CatalogItemInput = {
   recipe_measurement_unit_code?: string | null;
 };
 
+export type RecipeSection = { id: string; position: number; name: string };
 export type RecipeIngredientInput = {
+  section_position?: number | null;
   catalog_item_id: string;
   amount?: string | null;
   unit_code?: string | null;
@@ -130,6 +132,7 @@ export type Recipe = {
   updated_at: string;
   archived_at: string | null;
   ingredient_count: number;
+  ingredient_sections?: RecipeSection[];
   ingredients?: RecipeIngredient[];
   steps?: RecipeStep[];
 };
@@ -145,6 +148,7 @@ export type RecipeInput = {
   cook_minutes?: number | null;
   notes?: string | null;
   source_url?: string | null;
+  ingredient_sections?: { name: string }[];
   ingredients: RecipeIngredientInput[];
   steps?: string[];
 };

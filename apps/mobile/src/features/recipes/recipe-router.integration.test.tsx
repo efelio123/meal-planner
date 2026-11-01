@@ -893,4 +893,84 @@ describe('Recipes through the actual Expo Router', () => {
     expect(await screen.findByDisplayValue('1.5')).toBeTruthy();
     expect(screen.getByLabelText('Ingredient amount').props.placeholder).toBe('e.g. 2 or 1/2');
   });
+  it.each(['/recipes/create', '/plan/recipe-create'])('creates a section and keeps its assignment across nested sheets from %s', async (path) => {
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => router.navigate(path as never));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Family dinner');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add section' }));
+    await fireEvent.changeText(await screen.findByLabelText('Section name'), ' Chicken ');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add section' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add ingredient to Chicken' }));
+    await fireEvent.press(await screen.findByText('Milk'));
+    expect(await screen.findByRole('button', { name: 'Section: Chicken' })).toBeTruthy();
+    await fireEvent.changeText(screen.getByLabelText('Ingredient amount'), '2 2/3');
+    await fireEvent.changeText(screen.getByLabelText('Ingredient note'), 'for sauce');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    await screen.findByText('Note: for sauce');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.createRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({ ingredient_sections: [{ name: 'Chicken' }], ingredients: [expect.objectContaining({ amount: '2 2/3', note: 'for sauce', section_position: 0 })] })));
+    // A server that omits grouping must never dismiss the retained draft as saved.
+    expect(await screen.findByText('The server did not confirm the ingredient sections. Your draft is kept; check the saved recipe before retrying.')).toBeTruthy();
+    expect(screen.getByDisplayValue('Family dinner')).toBeTruthy();
+    const sent = mockedApi.createRecipe.mock.calls[0][2];
+    const confirmed = recipe({ id: 'recipe-created', name: 'Family dinner', ingredient_sections: [{ id: 'section-a', name: 'Chicken', position: 0 }], ingredients: [{ ...recipe().ingredients![0], amount: '2.666667', note: 'for sauce', section_position: 0 }] });
+    mockedApi.createRecipe.mockResolvedValue({ recipe: confirmed });
+    mockedApi.recipe.mockResolvedValue({ recipe: confirmed });
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry save' }));
+    await waitFor(() => expect(mockedApi.createRecipe).toHaveBeenCalledTimes(2));
+    expect(mockedApi.createRecipe.mock.calls[1][2]).toEqual(sent);
+    expect(await screen.findByText('Family dinner')).toBeTruthy();
+    expect((await screen.findAllByText('Chicken')).length).toBeGreaterThan(0);
+  });
+
+  it('renames, reorders and removes sections without losing duplicate ingredient occurrences', async () => {
+    const base = recipe().ingredients![0];
+    mockedApi.recipe.mockResolvedValue({ recipe: recipe({ ingredient_sections: [{ id: 'a', position: 0, name: 'Chicken' }, { id: 'b', position: 1, name: 'Mash' }], ingredients: [{ ...base, section_position: 0, note: 'sauce' }, { ...base, id: 'second', position: 1, section_position: 1, amount: '3', note: 'potatoes' }] }) });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Manage sections' }));
+    await fireEvent(screen.getByLabelText('Reorder Mash, position 2 of 2'), 'accessibilityAction', { nativeEvent: { actionName: 'decrement' } });
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit section Chicken' }));
+    await fireEvent.changeText(await screen.findByLabelText('Section name'), 'Sauce');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save section' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Remove section Mash' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove section' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByText('Other ingredients');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'recipe-1', expect.objectContaining({ ingredient_sections: [{ name: 'Sauce' }], ingredients: [expect.objectContaining({ amount: '3', note: 'potatoes', section_position: null }), expect.objectContaining({ amount: '1/2', note: 'sauce', section_position: 0 })] })));
+  });
+
+  it('moves an occurrence through Ingredient Details and saves its measurement and note with its new section', async () => {
+    const base = recipe().ingredients![0];
+    mockedApi.recipe.mockResolvedValue({ recipe: recipe({ ingredient_sections: [{ id: 'a', position: 0, name: 'Chicken' }, { id: 'b', position: 1, name: 'Mash' }], ingredients: [{ ...base, section_position: 0, note: 'sauce' }, { ...base, id: 'second', position: 1, section_position: 1, amount: '3', note: 'potatoes' }] }) });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press((await screen.findAllByRole('button', { name: 'Edit Milk' }))[0]);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Section: Chicken' }));
+    await fireEvent.press(await screen.findByText('Mash'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Save ingredient' }));
+    await screen.findByText('Note: sauce');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'recipe-1', expect.objectContaining({ ingredient_sections: [{ name: 'Chicken' }, { name: 'Mash' }], ingredients: [expect.objectContaining({ amount: '3', note: 'potatoes', section_position: 1 }), expect.objectContaining({ amount: '1/2', note: 'sauce', section_position: 1 })] })));
+  });
+
+  it('removes the final section, keeps every ingredient and sends an explicit empty section list', async () => {
+    mockedApi.recipe.mockResolvedValue({ recipe: recipe({ ingredient_sections: [{ id: 'a', position: 0, name: 'Sauce' }], ingredients: [{ ...recipe().ingredients![0], section_position: 0, note: 'keep me' }] }) });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Manage sections' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove section Sauce' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove section' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByText('Note: keep me');
+    expect(screen.queryByText('Other ingredients')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'recipe-1', expect.objectContaining({ ingredient_sections: [], ingredients: [expect.objectContaining({ amount: '1/2', note: 'keep me' })] })));
+  });
+
 });
