@@ -247,3 +247,21 @@ create-origin cases verify the icon action preselects the named section and only
 one main Add ingredient text remains. Existing drag/separator tests pass after
 section-only row centering. Native appearance, large-text wrapping and touch
 targets still need phone review. No API/data edits or database tests here.
+
+### Ingredient details actions and opening height — November 1
+
+Felipe requests Add at the top right of Ingredient details, performing the same
+submission as the bottom action, and expanded opening height whenever Section
+selection is shown. Header Add (Save for an existing occurrence) shares the
+same validation, scope checks and submit handler as the bottom button; a submit
+latch prevents double taps from dismissing multiple layers. Back remains the
+non-saving return path. Both owning stacks read the entry's initial detent
+before navigation: sectioned details open at the existing largest detent
+(0.92); flat details retain their medium opening. Native dragging and direct
+content rendering are retained. All 50 focused recipe/native-sheet tests,
+TypeScript and lint pass, with no skips in the final run. Actual-router checks
+confirm expanded sectioned details from Recipes and Plan, medium flat details,
+header Add submission, invalid-amount disabling on both actions, and Back without
+saving. Tests inspect the actual native modal screen, not an underlying stack
+screen. Actual iPhone height and keyboard reachability remain unrun. No API/data
+edits or database tests here.

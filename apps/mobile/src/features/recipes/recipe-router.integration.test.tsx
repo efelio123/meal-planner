@@ -319,6 +319,7 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.getByLabelText('Ingredient amount').props.keyboardType).toBe('default');
     await fireEvent.changeText(screen.getByLabelText('Ingredient amount'), '1/0');
     expect(screen.getByRole('button', { name: 'Add ingredient' }).props.accessibilityState?.disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Add' }).props.accessibilityState?.disabled).toBe(true);
     await fireEvent.changeText(screen.getByLabelText('Ingredient amount'), '2 2/3');
     await fireEvent.press(screen.getByRole('button', { name: `Unit: ${label ?? 'No unit'}` }));
     await fireEvent.press(await screen.findByRole('button', { name: 'Cup' }));
@@ -428,6 +429,9 @@ describe('Recipes through the actual Expo Router', () => {
     expect(await screen.findByText('Ingredient details')).toBeTruthy();
     expect(rendered.getPathname()).toBe('/recipes/sheet/details');
     const detailsScroll = screen.getByTestId('recipe-ingredient-details-scroll');
+    let nativeDetails = detailsScroll.parent;
+    while (nativeDetails && !['RNSScreen', 'RNSModalScreen'].includes(nativeDetails.type)) nativeDetails = nativeDetails.parent;
+    expect(nativeDetails?.props.sheetInitialDetentIndex).toBe(0);
     expect(screen.queryByTestId('native-sheet-content')).toBeNull();
     expect(detailsScroll.props.keyboardShouldPersistTaps).toBe('handled');
     expect(detailsScroll.props.keyboardDismissMode).toBe(Platform.OS === 'ios' ? 'interactive' : 'on-drag');
@@ -469,7 +473,8 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.getByDisplayValue('1/2')).toBeTruthy();
     expect(screen.getByDisplayValue('finely chopped')).toBeTruthy();
     await waitFor(() => expect(screen.queryByLabelText('Search Food Catalog')).toBeNull());
-    await fireEvent.press(screen.getByText('Cancel'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to Food Catalog' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Done' }));
     await waitFor(() => expect(screen.queryByText('Ingredient details')).toBeNull());
   });
 
@@ -647,7 +652,7 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.getByRole('button', { name: 'Unit: Cup' })).toBeTruthy();
     expect(mockedApi.createCatalogItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({ recipe_measurement_dimension: 'volume', recipe_measurement_unit_code: 'cup' }));
     await waitFor(() => expect(screen.queryByLabelText('Search Food Catalog')).toBeNull());
-    await fireEvent.press(screen.getByText('Cancel'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to recipe' }));
     await waitFor(() => expect(screen.queryByText('Ingredient details')).toBeNull());
     expect(screen.getByDisplayValue('Celery Soup')).toBeTruthy();
   });
@@ -911,9 +916,13 @@ describe('Recipes through the actual Expo Router', () => {
     await fireEvent.press(sectionAdd);
     await fireEvent.press(await screen.findByText('Milk'));
     expect(await screen.findByRole('button', { name: 'Section: Chicken' })).toBeTruthy();
+    let nativeDetails = screen.getByTestId('recipe-ingredient-details-scroll').parent;
+    while (nativeDetails && !['RNSScreen', 'RNSModalScreen'].includes(nativeDetails.type)) nativeDetails = nativeDetails.parent;
+    expect(nativeDetails?.props.sheetInitialDetentIndex).toBe(1);
+    expect(nativeDetails?.props.sheetAllowedDetents).toEqual([0.52, 0.92]);
     await fireEvent.changeText(screen.getByLabelText('Ingredient amount'), '2 2/3');
     await fireEvent.changeText(screen.getByLabelText('Ingredient note'), 'for sauce');
-    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Add' }));
     await screen.findByText('Note: for sauce');
     await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(mockedApi.createRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({ ingredient_sections: [{ name: 'Chicken' }], ingredients: [expect.objectContaining({ amount: '2 2/3', note: 'for sauce', section_position: 0 })] })));

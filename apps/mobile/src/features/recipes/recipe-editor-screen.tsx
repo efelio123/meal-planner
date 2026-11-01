@@ -402,8 +402,8 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
 
   const getCurrentToken = useCallback(() => latestGetToken.current(), []);
   const isCurrentEditorScope = useCallback(() => mounted.current && scopeRef.current === scope, [scope]);
-  const pushNativeSheet = useCallback((kind: 'food' | 'details' | 'cover' | 'emoji', content: React.ReactNode, detents: number[]) => {
-    const sheetId = sheetFlow.present(content, { detents });
+  const pushNativeSheet = useCallback((kind: 'food' | 'details' | 'cover' | 'emoji', content: React.ReactNode, detents: number[], initialDetent = 0) => {
+    const sheetId = sheetFlow.present(content, { detents, initialDetent });
     router.push({ pathname: `${editorRouteBase}/sheet/${kind}`, params: { sheetId } } as never);
   }, [editorRouteBase, router, sheetFlow]);
 
@@ -454,6 +454,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
         onSave={(ingredient, targetKey) => isCurrentIngredient() ? saveIngredient(ingredient, targetKey) : false}
       />,
       [0.52, 0.92],
+      sectionsRef.current.length > 0 ? 1 : 0,
     );
   }, [dragInProgress, editorRouteBase, getCurrentToken, householdId, isCurrentEditorScope, pushNativeSheet, saveIngredient, sheetFlow.scope]);
 

@@ -130,8 +130,10 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
   const [unitError, setUnitError] = useState<string | null>(null);
   const [retryUnits, setRetryUnits] = useState(0);
   const [sectionError, setSectionError] = useState('');
+  const submitted = useRef(false);
   const amountError = ingredientAmountError(draft.amount);
   const unitChoices = recipeUnitChoices(units?.recipe_measurement_units ?? []);
+  const saveDisabled = Boolean(amountError) || loadingUnits || Boolean(unitError);
 
   useEffect(() => {
     if (initialUnits) return;
@@ -153,18 +155,19 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
     setRetryUnits((current) => current + 1);
   };
   const save = () => {
-    if (amountError || loadingUnits || unitError) return;
+    if (saveDisabled || submitted.current) return;
     if (!isCurrent() || flow.scope !== expectedFlowScope) return;
     if (onSave(draft, existingKey) === false) { setSectionError('This ingredient or section changed. Close this sheet and try again.'); return; }
+    submitted.current = true;
+    Keyboard.dismiss();
     router.dismiss(dismissCount);
   };
-  const cancel = () => { Keyboard.dismiss(); router.dismiss(dismissCount); };
 
   return <ScrollView testID="recipe-ingredient-details-scroll" automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} contentContainerStyle={styles.nativeContent} keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={[styles.nativeScroll, { backgroundColor: theme.elevatedSurface }]}>
       <View style={styles.header}>
         <AppBackButton accessibilityLabel={returnToSearch ? 'Back to Food Catalog' : 'Back to recipe'} onPress={() => { Keyboard.dismiss(); router.back(); }} />
         <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Ingredient details</ThemedText>
-        <Pressable accessibilityRole="button" onPress={cancel} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Cancel</ThemedText></Pressable>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: saveDisabled }} disabled={saveDisabled} onPress={save} style={visualStyles.sheetAction}><ThemedText themeColor={saveDisabled ? 'textSecondary' : 'link'} style={visualStyles.sheetActionText}>{existingKey === null ? 'Add' : 'Save'}</ThemedText></Pressable>
       </View>
         <View style={[styles.selectedFoodCard, { backgroundColor: theme.screen }]}><View style={[styles.foodInitial, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{food.name.slice(0, 1).toUpperCase()}</ThemedText></View><View style={styles.foodSummary}><ThemedText style={styles.foodName}>{food.name}</ThemedText><ThemedText themeColor="textSecondary">Food Catalog item</ThemedText></View></View>
         <View style={styles.splitFields}>
@@ -177,7 +180,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
         {sectionError ? <ThemedText accessibilityRole="alert" themeColor="error">{sectionError}</ThemedText> : null}
         <View style={styles.field}><ThemedText themeColor="textSecondary">Note (optional)</ThemedText><ThemedInput accessibilityLabel="Ingredient note" onChangeText={(note) => setDraft((current) => ({ ...current, note }))} placeholder="e.g. finely chopped, to taste" value={draft.note} /></View>
         {amountError ? <ThemedText accessibilityRole="alert" themeColor="error">{amountError}</ThemedText> : null}
-        <PrimaryButton disabled={Boolean(amountError) || loadingUnits || Boolean(unitError)} onPress={save} title={existingKey === null ? 'Add ingredient' : 'Save ingredient'} />
+        <PrimaryButton disabled={saveDisabled} onPress={save} title={existingKey === null ? 'Add ingredient' : 'Save ingredient'} />
   </ScrollView>;
 }
 
