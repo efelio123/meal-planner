@@ -232,3 +232,18 @@ The added case checks saved/editor reading order and confirms that displaying
 Other ingredients last does not mark ingredients dirty on Save. Phone appearance
 still needs review. No API, database or dependency changes; full suites and
 API/database tests were not rerun for this presentation-only follow-up.
+
+### Compact section controls — November 1
+
+Felipe requests Manage sections to the right of Ingredients, a plus action at
+the right of each named section instead of repeated Add ingredient text, and
+vertically centered section names in the management sheet. The shared editor
+now uses wrapping heading rows with 44-point action targets and the app's
+existing blue plus icon. The main bottom Add ingredient action stays intact.
+Only section-management reorder rows use centered alignment; ordinary ingredient
+rows retain their multiline alignment and the accepted drag/separator behavior.
+All 51 focused recipe route/component tests, TypeScript and lint pass. Both
+create-origin cases verify the icon action preselects the named section and only
+one main Add ingredient text remains. Existing drag/separator tests pass after
+section-only row centering. Native appearance, large-text wrapping and touch
+targets still need phone review. No API/data edits or database tests here.

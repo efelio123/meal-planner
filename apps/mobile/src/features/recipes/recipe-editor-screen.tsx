@@ -581,12 +581,19 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
             </View>
 
             <View style={styles.section}>
-              <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Ingredients <ThemedText themeColor="error">*</ThemedText></ThemedText>
-              {sections.length > 0 ? <Pressable accessibilityRole="button" disabled={!editable} onPress={manageSections} style={styles.inlineAction}><ThemedText themeColor="link">Manage sections</ThemedText></Pressable> : null}
+              <View style={styles.sectionHeadingRow}>
+                <ThemedText accessibilityRole="header" style={[visualStyles.sectionTitle, styles.sectionHeadingText]}>Ingredients <ThemedText themeColor="error">*</ThemedText></ThemedText>
+                {sections.length > 0 ? <Pressable accessibilityRole="button" disabled={!editable} onPress={manageSections} style={styles.headingAction}><ThemedText themeColor={editable ? 'link' : 'textSecondary'}>Manage sections</ThemedText></Pressable> : null}
+              </View>
               {[...sections, { key: null, name: sections.length ? 'Other ingredients' : '' }].map((group) => {
                 const rows = sectionIngredients(ingredients, group.key);
                 return <View key={group.key ?? 'unassigned'} style={{ gap: 10 }}>
-                  {group.name ? <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>{group.name}</ThemedText> : null}
+                  {group.name ? <View style={styles.sectionHeadingRow}>
+                    <ThemedText accessibilityRole="header" style={[visualStyles.sectionTitle, styles.sectionHeadingText]}>{group.name}</ThemedText>
+                    {group.key !== null ? <Pressable accessibilityRole="button" accessibilityLabel={`Add ingredient to ${group.name}`} disabled={!editable} onPress={() => openIngredientSearch(group.key)} style={styles.headingAction}>
+                      <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus', android: 'add', web: 'add' }} size={21} tintColor={editable ? theme.link : theme.textSecondary} />
+                    </Pressable> : null}
+                  </View> : null}
                   {rows.length > 0 ? <RecipeIngredientList
                     key={`${scope}:${dragEpoch}:${group.key}`} ingredients={rows} enabled={sortableEnabled} busy={dragging}
                     scrollRef={scrollRef} dragBlocked={dragBlocked} interactionId={interactionId} onStart={startDrag} onFinish={(keys, completed) => finishDrag(keys, completed, group.key)}
@@ -599,7 +606,6 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
                       changeIngredients((items) => reorderSectionIngredients(items, group.key, next.map((item) => item.key)));
                       return next.findIndex((item) => item.key === key) + 1;
                     }} /> : <ThemedText themeColor="textSecondary">{sections.length ? 'No ingredients in this section yet.' : 'Add at least one Food Catalog item to save this recipe.'}</ThemedText>}
-                  {group.key !== null ? <Pressable accessibilityRole="button" accessibilityLabel={`Add ingredient to ${group.name}`} disabled={!editable} onPress={() => openIngredientSearch(group.key)} style={styles.inlineAction}><ThemedText themeColor="link">Add ingredient</ThemedText></Pressable> : null}
                 </View>;
               })}
               <Pressable accessibilityRole="button" disabled={!editable || sections.length >= 20} onPress={openSectionName} style={styles.inlineAction}><ThemedText themeColor="link">Add section</ThemedText></Pressable>
@@ -670,6 +676,9 @@ const styles = StyleSheet.create({
   field: { gap: 8 },
   fieldLabel: { fontWeight: '600' },
   section: { gap: 12 },
+  sectionHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  sectionHeadingText: { flex: 1, flexShrink: 1, minWidth: 0 },
+  headingAction: { alignItems: 'center', justifyContent: 'center', flexShrink: 0, minHeight: 44, minWidth: 44, paddingHorizontal: 4 },
   sectionTitleRow: { alignItems: 'baseline', flexDirection: 'row', gap: 8 },
   inlineAction: { alignItems: 'center', alignSelf: 'flex-start', flexDirection: 'row', gap: 10, minHeight: 44, paddingHorizontal: 4 },
   stepCard: { borderRadius: 16, gap: 12, padding: 14 },

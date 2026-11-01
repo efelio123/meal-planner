@@ -905,7 +905,10 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.queryByTestId('native-sheet-content')).toBeNull();
     await fireEvent.changeText(screen.getByLabelText('Section name'), ' Chicken ');
     await fireEvent.press(screen.getByRole('button', { name: 'Add section' }));
-    await fireEvent.press(await screen.findByRole('button', { name: 'Add ingredient to Chicken' }));
+    const sectionAdd = await screen.findByRole('button', { name: 'Add ingredient to Chicken' });
+    expect(within(sectionAdd).queryByText('Add ingredient')).toBeNull();
+    expect(screen.getAllByText('Add ingredient')).toHaveLength(1);
+    await fireEvent.press(sectionAdd);
     await fireEvent.press(await screen.findByText('Milk'));
     expect(await screen.findByRole('button', { name: 'Section: Chicken' })).toBeTruthy();
     await fireEvent.changeText(screen.getByLabelText('Ingredient amount'), '2 2/3');

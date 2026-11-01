@@ -99,13 +99,13 @@ function IngredientHandle({ ingredient, index, count, disabled, touch, onMove }:
 }
 
 /** Draw separators from UI-thread order, including the frame before React commits a drop. */
-function IngredientRowSurface({ children }: PropsWithChildren) {
+function IngredientRowSurface({ children, centered }: PropsWithChildren<{ centered?: boolean }>) {
   const theme = useTheme();
   const { isActive, activationAnimationProgress, itemKey, keyToIndex } = useItemContext();
   const separatorStyle = useAnimatedStyle(() => ({
     opacity: !isActive.get() && activationAnimationProgress.get() === 0 && (keyToIndex.get()[itemKey] ?? 0) > 0 ? 1 : 0,
   }));
-  return <View style={[styles.row, { backgroundColor: theme.surface }]}>
+  return <View style={[styles.row, { backgroundColor: theme.surface }, centered && styles.centeredRow]}>
     <Animated.View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" testID={`ingredient-separator-${itemKey}`} style={[styles.rowSeparator, { backgroundColor: theme.border }, separatorStyle]} />
     {children}
   </View>;
@@ -159,7 +159,7 @@ export function RecipeReorderList<T extends { key: string }>({ items: ingredient
     }}
     renderItem={({ item, index }) => {
       const name = label(item);
-      return <IngredientRowSurface>
+      return <IngredientRowSurface centered={sectionRows}>
         <View style={styles.summary}>
           <ThemedText numberOfLines={3} style={styles.name}>{name}</ThemedText>
           {detail?.(item)}
@@ -176,6 +176,7 @@ export function RecipeReorderList<T extends { key: string }>({ items: ingredient
 
 const styles = StyleSheet.create({
   row: { alignItems: 'flex-start', flexDirection: 'row', gap: 4, minHeight: 72, paddingHorizontal: 10, paddingVertical: 12, borderRadius: 12 },
+  centeredRow: { alignItems: 'center' },
   rowSeparator: { position: 'absolute', top: 0, left: 0, right: 0, height: StyleSheet.hairlineWidth },
   summary: { flex: 1, gap: 3, minWidth: 0 },
   name: { fontWeight: '700', flexShrink: 1 },
