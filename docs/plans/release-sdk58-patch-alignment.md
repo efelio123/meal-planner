@@ -101,3 +101,11 @@ Local Mac Terminal signing passes deep verification; a separate per-phone
 provisioning step remains before installing both native builds. The Mac API
 update and fresh restore-verified backup are complete; Render Auto-Deploy was
 verified Off and left unchanged. See the release runbook for remaining checks.
+
+
+November 1 closeout: Felipe confirms the new Release is live on both iPhones.
+Final GUI Release signature, embedded JS/private API URL, scene support and
+both-device profile coverage are verified. The trial API is healthy on the
+updated schema and restore-verified backups are retained. The release checkpoint
+is complete; another week of household testing is underway. This does not add
+Android acceptance or claim an exhaustive native edge-case pass.

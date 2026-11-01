@@ -1,7 +1,10 @@
 # Family trial improvement release - October 31, 2026
 
-Status: Felipe explicitly authorizes continuing release checks, merge, a fresh Mac
-backup and updates for both iPhones. Branch `codex/family-trial-release` starts
+Status: release checkpoint complete November 1, 2026. Felipe confirms the new
+Release is live on both iPhones; another week of household testing is underway.
+The historical preparation/blockers below are superseded by the completion
+record at the end. Felipe authorized release checks, merge, a fresh Mac backup
+and both phone updates. Branch `codex/family-trial-release` starts
 from clean `8a2890e`; unrelated website and Android checkouts remain untouched.
 
 ## Release scope and preparation
@@ -204,3 +207,48 @@ and reaches framework signing, where errSecInternalComponent still blocks key
 access. The two-phone script must run locally in Mac Terminal; its explicit cd
 selects the new release regardless of which Xcode window is open. Do not mistake
 launch of the preserved older project for acceptance of the new native build.
+
+
+The subsequent No script URL error was investigated from actual build products:
+Xcode now used the correct isolated workspace, but generated Debug-iphoneos
+without main.jsbundle; its default Run configuration was Debug. AppDelegate uses
+Metro in DEBUG and embedded main.jsbundle in Release. Added a shared, clearly
+named MealPlanner Trial Release scheme, preserving its original target/test
+references; Xcode scheme discovery recognizes it. Both trial-workspace Run
+schemes now use Release to avoid repeating the Debug/Metro trap. The old Debug
+scheme was backed up privately. These are local generated-native packaging
+settings, not application/dependency/API changes; development and preserved
+original workspaces remain untouched. Run Release through local Xcode to use
+the user's signing session; artifact bundle/signature verification and phone
+smoke are still required after that build.
+
+
+### November 1 completion and next testing week
+
+Felipe confirms: new release is live on both phones, with another week of
+everyday use and issue collection planned. The local Xcode Release scheme
+resolved the Debug/no-script-bundle failure; both-phone installation/launch
+blockers are resolved per his report. No detailed post-install route/state
+matrix is inferred beyond that confirmation; the earlier full-loop light/dark
+review remains the accepted evidence for that check, and broader native edge
+cases/concurrency are part of the ongoing trial. Android testing remains separate.
+
+The final GUI Release product from the correct isolated workspace was checked
+after his confirmation. Deep signature verification passes; main.jsbundle is
+embedded and contains the private trial API URL; scene support is present; and
+the Personal Team profile covers both phones without Apple sign-in entitlement.
+The Mac private HTTPS health endpoint still returns ok and the database remains
+at `meal_plan_special_entries`. Private active-release/installation records now
+record both devices live by user confirmation rather than treating earlier CLI
+launch failures as successful tool launches.
+
+The current free signing profile expires November 7, 2026 at 7:00 PM Arizona
+time. Renew the signing/build before that deadline for uninterrupted use. Retain
+the isolated Release workspace/scheme and active API Compose overlay, along with
+verified backups and the prior API image/native workspace for recovery. No
+unrelated worktree, live family data or recovery asset was cleaned up.
+
+Release tests remain the recorded application/main CI and local full-suite
+results; this closeout changes documentation and private operational metadata
+only. Do not describe the next testing week as already completed or infer store
+readiness, broad beta readiness or Android acceptance.

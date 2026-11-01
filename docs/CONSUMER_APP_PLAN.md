@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: October 31, 2026
+Last updated: November 1, 2026
 
 ## Purpose of this document
 
@@ -54,7 +54,7 @@ Current limitations that make the private system unsuitable for public consumers
 
 The Mac Mini deployment should remain the functioning family dashboard and a development laboratory. It should not become the public consumer production server.
 
-## Current consumer-app progress (October 31, 2026)
+## Current consumer-app progress (November 1, 2026)
 
 Release checkpoint: the accepted family-trial improvements and approved SDK 58
 patches merged through PR #15 as `d36b141`. PR and main Mobile/API CI pass,
@@ -65,12 +65,17 @@ review passed. Render Auto-Deploy is verified Off and unchanged. The Mac trial
 API is now updated against the original DB container/volume at
 `meal_plan_special_entries`; the fresh backup was restore-verified and all
 original data was preserved (70 Catalog items, 9 recipes, 14 planned meals).
-The scheduled backup helper works with the new revision. Native local signing
-succeeds for Loryn and her app update is installed, but iOS blocks launch with a
-security error; device trust is being checked. Felipe-specific provisioning still
-needs a Xcode GUI refresh (the CLI reports No Accounts/profile excludes his
-phone). Neither native post-install smoke check is accepted yet. This does not establish Android acceptance or broad beta
-readiness. See `docs/plans/family-trial-release.md` for provenance and recovery.
+The scheduled backup helper works with the new revision. On November 1, Felipe
+confirms the new native Release is live on both iPhones and the household will
+continue collecting issues during another week of everyday use. The final GUI
+Release artifact passes signature, embedded-JavaScript, private API URL and scene
+lifecycle checks; its profile covers both phones. This completes the release
+checkpoint. The earlier full-loop light/dark review passed; individual native
+edge cases and cross-phone concurrency remain part of ongoing testing. Android
+acceptance and broader private-beta readiness remain outstanding. The free
+signing profile expires November 7 at 7:00 PM Arizona time; rebuild/re-sign before
+then to keep the trial running. See `docs/plans/family-trial-release.md` for
+provenance, operational paths and recovery.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for
