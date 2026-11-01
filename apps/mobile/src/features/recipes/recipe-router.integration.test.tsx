@@ -991,4 +991,94 @@ describe('Recipes through the actual Expo Router', () => {
     await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'recipe-1', expect.objectContaining({ ingredient_sections: [], ingredients: [expect.objectContaining({ amount: '1/2', note: 'keep me' })] })));
   });
 
+  it.each(['/recipes/create', '/plan/recipe-create'])('keeps a new draft on Back until Discard is chosen from %s', async (path) => {
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate(path as never));
+    await screen.findByLabelText('Recipe name');
+    await act(async () => router.back());
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+    expect(rendered.getPathname()).not.toBe(path);
+    await act(async () => router.navigate(path as never));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Do not lose dinner');
+    await act(async () => router.back());
+    await screen.findByText('Discard recipe changes?');
+    expect(rendered.getPathname()).toBe(path);
+    await fireEvent.press(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByDisplayValue('Do not lose dinner')).toBeTruthy();
+    await act(async () => router.back());
+    await fireEvent.press(await screen.findByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => expect(rendered.getPathname()).not.toBe(path));
+  });
+  it('guards an edited recipe against the native pop-to-root path and keeps the same draft when canceled', async () => {
+    mockedApi.recipes.mockResolvedValue({ recipes: [recipe()] });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate('/recipes'));
+    await fireEvent.press(await screen.findByText('Tomato Soup'));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/recipe-1'));
+    await act(async () => router.push('/recipes/recipe-1/edit'));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Updated family dinner');
+    // Native tabs pop the stack on reselect. SDK 58 retries a prevented native
+    // dismissal as the same POP action through usePreventRemove.
+    const protectedScreen = screen.root!.queryAll((node) => node.type === 'RNSScreen' && node.props.preventNativeDismiss === true).at(-1)!;
+    expect(protectedScreen).toBeTruthy();
+    await fireEvent(protectedScreen, 'nativeDismissCancelled', { nativeEvent: { dismissCount: 2 } });
+    await screen.findByText('Discard recipe changes?');
+    await fireEvent.press(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByDisplayValue('Updated family dinner')).toBeTruthy();
+    await fireEvent(protectedScreen, 'nativeDismissCancelled', { nativeEvent: { dismissCount: 2 } });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/recipes'));
+  });
+  it('leaves unchanged and reverted edits without a warning and retains a changed draft across tab switches', async () => {
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await screen.findByDisplayValue('Tomato Soup');
+    await act(async () => router.back());
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+    expect(rendered.getPathname()).not.toBe('/recipes/recipe-1/edit');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Temporary');
+    await fireEvent.changeText(screen.getByLabelText('Recipe name'), 'Tomato Soup');
+    await act(async () => router.back());
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+    await act(async () => router.navigate('/recipes/create'));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Retained across tabs');
+    await act(async () => router.navigate('/shopping'));
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+    await act(async () => router.back());
+    expect(await screen.findByDisplayValue('Retained across tabs')).toBeTruthy();
+  });
+  it('blocks leaving during an unresolved save and exits without a discard warning after success', async () => {
+    let resolveSave!: (value: { recipe: Recipe }) => void;
+    mockedApi.updateRecipe.mockReturnValue(new Promise((resolve) => { resolveSave = resolve; }));
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Saved dinner');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalled());
+    await act(async () => router.back());
+    expect(await screen.findByText('Recipe is saving')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Discard changes' })).toBeNull();
+    await act(async () => resolveSave({ recipe: recipe({ name: 'Saved dinner', edit_revision: 2 }) }));
+    await waitFor(() => expect(rendered.getPathname()).not.toBe('/recipes/recipe-1/edit'));
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+  });
+  it('protects section-only changes without warning on nested Back and retains failed-save drafts', async () => {
+    const { ApiError } = jest.requireActual<typeof import('@/lib/api')>('@/lib/api');
+    mockedApi.updateRecipe.mockRejectedValueOnce(new ApiError(409, 'Changed elsewhere.', 'RECIPE_REVISION_CONFLICT'));
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add section' }));
+    await fireEvent.changeText(await screen.findByLabelText('Section name'), 'Sauce');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add section' }));
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Changed elsewhere.');
+    await act(async () => router.back());
+    await screen.findByText('Discard recipe changes?');
+    await fireEvent.press(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(rendered.getPathname()).toBe('/recipes/recipe-1/edit');
+    expect(screen.getByText('Sauce')).toBeTruthy();
+  });
+
 });

@@ -85,11 +85,20 @@ F15 member permissions and F16 widgets. Felipe approved F09 ingredient-only
 sections and assigned implementation directly to this chat on
 `codex/recipe-ingredient-sections`. The shared recipe editor/detail, native
 section sheets, additive storage migration and compatibility guard are implemented;
-automated checks pass (745 mobile tests normal/cold, 196 API tests, types/lint
-and native JS exports); phone acceptance remains pending, tracked in
+initial validation at `5ce3e85` passed 745 mobile tests normal/cold, 196 API tests,
+types/lint and native JS exports. Subsequent presentation repairs have focused
+validation; phone acceptance remains pending, tracked in
 `docs/plans/recipe-ingredient-sections.md`. F10 recipe copying remains separate
 and unimplemented. The live Mac API/database and two-iPhone testing release
 remain unchanged; deploying F09 requires a separately approved rollout.
+
+November 1 recipe-editor follow-up: Felipe approved a discard warning for both
+Create and Edit, including recipes created from Plan. Implemented on
+`codex/recipe-unsaved-changes`: protect unsaved drafts on Back and native
+pop-to-root, offer Keep editing / Discard changes, preserve retained tab/sheet
+flows, and bypass the warning after a confirmed Save. 214 focused tests and
+types/lint pass; native phone acceptance is pending. See
+`docs/plans/recipe-unsaved-changes.md`. This is not deployed to the Mac trial.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

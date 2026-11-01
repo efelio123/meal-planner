@@ -16,6 +16,8 @@ import { dragGrabFeedback } from '@/lib/haptics';
 import { ApiError, api, type CatalogUnits, type GetToken, type Recipe, type RecipeInput, type RecipeUpdateInput } from '@/lib/api';
 import { useNativeSheetFlow } from '@/features/native-sheets/native-sheet-context';
 import { namePrefillParams, namePrefillScope } from '@/features/catalog/catalog-name-prefill';
+import { recipeDraftFingerprint } from './recipe-draft-fingerprint';
+import { useRecipeLeaveGuard } from './recipe-leave-guard';
 import { RecipeSectionNameSheet, RecipeSectionsSheet } from './recipe-section-sheets';
 import { loadRecipeSections, orderedSectionIngredients, removeRecipeSection, reorderSectionIngredients, sectionedIngredientInputs, sectionIngredients, sectionsMatchSaved, type RecipeSectionDraft } from './recipe-sections';
 import { RecipeIngredientList, type RecipeDragLock } from './recipe-ingredient-list';
@@ -82,9 +84,19 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
   const [conflictNeedsReload, setConflictNeedsReload] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [moreDetails, setMoreDetails] = useState(false);
+  const [baseline, setBaseline] = useState(() => ({
+    scope, generation: 0, fingerprint: recipeDraftFingerprint(newRecipeDraft(), [], [], []),
+  }));
 
 
   const editorLoaded = loadedScope === scope;
+  const hasUnsavedChanges = editorLoaded && baseline.scope === scope
+    && recipeDraftFingerprint(draft, ingredients, sections, steps) !== baseline.fingerprint;
+  const leaveGuard = useRecipeLeaveGuard({
+    scope: `${scope}:${baseline.generation}`,
+    enabled: editorLoaded && baseline.scope === scope && (hasUnsavedChanges || saving || saveUnknown),
+    saving, saveUnknown,
+  });
   useLayoutEffect(() => {
     interactionRef.current = interactionId;
     dragBlocked.set({ owner: interactionId, blocked: false });
@@ -161,13 +173,16 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
       if (!isCurrent()) return;
       const recipe = result.recipe;
       originalRevision.current = recipe.edit_revision;
-      setDraft(draftFromRecipe(recipe));
+      const loadedDraft = draftFromRecipe(recipe);
+      setDraft(loadedDraft);
       const loaded = loadRecipeSections(recipe);
       const loadedIngredients = loaded.ingredients;
       sectionsRef.current = loaded.sections; setSections(loaded.sections);
       ingredientsRef.current = loadedIngredients;
       setIngredients(loadedIngredients);
-      setSteps((recipe.steps ?? []).map((step) => localStep(step.instruction)));
+      const loadedSteps = (recipe.steps ?? []).map((step) => localStep(step.instruction));
+      setSteps(loadedSteps);
+      setBaseline({ scope: requestScope, generation, fingerprint: recipeDraftFingerprint(loadedDraft, loadedIngredients, loaded.sections, loadedSteps) });
       setIngredientsDirty(false);
       setStepsDirty(false);
       setLoadedScope(requestScope);
@@ -190,6 +205,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     pendingSave.current = null;
     pendingUpdateBase.current = null;
     setDraft(newRecipeDraft());
+    setBaseline({ scope, generation: requestGeneration.current, fingerprint: recipeDraftFingerprint(newRecipeDraft(), [], [], []) });
     sectionsRef.current = []; setSections([]); targetSection.current = null;
     ingredientsRef.current = [];
     setIngredients([]);
@@ -285,6 +301,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
 
   const finishSaved = (saved: Recipe, requestScope: string) => {
     if (!mounted.current || scopeRef.current !== requestScope) return;
+    if (!leaveGuard.allowSavedExit()) return;
     if (householdId) markRecipeChanged(householdId);
     setSaveUnknown(false);
     setSaving(false);
@@ -629,7 +646,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
           {conflictNeedsReload && editing ? <PrimaryButton disabled={saving} onPress={() => void loadExistingRecipe()} title="Reload latest recipe" /> : null}
         </View>
       </Screen>
-
+      {leaveGuard.confirmation}
     </>
   );
 }
