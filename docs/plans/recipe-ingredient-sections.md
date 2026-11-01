@@ -37,7 +37,7 @@ not presentation. Schema changes belong in a new migration after
    and limited to 80 characters. Allow up to 20 named sections per recipe while
    retaining the existing 200-ingredient limit. Identity is independent of name.
 2. Show each section as a small heading above its ingredient rows in editor and
-   saved detail. Unassigned rows appear first as Other ingredients only when
+   saved detail. Unassigned rows appear after the named sections as Other ingredients only when
    named sections exist. An ordinary unsectioned recipe keeps its current look.
    Empty named sections remain visible in the draft with an Add ingredient action.
 3. Add ingredient within a section preselects that section. Ingredient Details
@@ -86,8 +86,10 @@ Proposed wire representation: optional ordered `ingredient_sections` with names,
 and nullable `section_position` per ingredient referencing that submitted array.
 The server resolves positions to section IDs; local draft keys never enter the
 payload. Responses return section metadata/positions alongside the existing flat
-ordered ingredients array. Persist global ingredient order as Other ingredients,
-then named sections in order, retaining occurrence order inside each group.
+ordered ingredients array. The wire/storage array retains its existing Other
+ingredients-first order, then named sections, preserving occurrence order within
+each group. Visible editor/detail headings show named sections first and Other
+ingredients last; this display change does not dirty or rewrite a recipe.
 
 Use the existing create/update endpoints and revision checks. Grouping saves send
 sections plus the complete ingredient array atomically; validate references before
@@ -217,3 +219,16 @@ rule for future sheets. All 38 actual-router recipe tests, TypeScript and lint
 pass; the manager test guards the native header/body/footer hierarchy and bounded
 scroll frame. Physical layout recheck remains pending. Earlier full mobile/API
 results are historical; no database or dependency changes or API retest here.
+
+### Section presentation follow-up — November 1
+
+Felipe requests more prominent section headings and Other ingredients at the
+bottom. Both shared editor and saved detail now use the app's existing 20-point
+bold section-title role (previously ordinary 16-point text) and render named
+sections before Other ingredients. Flat recipes retain their ordinary unlabelled
+list. The underlying ingredient/section identities, wire order and save behavior
+remain intact. All 45 actual-router recipe tests, TypeScript and lint pass.
+The added case checks saved/editor reading order and confirms that displaying
+Other ingredients last does not mark ingredients dirty on Save. Phone appearance
+still needs review. No API, database or dependency changes; full suites and
+API/database tests were not rerun for this presentation-only follow-up.

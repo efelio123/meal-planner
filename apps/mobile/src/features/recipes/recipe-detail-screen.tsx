@@ -138,11 +138,11 @@ export function RecipeDetailScreen() {
 
             <View style={styles.section}>
               <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Ingredients</ThemedText>
-              {[{ position: null, name: activeRecipe.ingredient_sections?.length ? 'Other ingredients' : '' }, ...(activeRecipe.ingredient_sections ?? [])].map((section) => {
+              {[...(activeRecipe.ingredient_sections ?? []), { position: null, name: activeRecipe.ingredient_sections?.length ? 'Other ingredients' : '' }].map((section) => {
                 const rows = (activeRecipe.ingredients ?? []).filter((item) => (item.section_position ?? null) === section.position);
                 if (!rows.length && section.position === null && activeRecipe.ingredient_sections?.length) return null;
                 return <View key={section.position ?? 'unassigned'} style={{ gap: 10 }}>
-                  {section.name ? <ThemedText accessibilityRole="header" style={styles.ingredientName}>{section.name}</ThemedText> : null}
+                  {section.name ? <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>{section.name}</ThemedText> : null}
                   <View style={[styles.ingredientCard, { backgroundColor: theme.surface }]}>
                     {rows.map((ingredient, index) => <View key={ingredient.id} style={[styles.ingredientRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
                       <ThemedText themeColor="textSecondary" style={styles.measure}>{ingredientMeasure(ingredient)}</ThemedText>

@@ -583,10 +583,10 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
             <View style={styles.section}>
               <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Ingredients <ThemedText themeColor="error">*</ThemedText></ThemedText>
               {sections.length > 0 ? <Pressable accessibilityRole="button" disabled={!editable} onPress={manageSections} style={styles.inlineAction}><ThemedText themeColor="link">Manage sections</ThemedText></Pressable> : null}
-              {[{ key: null, name: sections.length ? 'Other ingredients' : '' }, ...sections].map((group) => {
+              {[...sections, { key: null, name: sections.length ? 'Other ingredients' : '' }].map((group) => {
                 const rows = sectionIngredients(ingredients, group.key);
                 return <View key={group.key ?? 'unassigned'} style={{ gap: 10 }}>
-                  {group.name ? <ThemedText accessibilityRole="header" style={styles.fieldLabel}>{group.name}</ThemedText> : null}
+                  {group.name ? <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>{group.name}</ThemedText> : null}
                   {rows.length > 0 ? <RecipeIngredientList
                     key={`${scope}:${dragEpoch}:${group.key}`} ingredients={rows} enabled={sortableEnabled} busy={dragging}
                     scrollRef={scrollRef} dragBlocked={dragBlocked} interactionId={interactionId} onStart={startDrag} onFinish={(keys, completed) => finishDrag(keys, completed, group.key)}

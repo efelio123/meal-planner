@@ -1081,4 +1081,28 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.getByText('Sauce')).toBeTruthy();
   });
 
+  it('shows named ingredient sections before Other ingredients in saved and edited recipes, without changing persistence order', async () => {
+    const base = recipe().ingredients![0];
+    const saved = recipe({ ingredient_sections: [{ id: 'a', position: 0, name: 'Chicken' }, { id: 'b', position: 1, name: 'Mash' }], ingredients: [
+      { ...base, section_position: null, note: 'unassigned' },
+      { ...base, id: 'chicken', position: 1, section_position: 0, note: 'sauce' },
+      { ...base, id: 'mash', position: 2, section_position: 1, note: 'potatoes' },
+    ] });
+    mockedApi.recipe.mockResolvedValue({ recipe: saved });
+    mockedApi.updateRecipe.mockResolvedValue({ recipe: { ...saved, edit_revision: 2 } });
+    const sectionHeadings = () => screen.getAllByRole('header').map((heading) => heading.props.children).filter((text) => ['Chicken', 'Mash', 'Other ingredients'].includes(text));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate('/recipes/recipe-1'));
+    await screen.findByRole('header', { name: 'Chicken' });
+    expect(sectionHeadings()).toEqual(['Chicken', 'Mash', 'Other ingredients']);
+    await act(async () => router.push('/recipes/recipe-1/edit'));
+    await screen.findByLabelText('Recipe name');
+    expect(sectionHeadings()).toEqual(['Chicken', 'Mash', 'Other ingredients']);
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalled());
+    // Merely displaying groups differently must not mark ingredients dirty.
+    expect(mockedApi.updateRecipe.mock.calls[0][3]).not.toHaveProperty('ingredients');
+    expect(mockedApi.updateRecipe.mock.calls[0][3]).not.toHaveProperty('ingredient_sections');
+  });
+
 });
