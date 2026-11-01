@@ -280,3 +280,11 @@ Their action group is top-aligned beside the taller name/amount block, unlike
 the intentionally centered section-management rows. No per-label pixel offsets
 were added. All 45 actual-router recipe tests, TypeScript and lint pass.
 Phone appearance and larger-text wrapping remain unrun; no API/data changes.
+
+### Ingredient card action alignment — November 1
+
+Felipe clarifies that the whole Edit/Remove/drag action group should be centered
+vertically within ingredient cards. The action group now centers itself in the
+card while the name, quantity and notes retain their existing text layout.
+All 6 ingredient-row component tests, TypeScript and lint pass. Physical
+alignment review remains unrun; no API/data changes or database tests.

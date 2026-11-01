@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
   rowSeparator: { position: 'absolute', top: 0, left: 0, right: 0, height: StyleSheet.hairlineWidth },
   summary: { flex: 1, gap: 3, minWidth: 0 },
   name: { fontWeight: '700', flexShrink: 1 },
-  actions: { flexDirection: 'row', alignItems: 'center' },
+  actions: { alignSelf: 'center', flexDirection: 'row', alignItems: 'center' },
   action: { alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, paddingHorizontal: 4 },
   handle: { alignItems: 'center', justifyContent: 'center', width: 44, height: 44 },
   lines: { gap: 4 },
