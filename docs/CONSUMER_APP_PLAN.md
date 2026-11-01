@@ -57,16 +57,18 @@ The Mac Mini deployment should remain the functioning family dashboard and a dev
 ## Current consumer-app progress (October 31, 2026)
 
 Release checkpoint: the accepted family-trial improvements and approved SDK 58
-patches are prepared on `codex/family-trial-release` in PR #15. Application commit
-`bb55042` passes hosted Mobile/API CI, including all 187 API tests with no skips.
-Isolated final mobile normal/cold runs each pass 735 tests with no skips, plus
-types/lint, Expo compatibility, Doctor 20/20 and native JS exports. The fresh Mac
-backup was restore-verified, and a migration rehearsal preserved every original
-value in all 18 data tables. An unsigned native Release build succeeds. This is
-not yet a deployed trial update: Xcode account/profile recovery, Render auto-
-deploy inspection before merge, final physical light/dark review and both phone
-installs remain pending. Live Mac API/database and existing phone apps are
-unchanged. See `docs/plans/family-trial-release.md` for exact gates and recovery.
+patches merged through PR #15 as `d36b141`. PR and main Mobile/API CI pass,
+including all 187 API tests with no skips. Isolated final mobile normal/cold runs
+each pass 735 tests with no skips, plus types/lint, Expo compatibility, Doctor
+20/20 and native JS exports. Felipe reports the final full-loop light/dark phone
+review passed. Render Auto-Deploy is verified Off and unchanged. The Mac trial
+API is now updated against the original DB container/volume at
+`meal_plan_special_entries`; the fresh backup was restore-verified and all
+original data was preserved (70 Catalog items, 9 recipes, 14 planned meals).
+The scheduled backup helper works with the new revision. Native local signing
+succeeds, but per-phone provisioning, both installations and post-install smoke
+checks remain pending. This does not establish Android acceptance or broad beta
+readiness. See `docs/plans/family-trial-release.md` for provenance and recovery.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

@@ -133,3 +133,46 @@ also outstanding. These are pending user actions, not passing tests. Existing
 Expo dependencies/server, Mac live API/data, native project and home-server
 containers remain undisturbed. Resume signing, final phone review, staging-safe
 merge and API-only trial rollout when those prerequisites are available.
+
+
+### October 31 activation
+
+Felipe reports both light/dark modes and the final complete loop passed on his
+phone. Browser controls became available for the signed-in Chrome tab; the
+Auto-Deploy menu authoritatively showed selected Off. Inspection also confirmed
+main/services-api linkage, no pre-deploy migration command, and a uvicorn-only
+start command. Canceled the edit form without saving or changing Render. The
+earlier native computer-control attempts were unsuccessful; no skip-deploy
+workaround or staging change was necessary.
+
+PR #15 merged as `d36b14195d09bb2e1c27c5fb475c9b28da38c6f0` October 31 local
+time. Its main CI run `41261791643` passes both jobs. Application/API/migration
+trees match validated `bb55042` exactly.
+
+The live Mac rollout completed after a brief API-only pause. A fresh backup at
+`family-release-final-20261101T013932Z/meal-planner-trial.dump` in the private
+Mac backup directory passed archive inspection and isolated restoration, with
+all 19 table fingerprints matching. The additive migration reached
+`meal_plan_special_entries`; every original value/count across 18 data tables
+was preserved, including 70 Catalog items, 9 recipes and 14 planned meals. The
+recovery-check database was removed. The new API image is active and both local
+and private HTTPS health checks return ok. Original DB container/volume and
+home-server containers are unchanged. Restart policy remains unless-stopped.
+
+The private active Compose overlay is
+`/Users/felipe/.config/meal-planner-trial/release-20261031.compose.yaml`, used
+with the original trial Compose file and project name. It points the API image
+and build context to the isolated release. Future trial commands must preserve
+that overlay; building from the old original checkout would use old source.
+`active-release.json` beside it records the active image/source/volume. The
+scheduled backup helper's expected revision was updated after preserving its
+old copy with the fresh backup, and a backup at the new revision succeeded.
+
+Local Terminal signing succeeded and its deep signature verification passed.
+The generic profile covers Loryn only; explicit Felipe-device preparation over
+SSH still cannot access Xcode's account context. A private, syntax-checked local
+script now builds and verifies a separately provisioned copy for each attached
+phone, retaining the same application bundle. Felipe was asked to run
+`build-release-for-both-phones.sh` in the Mac Terminal. Both-phone installation
+and post-install native smoke checks remain pending; do not infer those from
+the earlier Expo/full-loop acceptance. No phone app was uninstalled.
