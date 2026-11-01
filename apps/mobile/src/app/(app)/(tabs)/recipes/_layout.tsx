@@ -25,6 +25,10 @@ export default function RecipesStackLayout() {
         const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
         return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);
       }} />
+      <Stack.Screen name="sheet/sections" options={({ route }) => {
+        const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
+        return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);
+      }} />
       <Stack.Screen name="sheet/cover" options={recipeSheetOptions([0.48, 0.76], theme.elevatedSurface, Platform.OS)} />
       <Stack.Screen name="sheet/emoji" options={recipeSheetOptions([0.46, 0.78], theme.elevatedSurface, Platform.OS)} />
       <Stack.Screen name="catalog-food" options={{ title: 'Create Food item' }} />

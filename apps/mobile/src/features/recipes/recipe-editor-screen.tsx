@@ -425,6 +425,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
         food={food}
         initialDraft={initialDraft}
         sections={sectionsRef.current}
+        sectionSheetRoute={`${editorRouteBase}/sheet/sections`}
         existingKey={key}
         returnToSearch={returnToSearch}
         householdId={householdId!}
@@ -484,14 +485,14 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     let id = '';
     const isCurrent = () => isCurrentEditorScope() && requestGeneration.current === generation && sheetFlow.get(id) !== null;
     id = sheetFlow.present(<RecipeSectionNameSheet isCurrent={isCurrent} onSave={(name) => changeSections([...sectionsRef.current, { key: `section-${newCreateRequestId()}`, name }])} />, { detents: [0.42, 0.78] });
-    router.push({ pathname: '/native-sheet/[sheetId]', params: { sheetId: id } });
+    router.push({ pathname: `${editorRouteBase}/sheet/sections`, params: { sheetId: id } } as never);
   };
   const manageSections = () => {
     if (!isCurrentEditorScope() || dragInProgress()) return;
     const generation = requestGeneration.current; let id = '';
     const isCurrent = () => isCurrentEditorScope() && requestGeneration.current === generation && sheetFlow.get(id) !== null;
-    id = sheetFlow.present(<RecipeSectionsSheet initialSections={sectionsRef.current} isCurrent={isCurrent} onChange={changeSections} />, { detents: [0.58, 0.94] });
-    router.push({ pathname: '/native-sheet/[sheetId]', params: { sheetId: id } });
+    id = sheetFlow.present(<RecipeSectionsSheet nameSheetRoute={`${editorRouteBase}/sheet/sections`} initialSections={sectionsRef.current} isCurrent={isCurrent} onChange={changeSections} />, { detents: [0.58, 0.94] });
+    router.push({ pathname: `${editorRouteBase}/sheet/sections`, params: { sheetId: id } } as never);
   };
 
   const openRecipeEmojiEntry = () => {

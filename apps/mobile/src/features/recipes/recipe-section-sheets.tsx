@@ -21,7 +21,7 @@ export function RecipeSectionNameSheet({ section, isCurrent, onSave }: {
   const theme = useTheme(); const router = useRouter(); const [name, setName] = useState(section?.name ?? '');
   const submitted = useRef(false); const [error, setError] = useState('');
   const clean = name.trim(); const valid = clean.length > 0 && clean.length <= 80 && !/[\u0000-\u001f\u007f-\u009f]/u.test(clean);
-  return <ScrollView automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} style={[styles.root, { backgroundColor: theme.elevatedSurface }]} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 16 }]}>
+  return <ScrollView testID="recipe-section-name-scroll" automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} style={[styles.root, { backgroundColor: theme.elevatedSurface }]} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 16 }]}>
     <View style={styles.header}><AppBackButton accessibilityLabel="Back to sections" onPress={() => router.back()} /><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>{section ? 'Rename section' : 'Add section'}</ThemedText><Pressable accessibilityRole="button" onPress={() => router.back()} style={visualStyles.sheetAction}><ThemedText themeColor="link">Cancel</ThemedText></Pressable></View>
     <ThemedText>Section name</ThemedText><ThemedInput accessibilityLabel="Section name" maxLength={80} value={name} onChangeText={setName} placeholder="e.g. Chicken" autoCapitalize="sentences" />
     {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
@@ -33,8 +33,8 @@ export function RecipeSectionNameSheet({ section, isCurrent, onSave }: {
   </ScrollView>;
 }
 
-export function RecipeSectionsSheet({ initialSections, isCurrent, onChange }: {
-  initialSections: RecipeSectionDraft[]; isCurrent: () => boolean;
+export function RecipeSectionsSheet({ nameSheetRoute, initialSections, isCurrent, onChange }: {
+  nameSheetRoute: string; initialSections: RecipeSectionDraft[]; isCurrent: () => boolean;
   onChange: (sections: RecipeSectionDraft[], removedKey?: string) => boolean;
 }) {
   const insets = useSafeAreaInsets();
@@ -70,9 +70,9 @@ export function RecipeSectionsSheet({ initialSections, isCurrent, onChange }: {
       if (!section && current.current.length >= 20) return false;
       return publish(section ? current.current.map((s) => s.key === section.key ? { ...s, name } : s) : [...current.current, { key: `section-${newCreateRequestId()}`, name }]);
     }} />, { detents: [0.42, 0.78] });
-    router.push({ pathname: '/native-sheet/[sheetId]', params: { sheetId: id } });
+    router.push({ pathname: nameSheetRoute, params: { sheetId: id } } as never);
   };
-  return <View style={[styles.root, { backgroundColor: theme.elevatedSurface }]}>
+  return <View testID="recipe-sections-root" style={[styles.root, { backgroundColor: theme.elevatedSurface }]}>
     <View style={[styles.header, styles.content]}><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Manage sections</ThemedText><Pressable accessibilityRole="button" disabled={dragging} onPress={() => { if (!blocked()) router.back(); }} style={visualStyles.sheetAction}><ThemedText themeColor="link">Done</ThemedText></Pressable></View>
     <Animated.ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false}>
       <ThemedText themeColor="textSecondary">Hold a handle to reorder sections. Changes save with the recipe.</ThemedText>

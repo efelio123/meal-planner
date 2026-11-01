@@ -149,7 +149,7 @@ Implemented on `codex/recipe-ingredient-sections`:
   API compatibility rejects legacy ingredient replacement on grouped recipes.
 - No dependency changes. The live Mac DB/API, phone builds and Render are untouched.
 
-Validation completed on the final implementation:
+Original implementation validation at `5ce3e85` (before the presentation follow-up below):
 - API Ruff, migration head and all 196 API tests pass on identity-verified local
   `meal_planner_disposable_test`, with no skips. Includes ownership constraints,
   old-row migration preservation, downgrade refusal, grouped persistence, legacy
@@ -182,3 +182,26 @@ Phone review still to perform:
    ingredients without deletion. Remove the final section to return to a flat list.
 5. Check nested Back/Cancel/dismiss, long lists, larger text, keyboard visibility
    and the last actions after scrolling settles. Verify a canceled drag keeps order.
+
+## iPhone blank-sheet follow-up — November 1
+
+Felipe's first device review shows a real draggable sheet with no visible Add
+section form. The new section flows had used the shared root sheet/container,
+whereas the previously accepted Recipes native sheets render content directly
+inside their owning Recipes/Plan stack. The component tests did not expose this
+native layout mismatch.
+
+Correction: register a scoped `sheet/sections` route in both existing stacks,
+using the shared entry detents and native options before navigation, and render
+its content directly as the accepted recipe sheets do. Add/Rename, Manage and
+the ingredient Section picker all use this route. Nested naming retains the
+manager beneath it, and the same scope/draft/Back guards remain in place. General
+Catalog and other app-wide sheet layouts are unchanged.
+
+Focused validation passes: 43 tests across actual-router recipe cases,
+native-sheet lifecycle and route-option cases, with no skips; TypeScript and
+lint pass. Route cases assert both recipe origins use the scoped direct-rendered
+route and retain naming, movement and manager return behavior. Earlier full
+mobile/API runs are historical and do not cover this follow-up. No API, database
+or dependency edits were needed; database tests and full suites were not rerun.
+Physical iPhone presentation/keyboard review is still pending.

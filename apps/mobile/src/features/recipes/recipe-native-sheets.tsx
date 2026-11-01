@@ -106,7 +106,7 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
   </KeyboardAwareSheet>;
 }
 
-export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, returnToSearch, householdId, expectedFlowScope, getToken, isCurrent, initialUnits, unitSheetRoute, sections = [], onSave }: {
+export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, returnToSearch, householdId, expectedFlowScope, getToken, isCurrent, initialUnits, unitSheetRoute, sectionSheetRoute, sections = [], onSave }: {
   food: RecipeFoodChoice;
   initialDraft: RecipeIngredientDraft;
   existingKey: string | null;
@@ -118,6 +118,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
   initialUnits: CatalogUnits | null;
   unitSheetRoute: string;
   sections?: RecipeSectionDraft[];
+  sectionSheetRoute?: string;
   onSave: (draft: RecipeIngredientDraft, key: string | null) => boolean | void;
 }) {
   const theme = useTheme();
@@ -172,7 +173,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
         </View>
         {loadingUnits ? <ActivityIndicator accessibilityLabel="Loading recipe units" color={theme.activity} /> : null}
         {unitError ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{unitError}</ThemedText><PrimaryButton disabled={loadingUnits} onPress={retryUnitLoad} title="Retry units" /></View> : null}
-        {sections.length ? <ChoicePicker label="Section" choices={sections.map((s) => ({ id: s.key, label: s.name }))} selectedId={draft.sectionKey ?? ''} value={sections.find((s) => s.key === draft.sectionKey)?.name ?? 'No section'} emptyChoiceLabel="No section" onOpen={Keyboard.dismiss} onSelect={(key) => setDraft((current) => ({ ...current, sectionKey: key || null }))} /> : null}
+        {sections.length ? <ChoicePicker label="Section" sheetRoute={sectionSheetRoute} choices={sections.map((s) => ({ id: s.key, label: s.name }))} selectedId={draft.sectionKey ?? ''} value={sections.find((s) => s.key === draft.sectionKey)?.name ?? 'No section'} emptyChoiceLabel="No section" onOpen={Keyboard.dismiss} onSelect={(key) => setDraft((current) => ({ ...current, sectionKey: key || null }))} /> : null}
         {sectionError ? <ThemedText accessibilityRole="alert" themeColor="error">{sectionError}</ThemedText> : null}
         <View style={styles.field}><ThemedText themeColor="textSecondary">Note (optional)</ThemedText><ThemedInput accessibilityLabel="Ingredient note" onChangeText={(note) => setDraft((current) => ({ ...current, note }))} placeholder="e.g. finely chopped, to taste" value={draft.note} /></View>
         {amountError ? <ThemedText accessibilityRole="alert" themeColor="error">{amountError}</ThemedText> : null}

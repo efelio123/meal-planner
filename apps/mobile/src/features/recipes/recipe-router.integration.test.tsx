@@ -894,12 +894,16 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.getByLabelText('Ingredient amount').props.placeholder).toBe('e.g. 2 or 1/2');
   });
   it.each(['/recipes/create', '/plan/recipe-create'])('creates a section and keeps its assignment across nested sheets from %s', async (path) => {
-    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await screen.findByText('Plan');
     await act(async () => router.navigate(path as never));
     await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Family dinner');
     await fireEvent.press(screen.getByRole('button', { name: 'Add section' }));
-    await fireEvent.changeText(await screen.findByLabelText('Section name'), ' Chicken ');
+    await screen.findByLabelText('Section name');
+    expect(rendered.getPathname()).toBe(`${path.startsWith('/plan') ? '/plan' : '/recipes'}/sheet/sections`);
+    expect(screen.getByTestId('recipe-section-name-scroll')).toBeTruthy();
+    expect(screen.queryByTestId('native-sheet-content')).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Section name'), ' Chicken ');
     await fireEvent.press(screen.getByRole('button', { name: 'Add section' }));
     await fireEvent.press(await screen.findByRole('button', { name: 'Add ingredient to Chicken' }));
     await fireEvent.press(await screen.findByText('Milk'));
@@ -932,6 +936,8 @@ describe('Recipes through the actual Expo Router', () => {
     await act(async () => router.navigate('/recipes/recipe-1/edit'));
     await fireEvent.press(await screen.findByRole('button', { name: 'Manage sections' }));
     await fireEvent(screen.getByLabelText('Reorder Mash, position 2 of 2'), 'accessibilityAction', { nativeEvent: { actionName: 'decrement' } });
+    expect(screen.getByTestId('recipe-sections-root')).toBeTruthy();
+    expect(screen.queryByTestId('native-sheet-content')).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: 'Edit section Chicken' }));
     await fireEvent.changeText(await screen.findByLabelText('Section name'), 'Sauce');
     await fireEvent.press(screen.getByRole('button', { name: 'Save section' }));
