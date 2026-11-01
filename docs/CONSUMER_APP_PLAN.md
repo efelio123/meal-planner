@@ -66,8 +66,10 @@ API is now updated against the original DB container/volume at
 `meal_plan_special_entries`; the fresh backup was restore-verified and all
 original data was preserved (70 Catalog items, 9 recipes, 14 planned meals).
 The scheduled backup helper works with the new revision. Native local signing
-succeeds, but per-phone provisioning, both installations and post-install smoke
-checks remain pending. This does not establish Android acceptance or broad beta
+succeeds for Loryn and her app update is installed, but iOS blocks launch with a
+security error; device trust is being checked. Felipe-specific provisioning still
+needs a Xcode GUI refresh (the CLI reports No Accounts/profile excludes his
+phone). Neither native post-install smoke check is accepted yet. This does not establish Android acceptance or broad beta
 readiness. See `docs/plans/family-trial-release.md` for provenance and recovery.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the

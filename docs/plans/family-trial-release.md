@@ -176,3 +176,20 @@ phone, retaining the same application bundle. Felipe was asked to run
 `build-release-for-both-phones.sh` in the Mac Terminal. Both-phone installation
 and post-install native smoke checks remain pending; do not infer those from
 the earlier Expo/full-loop acceptance. No phone app was uninstalled.
+
+
+Phone follow-up: the per-device Mac Terminal script failed for Felipe with
+No Accounts and a cached profile that excludes his phone. The generic signing
+success was therefore insufficient evidence for both-device provisioning.
+Felipe was asked to select his phone and existing Personal Team in the isolated
+workspace's Signing & Capabilities, enable automatic signing and use Product →
+Build to refresh the profile through Xcode. Do not keep retrying the unchanged
+CLI command as an account repair.
+
+The valid Loryn artifact was independently preserved and installed in place. iOS
+then rejected launch with a signing/entitlement/developer-trust security error.
+Mac deep signature verification passes, the signed leaf certificate is included
+in the unexpired device profile, and application/team entitlements match it.
+Developer trust on her phone is the next check, not a proven cause; Felipe was
+asked to inspect VPN & Device Management and open the app. Native launch and
+post-install smoke remain unverified. The live API and family data remain healthy.
