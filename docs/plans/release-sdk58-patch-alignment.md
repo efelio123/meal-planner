@@ -93,3 +93,19 @@ private API URL, correct display name/bundle ID, scene lifecycle and absence of
 Apple sign-in entitlement were verified. Signing reports Xcode No Accounts/no
 development profile and needs Felipe to restore the existing Apple Account in
 Xcode. No phone installs or final physical light/dark acceptance are claimed.
+
+
+October 31 release follow-up: Felipe accepts the final full-loop light/dark
+phone review. PR #15 merged as `d36b141` with passing main CI `41261791643`.
+Local Mac Terminal signing passes deep verification; a separate per-phone
+provisioning step remains before installing both native builds. The Mac API
+update and fresh restore-verified backup are complete; Render Auto-Deploy was
+verified Off and left unchanged. See the release runbook for remaining checks.
+
+
+November 1 closeout: Felipe confirms the new Release is live on both iPhones.
+Final GUI Release signature, embedded JS/private API URL, scene support and
+both-device profile coverage are verified. The trial API is healthy on the
+updated schema and restore-verified backups are retained. The release checkpoint
+is complete; another week of household testing is underway. This does not add
+Android acceptance or claim an exhaustive native edge-case pass.

@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: October 31, 2026
+Last updated: November 1, 2026
 
 ## Purpose of this document
 
@@ -54,19 +54,28 @@ Current limitations that make the private system unsuitable for public consumers
 
 The Mac Mini deployment should remain the functioning family dashboard and a development laboratory. It should not become the public consumer production server.
 
-## Current consumer-app progress (October 31, 2026)
+## Current consumer-app progress (November 1, 2026)
 
 Release checkpoint: the accepted family-trial improvements and approved SDK 58
-patches are prepared on `codex/family-trial-release` in PR #15. Application commit
-`bb55042` passes hosted Mobile/API CI, including all 187 API tests with no skips.
-Isolated final mobile normal/cold runs each pass 735 tests with no skips, plus
-types/lint, Expo compatibility, Doctor 20/20 and native JS exports. The fresh Mac
-backup was restore-verified, and a migration rehearsal preserved every original
-value in all 18 data tables. An unsigned native Release build succeeds. This is
-not yet a deployed trial update: Xcode account/profile recovery, Render auto-
-deploy inspection before merge, final physical light/dark review and both phone
-installs remain pending. Live Mac API/database and existing phone apps are
-unchanged. See `docs/plans/family-trial-release.md` for exact gates and recovery.
+patches merged through PR #15 as `d36b141`. PR and main Mobile/API CI pass,
+including all 187 API tests with no skips. Isolated final mobile normal/cold runs
+each pass 735 tests with no skips, plus types/lint, Expo compatibility, Doctor
+20/20 and native JS exports. Felipe reports the final full-loop light/dark phone
+review passed. Render Auto-Deploy is verified Off and unchanged. The Mac trial
+API is now updated against the original DB container/volume at
+`meal_plan_special_entries`; the fresh backup was restore-verified and all
+original data was preserved (70 Catalog items, 9 recipes, 14 planned meals).
+The scheduled backup helper works with the new revision. On November 1, Felipe
+confirms the new native Release is live on both iPhones and the household will
+continue collecting issues during another week of everyday use. The final GUI
+Release artifact passes signature, embedded-JavaScript, private API URL and scene
+lifecycle checks; its profile covers both phones. This completes the release
+checkpoint. The earlier full-loop light/dark review passed; individual native
+edge cases and cross-phone concurrency remain part of ongoing testing. Android
+acceptance and broader private-beta readiness remain outstanding. The free
+signing profile expires November 7 at 7:00 PM Arizona time; rebuild/re-sign before
+then to keep the trial running. See `docs/plans/family-trial-release.md` for
+provenance, operational paths and recovery.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

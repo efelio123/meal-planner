@@ -1,7 +1,10 @@
 # Family trial improvement release - October 31, 2026
 
-Status: Felipe explicitly authorizes continuing release checks, merge, a fresh Mac
-backup and updates for both iPhones. Branch `codex/family-trial-release` starts
+Status: release checkpoint complete November 1, 2026. Felipe confirms the new
+Release is live on both iPhones; another week of household testing is underway.
+The historical preparation/blockers below are superseded by the completion
+record at the end. Felipe authorized release checks, merge, a fresh Mac backup
+and both phone updates. Branch `codex/family-trial-release` starts
 from clean `8a2890e`; unrelated website and Android checkouts remain untouched.
 
 ## Release scope and preparation
@@ -133,3 +136,119 @@ also outstanding. These are pending user actions, not passing tests. Existing
 Expo dependencies/server, Mac live API/data, native project and home-server
 containers remain undisturbed. Resume signing, final phone review, staging-safe
 merge and API-only trial rollout when those prerequisites are available.
+
+
+### October 31 activation
+
+Felipe reports both light/dark modes and the final complete loop passed on his
+phone. Browser controls became available for the signed-in Chrome tab; the
+Auto-Deploy menu authoritatively showed selected Off. Inspection also confirmed
+main/services-api linkage, no pre-deploy migration command, and a uvicorn-only
+start command. Canceled the edit form without saving or changing Render. The
+earlier native computer-control attempts were unsuccessful; no skip-deploy
+workaround or staging change was necessary.
+
+PR #15 merged as `d36b14195d09bb2e1c27c5fb475c9b28da38c6f0` October 31 local
+time. Its main CI run `41261791643` passes both jobs. Application/API/migration
+trees match validated `bb55042` exactly.
+
+The live Mac rollout completed after a brief API-only pause. A fresh backup at
+`family-release-final-20261101T013932Z/meal-planner-trial.dump` in the private
+Mac backup directory passed archive inspection and isolated restoration, with
+all 19 table fingerprints matching. The additive migration reached
+`meal_plan_special_entries`; every original value/count across 18 data tables
+was preserved, including 70 Catalog items, 9 recipes and 14 planned meals. The
+recovery-check database was removed. The new API image is active and both local
+and private HTTPS health checks return ok. Original DB container/volume and
+home-server containers are unchanged. Restart policy remains unless-stopped.
+
+The private active Compose overlay is
+`/Users/felipe/.config/meal-planner-trial/release-20261031.compose.yaml`, used
+with the original trial Compose file and project name. It points the API image
+and build context to the isolated release. Future trial commands must preserve
+that overlay; building from the old original checkout would use old source.
+`active-release.json` beside it records the active image/source/volume. The
+scheduled backup helper's expected revision was updated after preserving its
+old copy with the fresh backup, and a backup at the new revision succeeded.
+
+Local Terminal signing succeeded and its deep signature verification passed.
+The generic profile covers Loryn only; explicit Felipe-device preparation over
+SSH still cannot access Xcode's account context. A private, syntax-checked local
+script now builds and verifies a separately provisioned copy for each attached
+phone, retaining the same application bundle. Felipe was asked to run
+`build-release-for-both-phones.sh` in the Mac Terminal. Both-phone installation
+and post-install native smoke checks remain pending; do not infer those from
+the earlier Expo/full-loop acceptance. No phone app was uninstalled.
+
+
+Phone follow-up: the per-device Mac Terminal script failed for Felipe with
+No Accounts and a cached profile that excludes his phone. The generic signing
+success was therefore insufficient evidence for both-device provisioning.
+Felipe was asked to select his phone and existing Personal Team in the isolated
+workspace's Signing & Capabilities, enable automatic signing and use Product →
+Build to refresh the profile through Xcode. Do not keep retrying the unchanged
+CLI command as an account repair.
+
+The valid Loryn artifact was independently preserved and installed in place. iOS
+then rejected launch with a signing/entitlement/developer-trust security error.
+Mac deep signature verification passes, the signed leaf certificate is included
+in the unexpired device profile, and application/team entitlements match it.
+Developer trust on her phone is the next check, not a proven cause; Felipe was
+asked to inspect VPN & Device Management and open the app. Native launch and
+post-install smoke remain unverified. The live API and family data remain healthy.
+
+
+Felipe's subsequent Xcode build launched the older app. Read-only DerivedData
+metadata confirms the GUI built the preserved original
+`/Users/felipe/meal-planner-trial/.../MealPlanner.xcworkspace`, not the isolated
+release. Its signing refresh did succeed: the new cached Personal Team profile
+covers both phones. Retrying the correct release over SSH now passes provisioning
+and reaches framework signing, where errSecInternalComponent still blocks key
+access. The two-phone script must run locally in Mac Terminal; its explicit cd
+selects the new release regardless of which Xcode window is open. Do not mistake
+launch of the preserved older project for acceptance of the new native build.
+
+
+The subsequent No script URL error was investigated from actual build products:
+Xcode now used the correct isolated workspace, but generated Debug-iphoneos
+without main.jsbundle; its default Run configuration was Debug. AppDelegate uses
+Metro in DEBUG and embedded main.jsbundle in Release. Added a shared, clearly
+named MealPlanner Trial Release scheme, preserving its original target/test
+references; Xcode scheme discovery recognizes it. Both trial-workspace Run
+schemes now use Release to avoid repeating the Debug/Metro trap. The old Debug
+scheme was backed up privately. These are local generated-native packaging
+settings, not application/dependency/API changes; development and preserved
+original workspaces remain untouched. Run Release through local Xcode to use
+the user's signing session; artifact bundle/signature verification and phone
+smoke are still required after that build.
+
+
+### November 1 completion and next testing week
+
+Felipe confirms: new release is live on both phones, with another week of
+everyday use and issue collection planned. The local Xcode Release scheme
+resolved the Debug/no-script-bundle failure; both-phone installation/launch
+blockers are resolved per his report. No detailed post-install route/state
+matrix is inferred beyond that confirmation; the earlier full-loop light/dark
+review remains the accepted evidence for that check, and broader native edge
+cases/concurrency are part of the ongoing trial. Android testing remains separate.
+
+The final GUI Release product from the correct isolated workspace was checked
+after his confirmation. Deep signature verification passes; main.jsbundle is
+embedded and contains the private trial API URL; scene support is present; and
+the Personal Team profile covers both phones without Apple sign-in entitlement.
+The Mac private HTTPS health endpoint still returns ok and the database remains
+at `meal_plan_special_entries`. Private active-release/installation records now
+record both devices live by user confirmation rather than treating earlier CLI
+launch failures as successful tool launches.
+
+The current free signing profile expires November 7, 2026 at 7:00 PM Arizona
+time. Renew the signing/build before that deadline for uninterrupted use. Retain
+the isolated Release workspace/scheme and active API Compose overlay, along with
+verified backups and the prior API image/native workspace for recovery. No
+unrelated worktree, live family data or recovery asset was cleaned up.
+
+Release tests remain the recorded application/main CI and local full-suite
+results; this closeout changes documentation and private operational metadata
+only. Do not describe the next testing week as already completed or infer store
+readiness, broad beta readiness or Android acceptance.
