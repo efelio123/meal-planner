@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+dist/
+artifacts/
+/ios/
+/android/
+*.tsbuildinfo
+*.log
+.env*
+*.mobileprovision
+*.p12
+*.key
+*.pem
+.DS_Store

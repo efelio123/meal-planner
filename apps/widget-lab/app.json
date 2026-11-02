@@ -1,0 +1,78 @@
+{
+  "expo": {
+    "name": "Widget Lab",
+    "slug": "meal-planner-widget-lab",
+    "version": "0.0.1",
+    "scheme": "mealplanner-widget-lab",
+    "orientation": "portrait",
+    "ios": {
+      "bundleIdentifier": "com.example.mealplanner.widgetlab"
+    },
+    "android": {
+      "package": "com.example.mealplanner.widgetlab"
+    },
+    "plugins": [
+      [
+        "expo-widgets",
+        {
+          "groupIdentifier": "group.com.example.mealplanner.widgetlab",
+          "bundleIdentifier": "com.example.mealplanner.widgetlab.widgets",
+          "enableAndroid": true,
+          "enablePushNotifications": false,
+          "widgets": [
+            {
+              "name": "MealPlannerWidgetLab",
+              "displayName": "Widget Lab",
+              "description": "Disposable Shopping and Plan feasibility sample. Not connected to your household.",
+              "ios": {
+                "supportedFamilies": [
+                  "systemSmall",
+                  "systemMedium",
+                  "systemLarge"
+                ],
+                "initialLayout": "./src/WidgetLab.ios.tsx"
+              },
+              "android": null
+            },
+            {
+              "name": "WidgetLabSmall",
+              "displayName": "Widget Lab Small",
+              "description": "Fictional data. Pending marks are not synced to any API.",
+              "ios": null,
+              "android": {
+                "targetCellWidth": 2,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "./src/WidgetLab.android.tsx"
+              }
+            },
+            {
+              "name": "WidgetLabMedium",
+              "displayName": "Widget Lab Medium",
+              "description": "Fictional data. Pending marks are not synced to any API.",
+              "ios": null,
+              "android": {
+                "targetCellWidth": 4,
+                "targetCellHeight": 2,
+                "resizeMode": "both",
+                "initialLayout": "./src/WidgetLab.android.tsx"
+              }
+            },
+            {
+              "name": "WidgetLabLarge",
+              "displayName": "Widget Lab Large",
+              "description": "Fictional data. Pending marks are not synced to any API.",
+              "ios": null,
+              "android": {
+                "targetCellWidth": 4,
+                "targetCellHeight": 4,
+                "resizeMode": "both",
+                "initialLayout": "./src/WidgetLab.android.tsx"
+              }
+            }
+          ]
+        }
+      ]
+    ]
+  }
+}
