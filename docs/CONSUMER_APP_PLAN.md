@@ -188,9 +188,7 @@ Felipe then approved the app-owned native approach on November 2. Work continues
 on `codex/native-widgets`, beginning with isolated SwiftUI/WidgetKit and Glance
 targets. Both platforms compile and six native simulator/emulator tests pass
 (protected credential storage, durable Pending and authenticated fictional
-acknowledgement, including a separate Android widget process). iPhone signing
-still reports No Accounts after reauthentication; direct Xcode provisioning and
-actual phone widget actions remain pending. See `docs/qa/native-widget-gate.md`.
+acknowledgement, including a separate Android widget process). Selecting the Personal Team resolved the initial iPhone No Accounts error; the latest build reaches widget CodeSign but fails with errSecInternalComponent. Direct Xcode signing and actual phone widget actions remain pending. See `docs/qa/native-widget-gate.md`.
 Production app/API/schema integration has not started; F16 remains incomplete.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the

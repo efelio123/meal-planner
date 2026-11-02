@@ -90,5 +90,4 @@ it would not complete the original interactive-widget request.
 
 See `docs/qa/native-widget-gate.md` for the isolated native results. iOS/Android
 compile and six native tests pass; iPhone signing and actual home-screen actions
-are pending. The signed-device retry still reports No Accounts after Xcode
-reauthentication. Keep production integration behind this gate.
+are pending. Selecting the Personal Team resolved No Accounts; the latest build reaches widget CodeSign but fails with errSecInternalComponent. A direct Xcode build/key prompt is pending. Keep production integration behind this gate.

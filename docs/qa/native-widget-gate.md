@@ -44,19 +44,20 @@ this proves the separate native worker, not launcher callback dispatch.
 
 ## iPhone signing blocker
 
-The separate device Release build fails for both app and extension with:
+The initial device Release build failed with No Accounts and missing provisioning
+profiles, including after reauthentication. After Felipe selected the Personal
+Team in the isolated Xcode project, a further remote build **resolved that error**
+and found a development provisioning profile for the widget extension.
 
-- `No Accounts: Add a new account in Accounts settings.`
-- No development provisioning profile for the corresponding probe identifier.
+The latest build reaches CodeSign for ProbeWidget, then fails with
+`errSecInternalComponent` / `Command CodeSign failed with a nonzero exit code`.
+This is a signing-key access failure, not proof that free-team widget capabilities
+are unsupported. A direct Xcode Product → Build is pending so any macOS key prompt
+can be handled locally. No passwords or key material are requested in chat.
 
-Felipe reauthenticated Xcode; a remote retry still produces the same errors.
-Read-only checks find a running Xcode in the same logged-in Mac account. The
-stored developer-account preference container has an empty account list; the
-presence of that container does **not** establish a usable signing account.
-The separate probe project has been opened for a direct Xcode team/build check;
-its outcome is pending. Do not infer that App Groups require payment, purchase a
-membership, reuse the production profile for another identifier, or remove secure
-storage entitlements to bypass this gate.
+Signed app/extension verification and provisioned-phone shared storage remain
+unproved. Do not purchase membership, reuse the production profile for another
+identifier, or remove secure-storage entitlements to bypass this gate.
 
 ## Still required before production integration
 
