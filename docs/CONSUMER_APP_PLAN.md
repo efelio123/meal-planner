@@ -79,8 +79,8 @@ provenance, operational paths and recovery.
 
 November 1 continuation: the family-trial inventory is reconciled with the
 live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
-B11 stays on unreproduced regression watch. Felipe accepts F10 recipe importing November 1 and calls the current feature complete. Remaining features
-to implement are F12 calendar sync and F16 widgets. F14 themes is implemented
+B11 stays on unreproduced regression watch. Felipe accepts F10 recipe importing November 1 and calls the current feature complete. The remaining original feature
+to implement is F16 widgets; F12 calendar sync is prepared locally with native-device acceptance pending. F14 themes is implemented
 locally and accepted by Felipe November 2 (below). F15 member
 permissions is implemented locally, with page appearance accepted and broader
 permission checks still pending (below). Felipe accepts F09 ingredient sections and calls it complete after
@@ -148,23 +148,22 @@ Types/lint, compatibility, contrast checks and iOS/Android JS exports pass. Late
 default/name/icon follow-up passes 86 targeted tests plus types/lint. Overall slice
 acceptance does not imply every six-appearance or Android case was reported;
 native builds and deployment remain separate. Remaining
-unimplemented original major features are F12 calendar integration and F16 widgets.
+unimplemented original major feature is F16 widgets. F12 calendar integration is implemented locally pending its native gate.
 
-November 2 F12 exploration: `docs/plans/meal-calendar-sync.md` is proposed on
-`codex/calendar-sync-plan`. Felipe confirms timed entries with individually editable
-presets, foreground automatic sync, new/existing writable calendars, and one
-calendar-control user per household, ideally its creator. Setup should recommend
-a shared calendar for other members to see the meals. The revised plan replaces
-personal independent exports with server-enforced manager/configuration and one
-registered syncing phone, adding an additive integration migration. Active-Owner
-eligibility, creator/fallback/transfer and device-takeover recovery are proposed
-for review. SDK 58 Calendar requires native capability/build verification rather
-than relying on Expo Go. Felipe subsequently explores updates triggered from any
-family phone, keeps Apple/iCloud support, then reaffirms the simpler one-phone
-version after discussing server authentication. No iCloud app-specific password
-or provider connection is required for the selected native approach; changes
-from other members reach the calendar when the designated phone opens/refreshes.
-No implementation, package/config/schema/live changes started.
+November 2 F12: approved for direct implementation on
+`codex/native-calendar-sync`, with the one-manager/one-phone native design in
+`docs/plans/meal-calendar-sync.md`. Local code provides Profile setup/status,
+new/existing calendars, editable timed presets, safe reconciliation and cleanup,
+server authority/projection, manager lifecycle and the additive `calendar_sync`
+migration. A source-only export ledger and persistent run fence protect recovery
+and phone takeover; native IDs and calendar-account metadata remain local.
+No iCloud app-specific password, server provider integration, background guarantee
+or paid service is added. Changes by others catch up when the linked phone opens
+or refreshes. Felipe asks to prepare local work while an iPhone is unavailable.
+Native calendar operations/marker persistence/sharing, installed iPhone/Samsung
+builds and physical UI checks remain unverified; see
+`docs/qa/meal-calendar-sync.md`. The family Mac API/database and installed apps
+are unchanged. F12 is not released or accepted based on automated tests alone.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

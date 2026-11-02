@@ -1,9 +1,14 @@
 # Timed meal-calendar sync — F12
 
-Status: revised native one-phone plan, November 2, 2026; implementation not started.
+Status: implemented locally, November 2, 2026; native-device acceptance pending.
+Felipe approved direct implementation.
+Implementation branch: `codex/native-calendar-sync`. Native device capability
+checks remain pending; Felipe asks to prepare local work first.
 Felipe confirms the simpler one-phone scope after considering API-driven sync.
-Branch: `codex/calendar-sync-plan`, from accepted themes at `2f00efe`.
-Preserve F09/F10/F15/F14 work. No package/config/schema/native/runtime changes.
+Planning branch: `codex/calendar-sync-plan`, from accepted themes at `2f00efe`.
+Implementation branch: `codex/native-calendar-sync`; preserve F09/F10/F15/F14.
+Earlier review/clarification passages below are planning history, superseded by
+the approved implementation status and the implementation notes at the end.
 
 ## Goal and confirmed choices
 
@@ -364,3 +369,47 @@ controls settings and setup recommends a shared calendar for other members.
 Keep the manager/writer enforcement and native feasibility work described above;
 no cloud provider SDK, provider credential store or Google OAuth integration is
 added. This clarification changes planning only, with no runtime/data changes.
+
+
+## Implementation safety details — November 2
+
+Approved for direct implementation on `codex/native-calendar-sync`. Felipe confirms
+an iPhone will be available later; prepare local work first. Native device tests
+are a release gate, not inferred from the automated checks below.
+
+The integration keeps a monotonic set of source-meal IDs that might have been
+exported, recorded with fresh authority immediately before native creation.
+Reading a projection or losing Calendar permission does not mark meals exported.
+These are app IDs only; native event/calendar IDs and OS account data
+remain on the phone. A replacement phone must recover matching ownership markers
+before it can recreate a previous export. Missing provider delivery pauses it.
+Verified deletions/cleanup acknowledge source IDs back to the API. Explicitly
+starting a separate destination after disconnect keeps old copies and creates
+a new binding; recovery in the same destination retains the binding.
+
+A run deadline bounds freshly issued operation authority; expiry does not unlock
+an outstanding native operation. Pending runs resume with the persisted run ID.
+An uncertain create remains fenced until its marker can be recovered; if ownership
+cannot be established, it stays paused for manual calendar review. No automatic
+force-unlock or exactly-once cross-provider guarantee is claimed. A lost device
+with an unresolved run needs a separate reviewed recovery procedure; do not erase
+its fence to get past an error. In-process work is serialized across controller
+remounts as well as within the active screen/session.
+
+
+## Local implementation validation
+
+API/migration: `50ca88f`. Mobile: `cd34fce`. Final API suite: 251 passing on
+verified disposable PostgreSQL; final cache-cleared mobile suite: 85 suites,
+889 passing. Types/lint, compatibility, native permission-config introspection
+and final-source iOS/Android JavaScript exports pass. The normal mobile run also
+passes 889, before the final source-intention follow-up; that follow-up passes
+35 focused tests and the final complete cold run.
+
+Felipe separately approves migrating local development after a verified backup.
+The dump restores successfully to a temporary verification database; eleven
+content/identity/grant counts match before/after migration to `calendar_sync`.
+Integrations start disabled. No working server, family Mac database, Render,
+native project, or installed phone app was changed. See
+`docs/qa/meal-calendar-sync.md` for the recovery limits and outstanding physical
+build/provider/geometry acceptance checks. This is not a release approval.
