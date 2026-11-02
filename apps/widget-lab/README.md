@@ -65,6 +65,6 @@ The lab is unavailable in Expo Go. No app was installed or working server starte
 
 The native replacement approach is approved. `native-probe/` contains separate
 SwiftUI/WidgetKit and Glance capability targets, without changing this stock SDK
-prototype or the consumer app. Both compile, and six native tests pass. iPhone
-signing and actual home-screen taps are still pending; see the probe README and
+prototype or the consumer app. Both compile, and seven native tests pass. Baseline iPhone signing and shared-group
+profile authorization are verified; actual home-screen taps are still pending; see the probe README and
 `docs/qa/native-widget-gate.md`. The production widget feature is not complete.

@@ -19,3 +19,6 @@ native-probe/*.entitlements
 native-probe/*.xcresult/
 native-probe/SignedDerivedData/
 native-probe/SimulatorTestData/
+native-probe/phone-fixture-state.json
+native-probe/serve-before-widget-fixture-*.json
+native-probe/PhoneGateDerivedData/

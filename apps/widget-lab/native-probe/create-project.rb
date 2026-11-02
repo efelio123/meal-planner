@@ -1,5 +1,6 @@
 require 'xcodeproj'
 require 'fileutils'
+require 'uri'
 root = File.expand_path(__dir__)
 project_path = File.join(root, 'NativeWidgetProbe.xcodeproj')
 abort 'Probe project already exists; preserve and review instead of overwriting' if File.exist?(project_path)
@@ -8,6 +9,11 @@ working_path = ARGV.fetch(0) { abort 'Pass the existing working .xcodeproj path;
 working = Xcodeproj::Project.open(working_path)
 team = working.targets.first.build_configurations.first.build_settings['DEVELOPMENT_TEAM']
 abort 'Working Personal Team is not configured' if team.to_s.empty?
+fixture_origin = ARGV[1]
+if fixture_origin
+  uri = URI.parse(fixture_origin)
+  abort 'Phone fixture must be HTTPS without credentials, query or fragment' unless uri.is_a?(URI::HTTPS) && uri.host && !uri.userinfo && !uri.query && !uri.fragment
+end
 project = Xcodeproj::Project.new(project_path)
 app = project.new_target(:application, 'NativeWidgetProbe', :ios, '17.0')
 widget = project.new_target(:app_extension, 'ProbeWidget', :ios, '17.0')
@@ -24,6 +30,7 @@ group_id = 'group.com.example.mealplanner.nativewidgetprobe'
 keychain_group = '$(AppIdentifierPrefix)com.example.mealplanner.nativewidgetprobe.shared'
 [app,widget,tests].each do |target|
   info = {'CFBundleName'=>target.name,'CFBundleDisplayName'=>target.name,'CFBundleIdentifier'=>'$(PRODUCT_BUNDLE_IDENTIFIER)','CFBundleExecutable'=>'$(EXECUTABLE_NAME)','CFBundlePackageType'=> target == app ? 'APPL' : (target == widget ? 'XPC!' : 'BNDL'),'CFBundleVersion'=>'1','CFBundleShortVersionString'=>'0.0.1','ProbeAppGroup'=>group_id,'ProbeKeychainGroup'=>keychain_group,'NSAppTransportSecurity'=>{'NSAllowsArbitraryLoads'=>true}}
+  info['ProbeFixtureOrigin'] = fixture_origin if fixture_origin
   if target == widget
     info['NSExtension'] = {'NSExtensionPointIdentifier'=>'com.apple.widgetkit-extension'}
   elsif target == app

@@ -88,6 +88,9 @@ it would not complete the original interactive-widget request.
 
 ## Native gate progress
 
-See `docs/qa/native-widget-gate.md` for the isolated native results. iOS/Android
-compile and six native tests pass; iPhone signing and actual home-screen actions
-are pending. Selecting the Personal Team resolved No Accounts; the latest build reaches widget CodeSign but fails with errSecInternalComponent. A direct Xcode build/key prompt is pending. Keep production integration behind this gate.
+See `docs/qa/native-widget-gate.md` for the isolated native results. Both platforms
+compile and seven native tests pass. The baseline app/extension signatures and
+profile authorization for matching shared App Group/Keychain groups are verified
+with the free Personal Team. A separate private HTTPS fixture and confirmed/pending
+phone-test UI are prepared. The updated phone build and actual home-screen action
+checks are pending; keep production integration behind this gate.

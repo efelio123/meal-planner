@@ -3,6 +3,7 @@ import Security
 import SQLite3
 
 struct ProbeFailure: Error { let message: String }
+struct ProbeState { let pending: Int; let confirmed: Int }
 struct ProbeAction: Codable {
   let id: String
   let itemID: String
@@ -78,6 +79,15 @@ final class ProbeStore {
       return actions
     }
   }
+  func state() throws -> ProbeState {
+    try transaction { db in
+      var stmt: OpaquePointer?
+      guard sqlite3_prepare_v2(db, "SELECT (SELECT count(*) FROM outbox),coalesce((SELECT cast(value AS INTEGER) FROM snapshot WHERE key='confirmed'),0)", -1, &stmt, nil) == SQLITE_OK else { throw ProbeFailure(message: "State read failed") }
+      defer { sqlite3_finalize(stmt) }
+      guard sqlite3_step(stmt) == SQLITE_ROW else { throw ProbeFailure(message: "State unavailable") }
+      return ProbeState(pending: Int(sqlite3_column_int(stmt, 0)), confirmed: Int(sqlite3_column_int(stmt, 1)))
+    }
+  }
   func acknowledge(_ id: String) throws {
     try transaction { db in
       var stmt: OpaquePointer?
@@ -85,6 +95,9 @@ final class ProbeStore {
       defer { sqlite3_finalize(stmt) }
       sqlite3_bind_text(stmt, 1, id, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self))
       guard sqlite3_step(stmt) == SQLITE_DONE else { throw ProbeFailure(message: "Acknowledge failed") }
+      if sqlite3_changes(db) == 1 {
+        try execute(db, "INSERT INTO snapshot(key,value) VALUES ('confirmed','1') ON CONFLICT(key) DO UPDATE SET value=cast(value AS INTEGER)+1")
+      }
     }
   }
 }
@@ -111,23 +124,49 @@ enum ProbeVault {
   static func clear() throws { SecItemDelete(try query() as CFDictionary) }
 }
 
-/// Calls only the disposable loopback fixture, never the family API.
+/// Test endpoint only. Devices require HTTPS; loopback HTTP is simulator-only.
+enum ProbeEndpoint {
+  static func resolve(_ value: String, allowSimulatorLoopback: Bool) throws -> URL {
+    guard let parts = URLComponents(string: value), let url = parts.url,
+          let host = parts.host, !host.isEmpty, parts.user == nil, parts.password == nil,
+          parts.query == nil, parts.fragment == nil else { throw ProbeFailure(message: "Invalid disposable fixture URL") }
+    if parts.scheme == "https" { return url }
+    guard allowSimulatorLoopback, parts.scheme == "http", host == "127.0.0.1", parts.port == 43817,
+          parts.path.isEmpty || parts.path == "/" else { throw ProbeFailure(message: "The phone fixture requires HTTPS") }
+    return url
+  }
+}
+private final class ProbeNoRedirect: NSObject, URLSessionTaskDelegate {
+  func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                  newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
+}
+/// Calls only the configured disposable fixture, never the family API.
 enum ProbeWorker {
-  static let origin = URL(string: "http://127.0.0.1:43817")!
+  private static let session = URLSession(configuration: .ephemeral, delegate: ProbeNoRedirect(), delegateQueue: nil)
+  static func origin() throws -> URL {
+    #if targetEnvironment(simulator)
+    return try ProbeEndpoint.resolve("http://127.0.0.1:43817", allowSimulatorLoopback: true)
+    #else
+    guard let value = Bundle.main.object(forInfoDictionaryKey: "ProbeFixtureOrigin") as? String else {
+      throw ProbeFailure(message: "Configure the disposable HTTPS fixture before phone testing")
+    }
+    return try ProbeEndpoint.resolve(value, allowSimulatorLoopback: false)
+    #endif
+  }
   static func seed(_ secret: String) async throws {
-    var request = URLRequest(url: origin.appendingPathComponent("seed")); request.httpMethod = "POST"
+    var request = URLRequest(url: try origin().appendingPathComponent("seed")); request.httpMethod = "POST"; request.timeoutInterval = 8
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.httpBody = try JSONSerialization.data(withJSONObject: ["secret": secret])
-    let (_, response) = try await URLSession.shared.data(for: request)
+    let (_, response) = try await session.data(for: request)
     guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw ProbeFailure(message: "Disposable fixture setup failed") }
   }
   static func synchronize(_ store: ProbeStore) async throws {
     for action in try store.actions() {
-      var request = URLRequest(url: origin.appendingPathComponent("check")); request.httpMethod = "POST"; request.timeoutInterval = 8
+      var request = URLRequest(url: try origin().appendingPathComponent("check")); request.httpMethod = "POST"; request.timeoutInterval = 8
       request.setValue("Widget " + (try ProbeVault.read()), forHTTPHeaderField: "Authorization")
       request.setValue("application/json", forHTTPHeaderField: "Content-Type")
       request.httpBody = try JSONEncoder().encode(action)
-      let (data, response) = try await URLSession.shared.data(for: request)
+      let (data, response) = try await session.data(for: request)
       guard (response as? HTTPURLResponse)?.statusCode == 200,
             let result = try JSONSerialization.jsonObject(with: data) as? [String: Any], result["id"] as? String == action.id else { throw ProbeFailure(message: "Unconfirmed operation remains pending") }
       try store.acknowledge(action.id)

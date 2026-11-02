@@ -33,8 +33,9 @@ The test runner creates, uses and deletes only its newly named iOS 27 simulator;
 it terminates only its own fixture server. It requires the iPhone 18 Pro simulator
 runtime/device type and a free loopback port 43817. For a rerun, preserve the prior
 `ProbeResults.xcresult` elsewhere first; Xcode will not overwrite a result bundle.
-The three hosted XCTest checks cover snapshot/outbox isolation, shared-Keychain
-roundtrip and native authenticated fixture acknowledgement/rejection. They do
+The four hosted XCTest checks cover snapshot/outbox isolation, shared-Keychain
+roundtrip, native authenticated fixture acknowledgement/rejection, duplicate
+acknowledgement counting and HTTPS-only phone endpoint validation. They do
 not prove extension-to-app Keychain sharing on a provisioned phone or an actual
 WidgetKit button dispatch. Simulator entitlements cannot establish Personal Team
 capability availability.
@@ -42,9 +43,10 @@ capability availability.
 A separate Release build for `generic/platform=iOS` checks provisioning. It does
 not install the probe. Resolve accounts/signing in the isolated project, retaining
 both App Groups and Keychain Sharing; do not remove capabilities to get a build.
-Actual device installation, a disposable HTTPS fixture reachable from that device,
-and closed/locked-app widget checks require coordination. The current loopback
-fixture URL is for the simulator only.
+Actual device installation and closed/locked-app widget checks require
+coordination. Simulators use loopback; device builds require the separate
+ProbeFixtureOrigin HTTPS setting. The generator accepts that URL as its optional
+second argument; credentials, query strings and fragments are rejected.
 
 ## Android
 
@@ -81,3 +83,38 @@ emulator-to-host `10.0.2.2:43817` fixture. Production credentials must use valid
 HTTPS. Production must also add generation isolation, server authorization,
 idempotency, conflict handling, expiry and revocation; none are claimed by this
 small capability probe.
+
+## Coordinated iPhone test
+
+`phone-fixture.py start`, run only from the private Mac probe directory, adds one
+randomly named `/_widget-probe-*` HTTPS path to the existing private Tailscale
+Serve configuration. It verifies that all other configuration remains identical,
+checks the family API health before/after, and sets the URL in the generated probe
+plists. It does not regenerate the project or change selected signing teams.
+Its listener remains loopback-only; no Funnel/public exposure is used. Its seed
+endpoint is intended only for fictional disposable test state within this private
+network; it is not a production device registration protocol. Secret and
+acknowledgement state exist only in the fixture process's memory.
+
+The helper saves its owned process/route identity and a mode-600 pre-change route
+snapshot locally, never in git. `phone-fixture.py status` reports only fictional
+acknowledgement count. `phone-fixture.py stop` removes only its matching proxy path
+and its verified fixture process, preserving other routes. Leave it running only
+while a coordinated phone test is pending, then stop it. Never use Serve reset.
+
+1. Build and Run **NativeWidgetProbe**, with the intended unlocked iPhone selected.
+   This installs only the distinct probe, not Meal Planner. Keep Tailscale on.
+2. Tap **Run native self-check**. Expect **1 confirmed · 0 pending**.
+3. Return to Home Screen and add the medium **Native Widget Probe** widget.
+4. With the probe app in the background, tap **Test native tap** in the widget.
+   Expect **2 confirmed · 0 pending**, with no main-app launch. Cross-check the
+   server acknowledgement count using the helper's status command.
+5. Disable Tailscale temporarily, tap again and wait for its bounded request to
+   fail. Expect **1 pending**, retaining the confirmed count. Enable Tailscale and
+   tap **Retry pending** in the widget; pending should clear only after a server
+   acknowledgement. Do not run self-check again during this sequence: it resets
+   the fictional fixture/session and shared probe data.
+
+Physical checks, including repeat taps after app termination and lock/unlock,
+remain separate recorded observations. Do not infer them from simulator tests,
+profile verification, a successful install or the fact the code has no JS runtime.
