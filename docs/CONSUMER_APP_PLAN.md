@@ -115,11 +115,14 @@ remain separate.
 
 November 1 F15 planning: `docs/plans/household-member-permissions.md` proposes
 per-member action checkboxes with owner-only configuration and service-level
-API enforcement. Confirmed defaults remain Shopping Add and Check/uncheck, plus
-shared-content read access; owners retain full access. The action matrix,
-existing-member migration/reset policy and compound-action rules are proposals
-awaiting review on `codex/member-permissions-plan`. No F15 implementation,
-migration or live rollout is approved yet.
+API enforcement. Felipe accepts the general approach and confirms that new
+invitees are Members with full Shopping, Recipes, Plan and Catalog access;
+household administration remains owner-only. Restricted Shopping-only access
+includes Add, Edit and Check/uncheck. Owners can customize the action grants.
+The updated plan proposes preserving existing members' full content access at
+migration and explicit Allow all / Shopping only shortcuts; lifecycle refinements
+await review on `codex/member-permissions-plan`. No F15 implementation, migration
+or live rollout has started.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

@@ -1,6 +1,8 @@
 # Household member permissions — F15
 
-Status: proposal for Felipe's review, November 1, 2026. Planning only.
+Status: revised November 1, 2026; general design and invitation role/access
+clarified by Felipe. Lifecycle/shortcut refinements below remain proposals.
+Planning only; no implementation started.
 Branch: `codex/member-permissions-plan`, from accepted recipe work at `ab312cb`.
 No application, schema, dependency, configuration or deployment changes are
 approved by this document. Preserve F09/F10; they are accepted and committed,
@@ -9,8 +11,9 @@ but not merged or deployed to the Mac trial.
 ## Goal and scope
 
 Owners can decide what each member may do in one household. Owners retain full
-access. Members retain access to shared product content; by default they can
-add Shopping items and check/uncheck them. Add an owner-only permission editor
+access. New invitees are Members with every current product action enabled;
+household administration remains owner-only. The restricted Shopping-only
+starting point includes Add, Edit and Check/uncheck. Add an owner-only permission editor
 and enforce the same policy in every household mutation, including nested
 flows and requests from older/stale clients.
 
@@ -53,8 +56,10 @@ rather than a vague Manage permission. Checked means allowed. All rows have
 consistent checkbox targets, labels and disabled states. Do not introduce a
 native sheet for this long settings list.
 
-Use explicit **Save** and **Reset to defaults**. Reset changes the draft to the
-two default grants; Save persists once. Back with changed checkboxes offers
+Use explicit **Save**, with proposed **Allow all** and **Shopping only**
+shortcuts. Allow all checks all 25 product actions; Shopping only checks Add,
+Edit and Check/uncheck. Both change only the checkbox draft; Save persists once.
+Use these specific labels instead of an ambiguous Reset to defaults. Back with changed checkboxes offers
 Keep editing / Discard changes, following the accepted draft-warning behavior.
 A successful Save shows confirmation and refreshes member details. Errors keep
 the checkbox draft; a conflicting owner edit offers Reload latest rather than
@@ -64,19 +69,21 @@ reconcile the saved revision/list first.
 For an owner target, show **Owners have full access** and a read-only all-enabled
 list. Their access cannot be reduced with checkboxes. Changing their role stays
 in the existing role flow, which explains full access on promotion and the
-default reset on demotion before confirming. Household administration appears as an Owner-only
+proposed Shopping-only reset on demotion before confirming. Household administration appears as an Owner-only
 summary, separate from the editable product-action groups.
 
 ## Proposed action matrix
 
-Owners can perform every action. Only the first two rows are enabled for members
-by default. The keys below are stable API identifiers; the app displays labels.
+Owners can perform every action. New invitees receive all 25 product grants.
+The first three rows form the Shopping-only starting point for owners choosing
+to restrict a member. The keys below are stable API identifiers; the app displays
+labels. The restricted column is not the invitation default.
 
-| Group | Checkbox label | Key | Member default |
+| Group | Checkbox label | Key | Restricted baseline |
 | --- | --- | --- | --- |
 | Shopping | Add items | `shopping.add` | On |
 | Shopping | Check and uncheck items | `shopping.check` | On |
-| Shopping | Edit amounts, units and stores | `shopping.edit` | Off |
+| Shopping | Edit amounts, units and stores | `shopping.edit` | On |
 | Shopping | Remove individual items | `shopping.remove` | Off |
 | Shopping | Clear purchased items | `shopping.clear_purchased` | Off |
 | Shopping | Clear the entire list | `shopping.clear_all` | Off |
@@ -152,7 +159,7 @@ viewing shared product content does not expose owner-only administrative data.
 
 Use a small backend permission registry and normalized grant rows, with no new
 permission service, library or JWT claim. The registry defines supported keys,
-labels, groups and member defaults. Unknown/new actions default to denied for
+labels, groups, full-product invitation grants and the Shopping-only grant set. Unknown/new actions default to denied for
 members; owners remain full-access. Keep client action identifiers typed and
 verify their agreement with the API registry in contract tests.
 
@@ -163,15 +170,23 @@ membership's household and active status. Add a positive `permissions_revision`
 to memberships for optimistic concurrency. An empty grant set means no product
 writes, never an implicit reset to defaults.
 
-Seed exactly Add and Check for existing active members in the migration, and
-for newly accepted invitations. Preserve users, recipes, Catalog, Shopping and
-Plan records. Existing members currently have broader content-write access:
-this migration intentionally restricts them to the approved defaults. Inventory
-roles read-only and explain that effect before a later live rollout.
+Newly accepted invitations always create a Member with all current product
+permissions enabled. Pending invitations retain Member as their invited role;
+apply grants transactionally when the invitation is actually accepted. Do not
+promote invitees to Owner implicitly. Invitation management remains owner-only.
+
+For migration, propose seeding all current product grants for existing active
+members to preserve their current content access. Owners can restrict them after
+rollout. Preserve users, recipes, Catalog, Shopping and Plan records. Inventory
+roles read-only before a later live rollout. This replaces the earlier migration
+proposal that would have restricted existing members automatically.
 
 Owners' effective access is computed as all actions. Promoting a member removes
-custom grants; demoting an owner seeds the member defaults. Removal clears grants;
-rejoining starts at defaults without restoring old custom access. Increment the
+custom grants. Proposed demotion behavior remains a reset to Shopping only
+(Add, Edit, Check), with that outcome explicit in its confirmation; an owner can
+then change the member's checkboxes. Removal clears grants. Rejoining through a
+new owner-issued invitation receives full product access under the invitation
+rule, without resurrecting the previous membership's custom grants. Increment the
 revision on role/access/removal transitions, preserving current last-owner and
 membership invariants. Never assign grants to another membership or household.
 
@@ -256,8 +271,8 @@ quick checkoffs must retain their existing per-item responsiveness.
 
 ## Validation and later rollout
 
-- Unit/contract matrix for all 25 actions: owner, default member, explicit grant,
-  denial, empty grants and unknown actions. Check all existing mutation routes
+- Unit/contract matrix for all 25 actions: owner, full-access invited member,
+  Shopping-only member, explicit grant/denial, empty grants and unknown actions. Check all existing mutation routes
   have an intentional mapping; test service enforcement as well as HTTP behavior.
 - Verified disposable-PG integration: migration/backfill, defaults on invitation,
   rejoin/promotion/demotion/removal, last owner, tenant isolation, owner-only
@@ -280,20 +295,41 @@ quick checkoffs must retain their existing per-item responsiveness.
 - A later separately approved rollout needs a fresh restore-verified Mac backup,
   role inventory, migration review, both-phone client upgrade and coordinated
   API deployment. Older clients remain subject to server enforcement and may see
-  denials for former writes. Avoid rolling back to an API that stops enforcing
+  denials when an owner restricts their actions. Avoid rolling back to an API that stops enforcing
   the configured policy; prefer a permission-compatible fix. This plan does not
   merge, migrate, deploy, reinstall apps or change staging auto-deploy.
 
-## Decisions for review
+## Confirmed decisions and remaining refinements
 
-These are proposed defaults, not additional confirmed requirements:
+Felipe accepts the overall permissions approach and confirms:
 
-1. Use the 25 independent product-action checkboxes above, with administration
-   permanently owner-only. No permission can make a member a delegated owner.
-2. Restrict existing members to Add/Check at migration; new members use the same
-   defaults. Demotion and rejoin reset to defaults rather than revive old grants.
-3. Add includes restoring a purchased row unchanged; general check-state toggles
-   remain separate. Include Shopping-review additions under the same Add grant.
+1. Owners retain full access and exclusive household administration.
+2. New invitees start as Members with full Shopping, Recipes, Plan and Catalog
+   access. They do not become owners automatically.
+3. The restricted Shopping-only baseline includes Add, Edit and Check/uncheck.
+   Owners can customize all individual product-action checkboxes.
 
-No external credentials, paid resource or package change is needed. Approve or
-revise these choices and the scope before application/schema implementation.
+Proposed refinements for the updated plan:
+
+- Preserve existing members' current full product access at migration.
+- Replace Reset to defaults with explicit Allow all / Shopping only draft
+  shortcuts; there is no extra invitation preset picker or custom-role system.
+- On demotion, explicitly confirm resetting to Shopping only. A new invitation
+  on rejoin grants full product access, consistent with the invitation rule.
+
+The accepted Add/re-add and field-aware Edit/Check rules above remain intact.
+No external credentials, paid resource or package change is needed. Review the
+updated lifecycle/shortcut choices before application/schema implementation.
+
+## Invitation policy decision — November 1
+
+Felipe resolves all features as full Shopping, Recipes, Plan and Catalog access,
+with household administration staying with owners. New invitees therefore remain
+Members and receive all current product grants on acceptance. Explicit promotion
+is still required to manage people, permissions, invitations and household
+settings/deletion. Owners may restrict content actions afterward.
+
+This supersedes the earlier three-grant invitation assumption. The three Shopping
+grants now describe the restricted starting point, not newly invited Members'
+initial rights. Existing-member migration and the named shortcuts are proposals
+listed above; they are not claimed as additional confirmed user decisions.
