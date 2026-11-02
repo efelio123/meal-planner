@@ -152,7 +152,8 @@ unimplemented original major features are F12 calendar integration and F16 widge
 
 November 2 F12 exploration: `docs/plans/meal-calendar-sync.md` is proposed on
 `codex/calendar-sync-plan`. Felipe confirms timed events with configurable meal-
-slot times, automatic sync when opening/using the app, and both new-calendar and
+slot times with editable presets during setup and later in settings, automatic
+sync when opening/using the app, and both new-calendar and
 existing writable-calendar destinations. Recommend one-way personal sync with
 safe event ownership, a bounded read-only API projection, explicit timezone/DST
 rules and native calendar capability checks. Shared-calendar multi-writer behavior

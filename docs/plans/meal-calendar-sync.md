@@ -45,8 +45,10 @@ Setup:
    with enough access to read and modify events; exclude subscribed/read-only
    calendars. Creation uses an available supported source, not a hard-coded
    iCloud/Google/Exchange assumption. Explain whether its source is local/cloud.
-4. Set Breakfast, Lunch and Dinner times. Proposed starting values: 8:00 AM,
-   12:00 PM and 6:00 PM, shown in the device's normal clock format. These are
+4. Start with editable presets: Breakfast 8:00 AM, Lunch 12:00 PM and Dinner
+   6:00 PM, shown in the device's normal clock format. Felipe confirms preset
+   times must remain individually changeable during setup and later in Calendar
+   sync settings; these values are starting suggestions, not fixed meal times. These are
    personal calendar display preferences, not new shared meal schedule fields.
 5. Proposed event length: one hour, with a common 15/30/60/90/120-minute selector.
    Show the household time zone explicitly. Changes apply to managed events.
@@ -236,8 +238,9 @@ new native module works with existing Personal Team builds during the gate.
 
 ## Open point and review
 
-Confirmed: timed entries, foreground automatic sync, new or existing writable
-calendar. Proposed for approval: defaults/length, household-zone timestamps,
+Confirmed: timed entries with individually editable default presets during setup
+and later in settings, foreground automatic sync, new or existing writable
+calendar. Proposed for approval: the suggested preset values/event length, household-zone timestamps,
 rolling range, one-way/manual-change handling, cleanup and single-writer shared
 calendar behavior. The shared-writer answer can materially change scope.
 No code, dependency, migration, native build or deployment has started.
@@ -255,3 +258,13 @@ No code, dependency, migration, native build or deployment has started.
 
 Source/API findings guide feasibility; proposed UX, sync semantics and rolling
 coverage above are product recommendations, not guarantees supplied by the OS.
+
+## Editable preset clarification — November 2
+
+Felipe confirms default preset meal times with user overrides. Breakfast, Lunch
+and Dinner each have their own editable time; users may accept the suggested
+8:00 AM/noon/6:00 PM or replace any of them, both during setup and afterward.
+Changes update that user's managed calendar events on the next successful sync;
+they do not change shared meal-plan dates/slots or other people's preferences.
+The specific starting values remain proposed; shared-calendar writer behavior
+and overall implementation approval remain open.
