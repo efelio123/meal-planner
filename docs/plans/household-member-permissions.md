@@ -431,7 +431,16 @@ at the previous title size. All section/individual checkboxes now align at the
 far right of their full-width tappable rows. Main group titles are 24/32 bold;
 Catalog subheadings reuse the former shared 20/26 bold section-title role. The
 existing tab-stack frame, scroll reachability, wrapping labels, mixed states and
-save behavior are preserved. Physical appearance remains for Felipe's review.
+save behavior are preserved. Felipe accepts the reviewed page appearance November 2.
 
 Validation: all eight permission-editor tests and targeted screen lint pass.
 No API/database change or full-suite rerun for this presentation-only follow-up.
+
+## Page acceptance — November 2
+
+Felipe reports “this page looks good” after the trailing-checkbox and heading
+changes and asks to move on. Record permission-page visual acceptance; do not
+infer the full cross-phone restriction/revocation checklist or deployment review.
+The remaining unimplemented original features are F14 themes, F12 automatic
+calendar integration and F16 widgets. Recommend themes as the next bounded slice;
+calendar/widgets require separate platform research and approved plans.

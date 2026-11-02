@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: November 1, 2026
+Last updated: November 2, 2026
 
 ## Purpose of this document
 
@@ -115,7 +115,7 @@ remain separate.
 
 November 1 F15 implementation: `docs/plans/household-member-permissions.md`
 is approved and implemented directly in this chat on `codex/member-permissions`,
-awaiting phone acceptance. Owners exclusively administer households and configure
+with permission-page appearance accepted by Felipe November 2. Owners exclusively administer households and configure
 25 per-member product actions through four section checkboxes (all/none/mixed),
 individual checkboxes and explicit Save. New invitees and existing active Members
 at migration retain full product access; Owner-to-Member demotion also starts
@@ -125,8 +125,9 @@ and migrated to `member_permissions`, with content counts preserved. The live Ma
 release remains unchanged. Full mobile normal/cold runs passed 819 tests each;
 the later unchanged-access-response follow-up passed 142 relevant tests. API full
 disposable-PG suite passed 232 tests; types/lint, compatibility and native JS
-exports passed. Physical owner/member acceptance and later coordinated live
-rollout remain outstanding. No merge, push, native installation or deployment
+exports passed. Broader cross-phone permission/revocation checks and later coordinated live
+rollout remain outstanding. Themes are recommended next, ahead of the larger
+calendar and widget integrations. No merge, push, native installation or deployment
 is included. See the dedicated plan for exact validation boundaries.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
