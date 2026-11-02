@@ -1,7 +1,8 @@
 # Household member permissions — F15
 
 Status: revised November 1, 2026; general design and invitation role/access
-clarified by Felipe. Lifecycle/shortcut refinements below remain proposals.
+clarified by Felipe. Section-wide checkboxes replace preset shortcuts; lifecycle
+refinements below remain proposals.
 Planning only; no implementation started.
 Branch: `codex/member-permissions-plan`, from accepted recipe work at `ab312cb`.
 No application, schema, dependency, configuration or deployment changes are
@@ -56,10 +57,25 @@ rather than a vague Manage permission. Checked means allowed. All rows have
 consistent checkbox targets, labels and disabled states. Do not introduce a
 native sheet for this long settings list.
 
-Use explicit **Save**, with proposed **Allow all** and **Shopping only**
-shortcuts. Allow all checks all 25 product actions; Shopping only checks Add,
-Edit and Check/uncheck. Both change only the checkbox draft; Save persists once.
-Use these specific labels instead of an ambiguous Reset to defaults. Back with changed checkboxes offers
+Each major section heading has a global checkbox: **Shopping**, **Recipes**,
+**Meal planning** and **Catalog**. Catalog's master includes Items, Categories,
+Stores and Shopping units. Its subheadings organize the individual rows; they do
+not introduce another layer of master checkboxes.
+
+- All actions checked: heading is checked; tapping clears that whole section.
+- No actions checked: heading is unchecked; tapping checks the whole section.
+- Some actions checked: heading is mixed/indeterminate; tapping checks all.
+- Individual row changes immediately update the heading's derived state.
+
+These controls affect only their section, including destructive actions such as
+Shopping removal/clear where listed. They do not change the other sections, read
+access or household administration. Announce checked/unchecked/mixed states with
+accessible checkbox semantics and a label such as All Shopping actions. For an
+owner target, both section and individual checkboxes remain checked/read-only.
+
+Use explicit **Save**. Section and individual toggles change only the checkbox
+draft; Save persists once. There is no Allow all, Shopping only or Reset to
+defaults shortcut. Back with changed checkboxes offers
 Keep editing / Discard changes, following the accepted draft-warning behavior.
 A successful Save shows confirmation and refreshes member details. Errors keep
 the checkbox draft; a conflicting owner edit offers Reload latest rather than
@@ -107,7 +123,8 @@ labels. The restricted column is not the invitation default.
 | Shopping units | Edit custom shopping units | `catalog.units.edit` | Off |
 | Shopping units | Remove custom shopping units | `catalog.units.archive` | Off |
 
-The 25 checkboxes are independent; no automatic permission inheritance. A member
+The 25 action grants are independent; section checkboxes edit their explicit
+grant selections, with no wildcard permission or automatic inheritance. A member
 with none checked can still browse product content. Product grants never confer
 owner status. Household settings, invitations (create/reissue/revoke), role or
 permission changes, member removal and household deletion remain owner-only.
@@ -280,6 +297,9 @@ quick checkoffs must retain their existing per-item responsiveness.
   operations leave data/revisions unchanged. Test Shopping mixed fields, re-add,
   bulk clears, category side effects, replay IDs and alternate Plan/review paths.
   Guard downgrade against losing saved permission configuration.
+- Checkbox tests cover all/none/mixed states, mixed-to-all and all-to-none taps,
+  individual-to-heading updates, Catalog descendants, isolation between sections,
+  read-only owner targets and saving the explicit grant list with no wildcard.
 - Actual-router/UI coverage for owner settings and scoped non-selected households,
   read-only browsing, deep links, nested creation, recipe import, interrupted
   drafts, denied optimistic updates and account/household switches. Confirm a
@@ -308,18 +328,18 @@ Felipe accepts the overall permissions approach and confirms:
    access. They do not become owners automatically.
 3. The restricted Shopping-only baseline includes Add, Edit and Check/uncheck.
    Owners can customize all individual product-action checkboxes.
+4. Each major section has a checkbox to check/uncheck its actions together;
+   partial selection is mixed. These replace Allow all / Shopping only shortcuts.
 
 Proposed refinements for the updated plan:
 
 - Preserve existing members' current full product access at migration.
-- Replace Reset to defaults with explicit Allow all / Shopping only draft
-  shortcuts; there is no extra invitation preset picker or custom-role system.
 - On demotion, explicitly confirm resetting to Shopping only. A new invitation
   on rejoin grants full product access, consistent with the invitation rule.
 
 The accepted Add/re-add and field-aware Edit/Check rules above remain intact.
 No external credentials, paid resource or package change is needed. Review the
-updated lifecycle/shortcut choices before application/schema implementation.
+updated lifecycle choices before application/schema implementation.
 
 ## Invitation policy decision — November 1
 
@@ -331,5 +351,6 @@ settings/deletion. Owners may restrict content actions afterward.
 
 This supersedes the earlier three-grant invitation assumption. The three Shopping
 grants now describe the restricted starting point, not newly invited Members'
-initial rights. Existing-member migration and the named shortcuts are proposals
-listed above; they are not claimed as additional confirmed user decisions.
+initial rights. Existing-member migration and demotion/rejoin refinements remain
+proposals listed above. Felipe subsequently replaces the named shortcuts with
+section-wide checkboxes; no preset shortcut UI remains in the plan.

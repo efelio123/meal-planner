@@ -118,10 +118,12 @@ per-member action checkboxes with owner-only configuration and service-level
 API enforcement. Felipe accepts the general approach and confirms that new
 invitees are Members with full Shopping, Recipes, Plan and Catalog access;
 household administration remains owner-only. Restricted Shopping-only access
-includes Add, Edit and Check/uncheck. Owners can customize the action grants.
+includes Add, Edit and Check/uncheck. Owners can customize the action grants. Felipe requests a global checkbox for
+each permission section (Shopping, Recipes, Meal planning, Catalog), including
+a mixed state for partial selection, instead of Allow all / Shopping only
+shortcuts. Save commits the explicit individual grants.
 The updated plan proposes preserving existing members' full content access at
-migration and explicit Allow all / Shopping only shortcuts; lifecycle refinements
-await review on `codex/member-permissions-plan`. No F15 implementation, migration
+migration; lifecycle refinements await review on `codex/member-permissions-plan`. No F15 implementation, migration
 or live rollout has started.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
