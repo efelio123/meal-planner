@@ -188,7 +188,7 @@ Felipe then approved the app-owned native approach on November 2. Work continues
 on `codex/native-widgets`, beginning with isolated SwiftUI/WidgetKit and Glance
 targets. Both platforms compile and seven native simulator/emulator tests pass
 (protected credential storage, durable Pending and authenticated fictional
-acknowledgement, including a separate Android widget process). A direct Xcode build subsequently succeeds: baseline app/extension signatures and profile authorization for their matching App Group/Keychain groups are verified. A separate private HTTPS fixture and updated confirmed/pending phone probe are prepared; updated phone build/installation and actual home-screen actions remain pending. See `docs/qa/native-widget-gate.md`.
+acknowledgement, including a separate Android widget process). A direct Xcode build subsequently succeeds: baseline app/extension signatures and profile authorization for their matching App Group/Keychain groups are verified. A separate private HTTPS fixture and updated confirmed/pending phone probe are prepared; the updated desktop-session build succeeds and the verified separate probe is installed/launched on the test iPhone with explicit authorization. One fictional server acknowledgement is observed; actual home-screen widget actions remain pending. See `docs/qa/native-widget-gate.md`.
 Production app/API/schema integration has not started; F16 remains incomplete.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the

@@ -48,6 +48,13 @@ coordination. Simulators use loopback; device builds require the separate
 ProbeFixtureOrigin HTTPS setting. The generator accepts that URL as its optional
 second argument; credentials, query strings and fragments are rejected.
 
+An SSH build can fail at CodeSign even while a desktop build works. For this gate,
+the authorized updated build succeeded through a one-shot Aqua job in the existing
+signed-in desktop session, without unlocking/changing the Keychain or approving
+security prompts automatically. The completed job was removed, signatures and
+phone-specific profiles verified, and Apple devicectl installed/launched only the
+separate probe. Physical widget acceptance remains a distinct user check.
+
 ## Android
 
 `android-probe/` is a standalone native app, separate from the generated Expo lab
