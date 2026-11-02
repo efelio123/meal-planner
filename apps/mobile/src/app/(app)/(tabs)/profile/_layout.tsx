@@ -14,6 +14,7 @@ export default function ProfileStackLayout() {
       ...profileNativeStackOptions,
     }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="calendar-sync" options={profileDetailHeader('Calendar sync')} />
       <Stack.Screen name="appearance" options={profileDetailHeader('Appearance')} />
       <Stack.Screen name="my-account" options={profileDetailHeader('My account')} />
       <Stack.Screen name="my-households/index" options={profileDetailHeader('My households')} />

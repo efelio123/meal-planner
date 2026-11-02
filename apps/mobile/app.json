@@ -41,6 +41,14 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow Meal Planner to read and update the meals it syncs to your chosen calendar.",
+          "remindersPermission": false,
+          "writeOnlyAccess": false
+        }
       ]
     ],
     "experiments": {

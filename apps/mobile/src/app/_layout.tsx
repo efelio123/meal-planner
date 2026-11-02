@@ -1,3 +1,4 @@
+import { CalendarSyncProvider } from '@/features/calendar-sync/calendar-provider';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
@@ -83,11 +84,13 @@ function RootNavigator() {
   return (
     <NativeSheetProvider scope={`${isSignedIn ? 'signed-in' : 'signed-out'}:${userId ?? ''}:${sessionId ?? ''}:${selectedHousehold?.id ?? ''}`}>
       <AppearanceFirstUse eligible={Boolean(isSignedIn && destination === 'app')} />
+      <CalendarSyncProvider>
       <ShoppingProvider>
       <ShoppingListProvider>
         <RootStack destination={destination} isSignedIn={isSignedIn} />
       </ShoppingListProvider>
       </ShoppingProvider>
+      </CalendarSyncProvider>
     </NativeSheetProvider>
   );
 }

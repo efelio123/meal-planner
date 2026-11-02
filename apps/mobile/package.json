@@ -9,6 +9,7 @@
     "@vvo/tzdb": "^6.198.0",
     "expo": "~58.0.22",
     "expo-build-properties": "~58.0.12",
+    "expo-calendar": "~58.0.6",
     "expo-clipboard": "~58.0.4",
     "expo-constants": "~58.0.14",
     "expo-device": "~58.0.5",
