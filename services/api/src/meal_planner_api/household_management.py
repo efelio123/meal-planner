@@ -68,6 +68,8 @@ def update_household(user: CurrentUser, household_id: str, name: str | None, tim
             RETURNING id::text, name, time_zone
         """), {"household_id": household_id, "name": name.strip() if name is not None else None,
                 "time_zone": time_zone.strip() if time_zone is not None else None}).mappings().one()
+        connection.execute(text("""UPDATE household_calendar_integrations SET revision=revision+1,
+            updated_at=CURRENT_TIMESTAMP WHERE household_id=:household_id"""), {"household_id": household_id})
         return with_access(connection, user.id, row)
 
 
@@ -139,6 +141,8 @@ def set_member_role(user: CurrentUser, household_id: str, membership_id: str, ro
         seed_grants(connection, membership_id, ACTION_KEYS if role == "member" else ())
         connection.execute(text("UPDATE household_members SET role = :role, permissions_revision=permissions_revision+1, updated_at = CURRENT_TIMESTAMP WHERE id = :id"),
                            {"role": role, "id": membership_id})
+        from meal_planner_api.calendar_sync import reconcile_manager
+        reconcile_manager(connection, household_id)
 
 
 def _remove_membership(connection, household_id: str, membership_id: str) -> None:
@@ -151,6 +155,8 @@ def _remove_membership(connection, household_id: str, membership_id: str) -> Non
         raise _conflict("LAST_OWNER", "At least one active owner must remain.")
     seed_grants(connection, membership_id, ())
     connection.execute(text("UPDATE household_members SET removed_at = CURRENT_TIMESTAMP, permissions_revision=permissions_revision+1, updated_at = CURRENT_TIMESTAMP WHERE id = :id"), {"id": membership_id})
+    from meal_planner_api.calendar_sync import reconcile_manager
+    reconcile_manager(connection, household_id)
 
 
 def remove_member(user: CurrentUser, household_id: str, membership_id: str, engine: Engine | None = None) -> None:
@@ -176,6 +182,9 @@ def delete_household(user: CurrentUser, household_id: str, engine: Engine | None
             WHERE household_id = :household_id AND status = 'pending'"""), {"household_id": household_id})
         connection.execute(text("UPDATE households SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :household_id"),
                            {"household_id": household_id})
+        connection.execute(text("""UPDATE household_calendar_integrations SET enabled=false,
+            revision=revision+1,updated_at=CURRENT_TIMESTAMP WHERE household_id=:household_id"""),
+            {"household_id": household_id})
 
 
 def list_invitations(user: CurrentUser, household_id: str, engine: Engine | None = None) -> list[dict]:

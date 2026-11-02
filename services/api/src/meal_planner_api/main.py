@@ -13,7 +13,7 @@ from pydantic import (
     StrictStr,
 )
 
-from meal_planner_api import catalog, meal_planning, permissions, recipes
+from meal_planner_api import calendar_sync, catalog, meal_planning, permissions, recipes
 from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.household_management import (
     delete_household,
@@ -590,3 +590,110 @@ def post_meal_plan_shopping(household_id: UUID, payload: AddReviewedMealPlanNeed
         amount_overrides=payload.amount_overrides,
         week_end=payload.week_end,
     )
+
+
+class CalendarConfiguration(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: StrictInt = Field(gt=0)
+    enabled: StrictBool
+    writer_secret: StrictStr | None = Field(default=None, min_length=32, max_length=256)
+    breakfast_time: StrictStr
+    lunch_time: StrictStr
+    dinner_time: StrictStr
+    duration_minutes: StrictInt
+
+
+class CalendarRegistration(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: StrictInt = Field(gt=0)
+    writer_secret: StrictStr = Field(min_length=32, max_length=256)
+    writer_label: StrictStr = Field(min_length=1, max_length=80)
+    writer_id: UUID
+    takeover_confirmed: StrictBool = False
+    new_destination_confirmed: StrictBool = False
+
+
+class CalendarTransfer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: StrictInt = Field(gt=0)
+    membership_id: UUID
+
+
+class CalendarWriter(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_revision: StrictInt = Field(gt=0)
+    writer_secret: StrictStr = Field(min_length=32, max_length=256)
+
+
+class CalendarRun(CalendarWriter):
+    run_id: UUID
+    cleanup: StrictBool = False
+    known_ids: list[UUID] = Field(default_factory=list, max_length=2000)
+
+
+class CalendarAuthority(CalendarWriter):
+    run_id: UUID
+    cleanup: StrictBool = False
+    operation: Literal["create", "update", "delete"]
+    source_id: UUID
+
+
+class CalendarRunFinish(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    writer_secret: StrictStr = Field(min_length=32, max_length=256)
+    run_id: UUID
+    success: StrictBool
+    cleanup_complete: StrictBool = False
+    removed_source_ids: list[UUID] = Field(default_factory=list, max_length=2000)
+
+
+def calendar_run_payload(payload):
+    data = payload.model_dump()
+    data["run_id"] = str(data["run_id"])
+    if "source_id" in data:
+        data["source_id"] = str(data["source_id"])
+    if "removed_source_ids" in data:
+        data["removed_source_ids"] = [str(value) for value in data["removed_source_ids"]]
+    if "known_ids" in data:
+        data["known_ids"] = [str(value) for value in data["known_ids"]]
+    return data
+
+
+@app.get("/v1/households/{household_id}/calendar-sync", tags=["calendar-sync"])
+def calendar_status(household_id: UUID, user: Annotated[CurrentUser, Depends(require_current_user)]):
+    return calendar_sync.get_status(user, str(household_id))
+
+
+@app.put("/v1/households/{household_id}/calendar-sync", tags=["calendar-sync"])
+def calendar_configure(household_id: UUID, payload: CalendarConfiguration, user: Annotated[CurrentUser, Depends(require_current_user)]):
+    return calendar_sync.configure(user, str(household_id), payload.model_dump())
+
+
+@app.post("/v1/households/{household_id}/calendar-sync/manager", tags=["calendar-sync"])
+def calendar_transfer(household_id: UUID, payload: CalendarTransfer, user: Annotated[CurrentUser, Depends(require_current_user)]):
+    return calendar_sync.transfer(user, str(household_id), str(payload.membership_id), payload.expected_revision)
+
+
+@app.post("/v1/households/{household_id}/calendar-sync/writer", tags=["calendar-sync"])
+def calendar_register(household_id: UUID, payload: CalendarRegistration, user: Annotated[CurrentUser, Depends(require_current_user)]):
+    return calendar_sync.register(user, str(household_id), payload.model_dump(mode="json"))
+
+
+@app.post("/v1/households/{household_id}/calendar-sync/disconnect", tags=["calendar-sync"])
+def calendar_disconnect(household_id: UUID, payload: CalendarWriter, user: Annotated[CurrentUser, Depends(require_current_user)]):
+    return calendar_sync.disconnect(user, str(household_id), payload.writer_secret, payload.expected_revision)
+
+
+@app.post("/v1/households/{household_id}/meal-plan/calendar-run", tags=["calendar-sync"])
+def calendar_run(household_id: UUID, payload: CalendarRun, user: Annotated[CurrentUser, Depends(require_current_user)]):
+    return calendar_sync.run(user, str(household_id), calendar_run_payload(payload))
+
+
+@app.post("/v1/households/{household_id}/calendar-sync/authorize", tags=["calendar-sync"])
+def calendar_authorize(household_id: UUID, payload: CalendarAuthority, user: Annotated[CurrentUser, Depends(require_current_user)]):
+    return calendar_sync.authorize(user, str(household_id), calendar_run_payload(payload))
+
+
+@app.post("/v1/households/{household_id}/calendar-sync/finish", tags=["calendar-sync"])
+def calendar_finish(household_id: UUID, payload: CalendarRunFinish, user: Annotated[CurrentUser, Depends(require_current_user)]):
+    return calendar_sync.finish(user, str(household_id), calendar_run_payload(payload))
