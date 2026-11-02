@@ -28,6 +28,10 @@ export default function RecipesStackLayout() {
         const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
         return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);
       }} />
+      <Stack.Screen name="sheet/import" options={({ route }) => {
+        const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
+        return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);
+      }} />
       <Stack.Screen name="sheet/sections" options={({ route }) => {
         const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
         return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);

@@ -132,6 +132,7 @@ export type Recipe = {
   updated_at: string;
   archived_at: string | null;
   ingredient_count: number;
+  ingredient_section_count?: number;
   ingredient_sections?: RecipeSection[];
   ingredients?: RecipeIngredient[];
   steps?: RecipeStep[];

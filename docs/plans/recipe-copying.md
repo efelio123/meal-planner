@@ -1,7 +1,7 @@
 # Import a whole recipe or ingredient section — F10
 
-Status: revised proposal November 1, 2026; awaiting review. Planning only.
-Branch: `codex/recipe-copy-plan`, based on accepted recipe work at `917d661`.
+Status: implemented and automated validation complete November 1, 2026; physical review pending.
+Branch: `codex/recipe-import`, from approved plan at `c3caeb6`.
 This revision replaces the proposed editor-level Copy button and mandatory
 preview with Felipe's Add ingredient entry point and expandable recipe list.
 Preserve the accepted F09/editor work; it has not been merged or deployed.
@@ -53,7 +53,7 @@ There is no separate directions checkbox or inferred section-to-step mapping.
    Only normal recipe Save persists the destination. The accepted discard warning
    protects leaving with imported draft changes. Back/Cancel/error adds nothing.
 
-## Destination grouping — proposed defaults for review
+## Destination grouping — approved defaults
 
 The entry context remains visible (for example **Import into Chicken**).
 - From a named section's plus button, append the selected ingredients to that
@@ -175,7 +175,57 @@ and `native-sheets-app-wide.md`, including the recurring header-overlap rule.
 ## Review status
 
 The footer entry, expandable searchable list and whole/section ingredient choices
-are Felipe's requested revision. Destination grouping above is proposed for
-review. Felipe resolves directions scope: section imports are ingredients-only,
+are Felipe's requested revision. Destination grouping above was approved with
+the implementation plan. Felipe resolves directions scope: section imports are ingredients-only,
 whole imports include all directions. No remaining directions question or toggle.
-This plan is not implementation approval; application code is unchanged.
+Felipe approved implementation. This chat owns implementation and validation; physical review remains pending.
+
+
+## Implementation and review handoff — November 1
+
+Implemented directly in this chat on `codex/recipe-import`, preserving the
+accepted F09 and editor changes. The Add ingredient fixed footer now includes
+Import below Catalog creation. Both owning Recipes and Plan stacks register a
+direct-rendered native Import sheet at the expanded detent. Recipe summaries
+include an additive section count; the picker loads full details lazily and
+falls back safely when older summaries omit the count.
+
+The pure merge helper builds a validated independent addition before updating
+the latest editor refs/state. Whole recipes append all directions and deduplicated
+source attribution; singular/Other sections append ingredients only. Amounts,
+custom units, To taste, duplicate occurrences and existing metadata are retained.
+Native Back preserves the Food search; successful imports dismiss just these
+two sheets. Scoped request generations, session tokens and a one-submit guard
+ignore stale/duplicate callbacks. Refresh invalidates the source detail cache.
+Only ordinary recipe Save writes; source recipes remain read-only.
+
+The initial validation failures were corrected: the new tests now use the
+existing string direction payload and 404 household-authorization contract,
+and the sheet callbacks use refs with distinct session tokens to meet React's
+immutability rules. No dependency or migration changes are part of F10.
+
+Validation on the final code:
+- TypeScript and Expo lint pass against the exact committed dependency lock in
+  the isolated local validation runtime, leaving the running Expo install intact.
+- Full normal mobile suite: 75 suites / 802 tests pass, including actual Recipes
+  Create/Edit and Plan Create routes, successful Save/reopen, selection/merge
+  limits, refresh/retry, unavailable sources, scope races and duplicate taps.
+- API Ruff, migration/head verification and full suite: 197 tests pass, none
+  skipped, on the explicitly verified local `meal_planner_disposable_test` only.
+  Head remains `recipe_ingredient_sections`. The new summary test includes empty
+  sections, household isolation, archive filtering and unchanged source reads.
+- iOS and Android production JS exports pass. These are bundle checks, not a
+  native signed-build or physical-device acceptance result.
+- Cache-cleared/no-cache mobile suite: 75 suites / 802 tests pass, none skipped.
+
+Local API was restarted and `/v1/health` returns ok; existing LAN Expo remains
+running. No Mac trial, Render, live database, installed phone build, dependency
+install, merge or push was performed.
+
+Felipe owns the phone review: Create/Edit in Recipes and Create from Plan;
+whole recipe versus singular/Other imports; named-section plus behavior;
+keyboard-open/closed footer reachability; short/long/expanded lists and larger
+text; native drag/Back and retained searches; confirmation, Save/reopen and
+discard warning. Those physical geometry/gesture checks, Android review and the
+dedicated light/dark release pass remain unrun. This chat owns any requested
+follow-up fixes; a later merge/native rollout needs its own release step.

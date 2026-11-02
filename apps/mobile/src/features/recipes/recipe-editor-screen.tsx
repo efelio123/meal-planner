@@ -24,6 +24,8 @@ import { RecipeIngredientList, type RecipeDragLock } from './recipe-ingredient-l
 import { moveIngredient, saveIngredientByKey } from './recipe-ingredient-order';
 import { useRecipeContext } from './recipe-context';
 import { RecipeCover } from './recipe-cover';
+import { RecipeImportSheet } from './recipe-import-sheet';
+import { buildRecipeImport } from './recipe-import';
 import { useMealPlanContext } from '@/features/meal-plan/meal-plan-context';
 import { draftFromRecipe, isValidRecipeAmount, moveDirectionStep, newCreateRequestId, newRecipeDraft, recipeOptionalFieldsError, type RecipeDirectionDraft, type RecipeDraft, type RecipeIngredientDraft } from './recipe-form-utils';
 import { RecipeCoverSheet, RecipeEmojiSheet, RecipeFoodSheet, RecipeIngredientDetailsSheet, type RecipeFoodChoice } from './recipe-native-sheets';
@@ -63,6 +65,10 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
   const [draft, setDraft] = useState<RecipeDraft>(newRecipeDraft);
   const [ingredients, setIngredients] = useState<RecipeIngredientDraft[]>([]);
   const ingredientsRef = useRef(ingredients);
+  const draftRef = useRef(draft);
+  const importFlow = useRef<{ token: string; id: string } | null>(null);
+  const foodFlow = useRef<{ token: string; id: string } | null>(null);
+  const [importNotice, setImportNotice] = useState('');
   const [sections, setSections] = useState<RecipeSectionDraft[]>([]);
   const sectionsRef = useRef(sections);
   const targetSection = useRef<string | null>(null);
@@ -75,6 +81,13 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
   const interactionId = `${scope}:${dragEpoch}`;
   const interactionRef = useRef(interactionId);
   const [steps, setSteps] = useState<RecipeDirectionDraft[]>([]);
+  const stepsRef = useRef(steps);
+  useLayoutEffect(() => { draftRef.current = draft; stepsRef.current = steps; }, [draft, steps]);
+  useEffect(() => {
+    if (!importNotice) return;
+    const timer = setTimeout(() => setImportNotice(''), 6000);
+    return () => clearTimeout(timer);
+  }, [importNotice]);
   const [ingredientsDirty, setIngredientsDirty] = useState(false);
   const [stepsDirty, setStepsDirty] = useState(false);
   const [loadedScope, setLoadedScope] = useState<string | null>(editing ? null : scope);
@@ -199,6 +212,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     if (scopeRef.current === scope) return;
     cancelDrag();
     scopeRef.current = scope;
+    importFlow.current = null; foodFlow.current = null; setImportNotice('');
     requestGeneration.current += 1;
     originalRevision.current = null;
     createRequestId.current = newCreateRequestId();
@@ -405,6 +419,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
   const pushNativeSheet = useCallback((kind: 'food' | 'details' | 'cover' | 'emoji', content: React.ReactNode, detents: number[], initialDetent = 0) => {
     const sheetId = sheetFlow.present(content, { detents, initialDetent });
     router.push({ pathname: `${editorRouteBase}/sheet/${kind}`, params: { sheetId } } as never);
+    return sheetId;
   }, [editorRouteBase, router, sheetFlow]);
 
   const saveIngredient = useCallback((ingredient: RecipeIngredientDraft, key: string | null) => {
@@ -471,12 +486,46 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
     } } as never);
   }, [editorRouteBase, householdId, isCurrentEditorScope, router, scope, sessionId, userId]);
 
+  const openRecipeImport = (sectionKey: string | null, foodSheetId: string) => {
+    if (!householdId || !isCurrentEditorScope() || !sheetFlow.get(foodSheetId) || importFlow.current || dragInProgress()) return;
+    const generation = requestGeneration.current;
+    const token = newCreateRequestId();
+    const isCurrent = () => isCurrentEditorScope() && requestGeneration.current === generation
+      && sheetFlow.get(foodSheetId) !== null && importFlow.current?.token === token
+      && sheetFlow.get(importFlow.current.id) !== null;
+    Keyboard.dismiss();
+    const id = sheetFlow.present(<RecipeImportSheet
+      householdId={householdId} expectedFlowScope={sheetFlow.scope} getToken={getCurrentToken}
+      excludedRecipeId={editing ? recipeId : undefined}
+      destinationName={sectionsRef.current.find((section) => section.key === sectionKey)?.name ?? null}
+      isCurrent={isCurrent}
+      onImport={(source, selection, activeFoodIds) => {
+        if (!isCurrent() || dragInProgress()) return 'This editor changed. Close Import and try again.';
+        try {
+          const next = buildRecipeImport({ draft: draftRef.current, ingredients: ingredientsRef.current, sections: sectionsRef.current, steps: stepsRef.current }, source, selection, {
+            householdId, destinationRecipeId: editing ? recipeId : undefined, sectionKey, activeFoodIds,
+          });
+          // Commit one fully validated addition; no source or destination API writes.
+          draftRef.current = next.draft; sectionsRef.current = next.sections;
+          ingredientsRef.current = next.ingredients; stepsRef.current = next.steps;
+          setDraft(next.draft); setSections(next.sections); setIngredients(next.ingredients); setSteps(next.steps);
+          setIngredientsDirty(true); if (next.directionCount > 0) setStepsDirty(true);
+          setImportNotice(`${next.ingredientCount} ingredient${next.ingredientCount === 1 ? '' : 's'}${next.directionCount ? ` and ${next.directionCount} direction${next.directionCount === 1 ? '' : 's'}` : ''} imported from ${next.label}.`);
+          return null;
+        } catch (reason) { return reason instanceof Error ? reason.message : 'This recipe could not be imported.'; }
+      }}
+    />, { detents: [0.58, 0.94], initialDetent: 1, onDismiss: () => { if (importFlow.current?.token === token) importFlow.current = null; } });
+    importFlow.current = { token, id };
+    router.push({ pathname: `${editorRouteBase}/sheet/import`, params: { sheetId: id } } as never);
+  };
+
   const openIngredientSearch = (sectionKey: string | null = null) => {
     if (sectionKey !== null && !sectionsRef.current.some((s) => s.key === sectionKey)) return;
     targetSection.current = sectionKey;
     if (!householdId || !editorLoaded || loading || saving || saveUnknown || dragInProgress()) return;
     Keyboard.dismiss();
-    pushNativeSheet(
+    const token = newCreateRequestId();
+    const foodSheetId = pushNativeSheet(
       'food',
       <RecipeFoodSheet
         householdId={householdId}
@@ -485,9 +534,11 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
         isCurrent={isCurrentEditorScope}
         onSelect={(food, units) => openIngredientDetails(food, undefined, null, true, units)}
         onCreate={openFoodCreate}
+        onImport={() => { if (foodFlow.current?.token === token) openRecipeImport(sectionKey, foodFlow.current.id); }}
       />,
       [0.58, 0.94],
     );
+    foodFlow.current = { token, id: foodSheetId };
   };
 
   const changeSections = (next: RecipeSectionDraft[], removedKey?: string) => {
@@ -589,6 +640,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
                   {sections.length > 0 ? <Pressable accessibilityRole="button" disabled={!editable} onPress={manageSections} style={[styles.headingAction, styles.headingLink]}><ThemedText themeColor={editable ? 'link' : 'textSecondary'}>Manage sections</ThemedText></Pressable> : null}
                 </View>
               </View>
+              {importNotice ? <ThemedText accessibilityLiveRegion="polite" themeColor="link">{importNotice}</ThemedText> : null}
               {[...sections, { key: null, name: sections.length ? 'Other ingredients' : '' }].map((group) => {
                 const rows = sectionIngredients(ingredients, group.key);
                 return <View key={group.key ?? 'unassigned'} style={{ gap: 10 }}>

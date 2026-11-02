@@ -79,8 +79,8 @@ provenance, operational paths and recovery.
 
 November 1 continuation: the family-trial inventory is reconciled with the
 live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
-B11 stays on unreproduced regression watch. Remaining features to implement are
-F10 recipe copying, F12 calendar sync, F14 themes, F15 member permissions and
+B11 stays on unreproduced regression watch. F10 recipe importing is implemented pending physical review. Remaining features
+to implement are F12 calendar sync, F14 themes, F15 member permissions and
 F16 widgets. Felipe accepts F09 ingredient sections and calls it complete after
 the final November 1 UI adjustments. Felipe approved F09 ingredient-only
 sections and assigned implementation directly to this chat on
@@ -89,8 +89,8 @@ section sheets, additive storage migration and compatibility guard are implement
 initial validation at `5ce3e85` passed 745 mobile tests normal/cold, 196 API tests,
 types/lint and native JS exports. Subsequent presentation repairs have focused
 validation; Felipe's overall feature acceptance is recorded in
-`docs/plans/recipe-ingredient-sections.md`. F10 recipe copying remains separate
-and unimplemented. The live Mac API/database and two-iPhone testing release
+`docs/plans/recipe-ingredient-sections.md`. F10 recipe importing is implemented separately on `codex/recipe-import`;
+automated validation and physical review are tracked in `recipe-copying.md`. The live Mac API/database and two-iPhone testing release
 remain unchanged; deploying F09 requires a separately approved rollout.
 
 November 1 recipe-editor follow-up: Felipe approved a discard warning for both
@@ -102,14 +102,13 @@ types/lint pass. Included in the accepted recipe slice; individual native exit
 checks are still unreported. See
 `docs/plans/recipe-unsaved-changes.md`. The branch is committed and the slice is
 complete; merge/deployment and broader release checks remain separate. This is
-not deployed to the Mac trial. F10 is proposed in `docs/plans/recipe-copying.md`,
-awaiting review. Felipe revises the flow to Import from the Add ingredient footer,
+not deployed to the Mac trial. F10 was approved and implemented directly in this chat on `codex/recipe-import`;
+see `docs/plans/recipe-copying.md` for validation and review status. Felipe revises the flow to Import from the Add ingredient footer,
 below Create Food item in Catalog, with searchable expandable recipes and whole
 or singular-section ingredient selection. Draft additions remain independent and
 unscaled. Felipe confirms that importing a whole recipe includes all directions;
 importing a singular section adds ingredients only. Directions append to the
-existing step list; section-specific directions are not inferred. No F10
-implementation/live rollout is approved yet.
+existing step list; section-specific directions are not inferred. F10 implementation is approved; merge and live rollout remain separate.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

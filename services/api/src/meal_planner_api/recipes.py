@@ -275,7 +275,9 @@ def list_recipes(
                 r.cook_minutes, r.notes, r.source_url, r.edit_revision,
                 r.created_at, r.updated_at, r.archived_at,
                 (SELECT count(*)::int FROM household_recipe_ingredients i
-                 WHERE i.household_id = r.household_id AND i.recipe_id = r.id) AS ingredient_count
+                 WHERE i.household_id = r.household_id AND i.recipe_id = r.id) AS ingredient_count,
+                (SELECT count(*)::int FROM household_recipe_sections section
+                 WHERE section.household_id = r.household_id AND section.recipe_id = r.id) AS ingredient_section_count
             FROM household_recipes r
             JOIN households h ON h.id = r.household_id
             JOIN household_members hm ON hm.household_id = h.id

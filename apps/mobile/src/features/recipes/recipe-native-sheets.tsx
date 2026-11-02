@@ -32,13 +32,14 @@ function ingredientAmountError(value: string) {
   return isValidRecipeAmount(value) ? null : 'Enter a positive number or fraction. Put a range in the note.';
 }
 
-export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCurrent, onSelect, onCreate }: {
+export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCurrent, onSelect, onCreate, onImport }: {
   householdId: string;
   expectedFlowScope: string;
   getToken: GetToken;
   isCurrent: () => boolean;
   onSelect: (food: RecipeFoodChoice, units: CatalogUnits) => void;
   onCreate: (query: string) => void;
+  onImport?: () => void;
 }) {
   const theme = useTheme();
   const router = useRouter();
@@ -102,6 +103,9 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
         // the editor beneath it without a separate asynchronous dismissal.
         onCreate(query.trim());
       }} style={[styles.createAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link" style={styles.createLabel}>Create Food item in Catalog</ThemedText><DisclosureChevron variant="action" /></Pressable>
+      {onImport ? <Pressable accessibilityRole="button" onPress={() => {
+        if (!creatingFood.current && isCurrent() && flow.scope === expectedFlowScope) onImport();
+      }} style={[styles.createAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'square.and.arrow.down', android: 'download', web: 'download' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link" style={styles.createLabel}>Import from recipe</ThemedText><DisclosureChevron variant="action" /></Pressable> : null}
     </View>
   </KeyboardAwareSheet>;
 }

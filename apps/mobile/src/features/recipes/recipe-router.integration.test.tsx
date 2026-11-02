@@ -1117,4 +1117,94 @@ describe('Recipes through the actual Expo Router', () => {
     expect(mockedApi.updateRecipe.mock.calls[0][3]).not.toHaveProperty('ingredient_sections');
   });
 
+  it.each(['/recipes/create', '/plan/recipe-create'])('imports a whole recipe and saves independent ingredients/directions from %s', async (path) => {
+    const source = recipe({ id: 'source', name: 'Saved soup', ingredient_section_count: 0, source_url: 'https://example.test/soup', steps: [{ id: 's', position: 0, instruction: 'Stir slowly.' }] });
+    const saved = recipe({ id: 'recipe-created', name: 'Our dinner', ingredient_sections: [{ id: 'saved-section', name: 'Saved soup', position: 0 }], ingredients: [{ ...source.ingredients![0], section_position: 0 }], steps: source.steps, notes: 'From Saved soup: https://example.test/soup' });
+    mockedApi.createRecipe.mockResolvedValue({ recipe: saved });
+    mockedApi.recipes.mockResolvedValue({ recipes: [source] }); mockedApi.recipe.mockImplementation(async (_token, _home, id) => ({ recipe: id === 'source' ? source : saved }));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate(path as never));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Our dinner');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    const footer = await screen.findByTestId('recipe-food-footer');
+    expect(within(footer).getAllByRole('button').map((r) => r.props.accessibilityLabel ?? r.props.children)).toHaveLength(2);
+    expect(within(footer).getAllByText(/Create Food item in Catalog|Import from recipe/).map((r) => r.props.children)).toEqual(['Create Food item in Catalog', 'Import from recipe']);
+    await fireEvent.press(screen.getByRole('button', { name: 'Import from recipe' }));
+    await screen.findByRole('button', { name: 'Import whole recipe Saved soup' });
+    let native = screen.getByTestId('recipe-import-sheet').parent;
+    while (native && !['RNSScreen', 'RNSModalScreen'].includes(native.type as string)) native = native.parent;
+    expect(native?.props.sheetInitialDetentIndex).toBe(1);
+    await fireEvent.press(screen.getByRole('button', { name: 'Import whole recipe Saved soup' }));
+    await screen.findByText('1 ingredient and 1 direction imported from Saved soup.');
+    expect(screen.queryByTestId('recipe-food-footer')).toBeNull();
+    expect(screen.queryByTestId('recipe-import-sheet')).toBeNull();
+    expect(mockedApi.createRecipe).not.toHaveBeenCalled(); expect(mockedApi.updateRecipe).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.createRecipe).toHaveBeenCalled());
+    expect(mockedApi.createRecipe.mock.calls[0][2]).toMatchObject({ name: 'Our dinner', ingredient_sections: [{ name: 'Saved soup' }], ingredients: [{ catalog_item_id: food.id, amount: '1/2', section_position: 0 }], steps: ['Stir slowly.'], notes: 'From Saved soup: https://example.test/soup' });
+    expect(mockedApi.updateRecipe).not.toHaveBeenCalled();
+    await screen.findByRole('header', { name: 'Our dinner' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit recipe' }));
+    expect(await screen.findByDisplayValue('Our dinner')).toBeTruthy();
+    expect(screen.getByDisplayValue('Stir slowly.')).toBeTruthy();
+    expect(screen.getByRole('header', { name: 'Saved soup' })).toBeTruthy();
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+  });
+
+  it('keeps the Food search on Back and allows reopening Import without a stranded latch', async () => {
+    const source = recipe({ id: 'source', name: 'Saved soup', ingredient_section_count: 0 });
+    mockedApi.recipes.mockResolvedValue({ recipes: [source] }); mockedApi.recipe.mockResolvedValue({ recipe: source });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/create'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add ingredient' }));
+    await fireEvent.changeText(await screen.findByPlaceholderText('Search Food Catalog'), 'Milk');
+    await fireEvent.press(screen.getByRole('button', { name: 'Import from recipe' }));
+    await fireEvent.changeText(await screen.findByLabelText('Search recipes to import'), 'Saved');
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to Food Catalog' }));
+    expect(await screen.findByDisplayValue('Milk')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Import from recipe' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Import whole recipe Saved soup' }));
+    await screen.findByText('1 ingredient imported from Saved soup.');
+    await act(async () => router.back());
+    expect(await screen.findByText('Discard recipe changes?')).toBeTruthy();
+  });
+
+  it('imports only a selected section into an edited recipe and preserves its existing directions', async () => {
+    const source = recipe({ id: 'source', name: 'Chicken and mash', ingredient_section_count: 2, ingredient_sections: [{ id: 'a', position: 0, name: 'Chicken' }, { id: 'b', position: 1, name: 'Mash' }], ingredients: [{ ...recipe().ingredients![0], section_position: 1 }], steps: [{ id: 's', position: 0, instruction: 'Do not import me' }] });
+    const destination = recipe({ notes: 'Keep notes', steps: [{ id: 'ours', position: 0, instruction: 'Our step' }] });
+    mockedApi.recipes.mockResolvedValue({ recipes: [destination, source] }); mockedApi.recipe.mockImplementation(async (_token, _home, id) => ({ recipe: id === 'source' ? source : destination }));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add ingredient' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Import from recipe' }));
+    expect(screen.queryByRole('button', { name: 'Expand Tomato Soup' })).toBeNull();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Expand Chicken and mash' }));
+    expect(await screen.findByRole('button', { name: 'Import Chicken ingredients from Chicken and mash' })).toBeDisabled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Import Mash ingredients from Chicken and mash' }));
+    await screen.findByText('1 ingredient imported from Mash.');
+    expect(screen.getByDisplayValue('Our step')).toBeTruthy(); expect(screen.queryByDisplayValue('Do not import me')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalled());
+    const [,, id, payload] = mockedApi.updateRecipe.mock.calls[0];
+    expect(id).toBe('recipe-1'); expect(payload).not.toHaveProperty('steps'); expect(payload.notes).toBe('Keep notes');
+    expect(payload.ingredient_sections).toEqual([{ name: 'Mash' }]); expect(payload.ingredients).toHaveLength(2);
+  });
+
+  it('imports through a named section plus and flattens source groups into that destination', async () => {
+    const destination = recipe({ ingredient_sections: [{ id: 'd', position: 0, name: 'Dinner' }], ingredients: [{ ...recipe().ingredients![0], section_position: 0 }] });
+    const source = recipe({ id: 'source', name: 'Soup', ingredient_section_count: 1, ingredient_sections: [{ id: 'a', position: 0, name: 'Soup part' }], ingredients: [{ ...recipe().ingredients![0], section_position: 0 }] });
+    mockedApi.recipes.mockResolvedValue({ recipes: [source] }); mockedApi.recipe.mockImplementation(async (_token, _home, id) => ({ recipe: id === 'source' ? source : destination }));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add ingredient to Dinner' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Import from recipe' }));
+    await screen.findByText('Import into Dinner. Amounts stay as written.');
+    await fireEvent.press(await screen.findByRole('button', { name: 'Expand Soup' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Import whole recipe Soup' }));
+    await screen.findByText('1 ingredient imported from Soup.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalled());
+    expect(mockedApi.updateRecipe.mock.calls[0][3]).toMatchObject({ ingredient_sections: [{ name: 'Dinner' }], ingredients: [{ section_position: 0 }, { section_position: 0 }] });
+  });
+
 });

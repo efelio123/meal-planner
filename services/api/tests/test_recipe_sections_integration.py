@@ -21,7 +21,13 @@ from test_recipes_integration import (
 
 from meal_planner_api.meal_planning import create_entry, get_shopping_review
 from meal_planner_api.onboarding import CurrentUser
-from meal_planner_api.recipes import create_recipe, get_recipe, update_recipe
+from meal_planner_api.recipes import (
+    archive_recipe,
+    create_recipe,
+    get_recipe,
+    list_recipes,
+    update_recipe,
+)
 
 
 def test_sections_roundtrip_legacy_guard_and_shopping_totals(recipe_engine):
@@ -127,3 +133,31 @@ def test_sections_migration_preserves_rows_and_guards_downgrade(recipe_engine, m
             assert conn.execute(text("SELECT count(*) FROM household_recipe_sections WHERE recipe_id=:r"), {"r": recipe}).scalar_one() == 1
         finally:
             transaction.rollback()
+
+
+def test_import_summary_section_counts_are_scoped_and_include_empty_sections(recipe_engine):
+    with recipe_engine.begin() as conn:
+        users = [insert_user(conn, f"import-summary-{uuid4()}@example.test") for _ in range(2)]
+        homes = [insert_household(conn, user) for user in users]
+        foods = [insert_food(conn, home, "Butter") for home in homes]
+    owner = CurrentUser(users[0], "summary@example.test", "Summary")
+    outsider = CurrentUser(users[1], "other@example.test", "Other")
+    try:
+        flat = create_recipe(owner, homes[0], {"create_request_id": str(uuid4()), "name": "Flat", "ingredients": [{"catalog_item_id": foods[0]}]}, recipe_engine)
+        grouped = create_recipe(owner, homes[0], {"create_request_id": str(uuid4()), "name": "Groups", "ingredient_sections": [{"name": "Used"}, {"name": "Empty"}], "ingredients": [{"catalog_item_id": foods[0], "section_position": 0}], "steps": ["Mix"]}, recipe_engine)
+        other = create_recipe(outsider, homes[1], {"create_request_id": str(uuid4()), "name": "Other", "ingredients": [{"catalog_item_id": foods[1]}]}, recipe_engine)
+        summaries = list_recipes(owner, homes[0], engine=recipe_engine)
+        assert [(r["name"], r["ingredient_count"], r["ingredient_section_count"]) for r in summaries] == [("Flat", 1, 0), ("Groups", 1, 2)]
+        assert all("ingredients" not in r and "ingredient_sections" not in r for r in summaries)
+        assert all(r["household_id"] == homes[0] and r["edit_revision"] == 1 for r in summaries)
+        with pytest.raises(HTTPException) as denied:
+            list_recipes(outsider, homes[0], engine=recipe_engine)
+        assert denied.value.status_code == 404
+        assert [r["id"] for r in list_recipes(outsider, homes[1], engine=recipe_engine)] == [other["id"]]
+        assert get_recipe(owner, homes[0], grouped["id"], recipe_engine) == grouped
+        assert get_recipe(owner, homes[0], flat["id"], recipe_engine) == flat
+        archive_recipe(owner, homes[0], grouped["id"], recipe_engine)
+        assert [r["id"] for r in list_recipes(owner, homes[0], engine=recipe_engine)] == [flat["id"]]
+        assert list_recipes(owner, homes[0], archived=True, engine=recipe_engine)[0]["ingredient_section_count"] == 2
+    finally:
+        cleanup_household(recipe_engine, homes, users)
