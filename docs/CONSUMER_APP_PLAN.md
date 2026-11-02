@@ -79,7 +79,7 @@ provenance, operational paths and recovery.
 
 November 1 continuation: the family-trial inventory is reconciled with the
 live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
-B11 stays on unreproduced regression watch. F10 recipe importing is implemented pending physical review. Remaining features
+B11 stays on unreproduced regression watch. Felipe accepts F10 recipe importing November 1 and calls the current feature complete. Remaining features
 to implement are F12 calendar sync, F14 themes, F15 member permissions and
 F16 widgets. Felipe accepts F09 ingredient sections and calls it complete after
 the final November 1 UI adjustments. Felipe approved F09 ingredient-only
@@ -90,7 +90,7 @@ initial validation at `5ce3e85` passed 745 mobile tests normal/cold, 196 API tes
 types/lint and native JS exports. Subsequent presentation repairs have focused
 validation; Felipe's overall feature acceptance is recorded in
 `docs/plans/recipe-ingredient-sections.md`. F10 recipe importing is implemented separately on `codex/recipe-import`;
-automated validation and physical review are tracked in `recipe-copying.md`. The live Mac API/database and two-iPhone testing release
+validation and overall acceptance are tracked in `recipe-copying.md`. The live Mac API/database and two-iPhone testing release
 remain unchanged; deploying F09 requires a separately approved rollout.
 
 November 1 recipe-editor follow-up: Felipe approved a discard warning for both
@@ -108,7 +108,10 @@ below Create Food item in Catalog, with searchable expandable recipes and whole
 or singular-section ingredient selection. Draft additions remain independent and
 unscaled. Felipe confirms that importing a whole recipe includes all directions;
 importing a singular section adds ingredients only. Directions append to the
-existing step list; section-specific directions are not inferred. F10 implementation is approved; merge and live rollout remain separate.
+existing step list; section-specific directions are not inferred. Felipe accepts F10 as complete for this iteration. Sectioned directions are a
+future companion feature to plan, including their relationship to section imports.
+Current singular-section imports remain ingredients-only. Merge and live rollout
+remain separate.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

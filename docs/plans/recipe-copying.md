@@ -1,6 +1,6 @@
 # Import a whole recipe or ingredient section — F10
 
-Status: implemented and automated validation complete November 1, 2026; physical review pending.
+Status: accepted by Felipe November 1, 2026; current feature complete.
 Branch: `codex/recipe-import`, from approved plan at `c3caeb6`.
 This revision replaces the proposed editor-level Copy button and mandatory
 preview with Felipe's Add ingredient entry point and expandable recipe list.
@@ -243,3 +243,21 @@ All 60 focused recipe-router/import-sheet tests, TypeScript and lint pass.
 The earlier full-suite/export results are historical validation of the initial
 implementation; no API/database changes or new database run for this small UI
 follow-up. Physical layout review remains pending.
+
+
+## Acceptance checkpoint — November 1
+
+Felipe confirms the current piece looks good and considers recipe import complete
+for this iteration. Accepted application work is committed through `6d58537` on
+`codex/recipe-import`. No further implementation is required for this scope.
+Earlier physical-review statements describe the review status at those points;
+this is overall feature acceptance, not confirmation that every listed device,
+large-text, keyboard or light/dark release case was tested. Preserve unreported
+release checks. Merge and deployment remain separate; the Mac trial is unchanged.
+
+Future improvement: Felipe feels recipe import belongs alongside sectioned
+directions. Record grouping directions by recipe section as a future companion
+feature, including how a singular-section import could bring the relevant
+instructions. Its design and scope need a separate plan before implementation.
+For this completed iteration, whole recipes include all directions and individual
+sections remain ingredients-only; no step-to-section association is inferred.
