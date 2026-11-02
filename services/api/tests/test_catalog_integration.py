@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 from httpx2 import ASGITransport, AsyncClient
+from permission_fixtures import seed_full_member
 from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
@@ -107,6 +108,7 @@ async def test_member_can_manage_catalog_and_archived_choices_are_excluded_and_r
             member_id = insert_user(connection, f"member-{uuid4()}@example.test")
             household_id = insert_household(connection, owner_id, name=f"Catalog {uuid4()}")
             connection.execute(text("INSERT INTO household_members (household_id, user_id, role) VALUES (:h, :u, 'member')"), {"h": household_id, "u": member_id})
+            seed_full_member(connection, household_id, member_id)
 
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
             options = await call_as(client, member_id, "GET", f"/v1/households/{household_id}/catalog/units")

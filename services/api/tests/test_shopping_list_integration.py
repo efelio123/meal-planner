@@ -8,6 +8,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException
 from httpx2 import ASGITransport, AsyncClient
+from permission_fixtures import seed_full_member
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.engine import make_url
 
@@ -117,6 +118,7 @@ async def test_active_owners_and_members_can_read_add_toggle_and_remove(
             text("INSERT INTO household_members (household_id, user_id, role) VALUES (:household_id, :user_id, 'member')"),
             {"household_id": household_id, "user_id": member_id},
         )
+        seed_full_member(connection, household_id, member_id)
         owner_catalog_id = insert_catalog_item(connection, household_id, owner_id, "Owner oats")
         member_catalog_id = insert_catalog_item(connection, household_id, member_id, "Member oats")
 
@@ -600,6 +602,7 @@ async def test_cross_household_reads_and_mutations_leave_existing_target_unchang
             text("INSERT INTO household_members (household_id, user_id, role) VALUES (:household_id, :user_id, 'member')"),
             {"household_id": household_id, "user_id": member_id},
         )
+        seed_full_member(connection, household_id, member_id)
         before = item_snapshot(connection, target_item_id)
 
     try:
@@ -650,6 +653,7 @@ async def test_removed_members_cannot_read_or_write_and_target_rows_stay_unchang
             text("INSERT INTO household_members (household_id, user_id, role) VALUES (:household_id, :user_id, 'member')"),
             {"household_id": household_id, "user_id": former_member_id},
         )
+        seed_full_member(connection, household_id, former_member_id)
         target_item_id = insert_item(connection, list_id, owner_id, "Keep after denial")
         connection.execute(
             text("UPDATE household_members SET removed_at = CURRENT_TIMESTAMP WHERE household_id = :household_id AND user_id = :user_id"),
@@ -726,6 +730,7 @@ async def test_clear_purchased_is_conditional_idempotent_and_preserves_sources(d
         connection.execute(text("UPDATE shopping_list_items SET is_checked=true, checked_at=CURRENT_TIMESTAMP, checked_by_user_id=:owner WHERE id=:id"), {"owner": owner, "id": foreign_row})
         foreign_before = item_snapshot(connection, foreign_row)
         connection.execute(text("INSERT INTO household_members (household_id,user_id,role) VALUES (:hh,:user,'member')"), {"hh": household, "user": member})
+        seed_full_member(connection, household, member)
         stores = [connection.execute(text("INSERT INTO catalog_stores (household_id,name,normalized_name) VALUES (:hh,:name,:name) RETURNING id::text"), {"hh": household, "name": name}).scalar_one() for name in ("market", "warehouse")]
         rows = []
         removed = []

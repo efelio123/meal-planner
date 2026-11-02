@@ -8,6 +8,7 @@ from sqlalchemy import Engine, text
 from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.database import get_engine
 from meal_planner_api.household_management import lock_household
+from meal_planner_api.permissions import require_permissions
 from meal_planner_api.recipes import _parse_amount
 
 
@@ -173,6 +174,7 @@ def _validate_list_values(connection, household_id: str, values: dict, *, creati
 def add_item(user: CurrentUser, household_id: str, catalog_item_id: str, values: dict, engine: Engine | None = None) -> dict:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "shopping.add", resource=("catalog_items", catalog_item_id))
         catalog = connection.execute(text("""
             SELECT id::text AS id, name, archived_at, shopping_unit_code,
                    custom_shopping_unit_id::text AS custom_shopping_unit_id,
@@ -258,6 +260,8 @@ def update_item(user: CurrentUser, household_id: str, item_id: str, values: dict
         if current is None:
             raise _not_found()
         current = dict(current)
+        required = (["shopping.check"] if "is_checked" in fields else []) + (["shopping.edit"] if fields - {"is_checked"} else [])
+        require_permissions(connection, household_id, user.id, *required)
         if "is_checked" in fields:
             checked = values["is_checked"]
             updated = connection.execute(text("""
@@ -308,6 +312,7 @@ def update_item(user: CurrentUser, household_id: str, item_id: str, values: dict
 def delete_item(user: CurrentUser, household_id: str, item_id: str, engine: Engine | None = None) -> None:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "shopping.remove", resource=("shopping_list_items", item_id))
         deleted = connection.execute(text("""
             DELETE FROM shopping_list_items WHERE household_id=:household_id AND id=:item_id
             RETURNING id
@@ -319,6 +324,7 @@ def delete_item(user: CurrentUser, household_id: str, item_id: str, engine: Engi
 def clear_list(user: CurrentUser, household_id: str, engine: Engine | None = None) -> int:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "shopping.clear_all")
         deleted = connection.execute(text("DELETE FROM shopping_list_items WHERE household_id=:household_id RETURNING id"), {
             "household_id": household_id,
         }).all()
@@ -328,9 +334,21 @@ def clear_list(user: CurrentUser, household_id: str, engine: Engine | None = Non
 def clear_purchased_items(user: CurrentUser, household_id: str, engine: Engine | None = None) -> dict:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "shopping.clear_purchased")
         removed_ids = connection.execute(text("""
             DELETE FROM shopping_list_items
             WHERE household_id=:household_id AND is_checked IS TRUE
             RETURNING id::text
         """), {"household_id": household_id}).scalars().all()
         return {"removed_count": len(removed_ids), "removed_item_ids": sorted(removed_ids)}
+
+
+def re_add_item(user: CurrentUser, household_id: str, item_id: str, engine: Engine | None = None) -> dict:
+    with (engine or get_engine()).begin() as connection:
+        lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "shopping.add", resource=("shopping_list_items", item_id))
+        connection.execute(text("""UPDATE shopping_list_items SET is_checked=FALSE, checked_at=NULL,
+            checked_by_user_id=NULL, updated_at=CURRENT_TIMESTAMP
+            WHERE household_id=:home AND id=:id AND is_checked IS TRUE"""), {"home": household_id, "id": item_id})
+        row = connection.execute(text(_ITEM_SELECT + " AND item.id=:item_id"), {"household_id": household_id, "user_id": user.id, "item_id": item_id}).mappings().one()
+        return _serialize(row)

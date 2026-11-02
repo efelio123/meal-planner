@@ -1,3 +1,5 @@
+from permission_fixtures import seed_full_member
+
 """PostgreSQL authorization, migration, and concurrency coverage for recipes.
 
 The suite intentionally refuses any database except meal_planner_disposable_test.
@@ -99,7 +101,7 @@ def cleanup_household(engine: Engine, household_ids: list[str], user_ids: list[s
 
 def test_recipe_migration_is_current_and_keeps_household_scoped_foreign_keys(recipe_engine: Engine) -> None:
     with recipe_engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "recipe_ingredient_sections"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "member_permissions"
         constraints = set(connection.execute(text("""
             SELECT conname FROM pg_constraint
             WHERE conrelid IN (
@@ -205,6 +207,7 @@ async def test_household_members_can_create_edit_search_archive_and_restore_reci
             INSERT INTO household_members (household_id, user_id, role)
             VALUES (:household_id, :user_id, 'member')
         """), {"household_id": household_id, "user_id": member_id})
+        seed_full_member(connection, household_id, member_id)
         item_id = insert_food(connection, household_id, "Red onion")
     create_payload = {
         "create_request_id": str(uuid4()), "name": "Weeknight soup", "servings": 4, "prep_hours": 0, "prep_minutes": 15,
@@ -282,6 +285,7 @@ async def test_recipes_are_isolated_from_foreign_removed_and_deleted_households(
             INSERT INTO household_members (household_id, user_id, role)
             VALUES (:household_id, :user_id, 'member')
         """), {"household_id": household_a, "user_id": member})
+        seed_full_member(connection, household_a, member)
         item_b = insert_food(connection, household_b, "Foreign onion")
         target_recipe = insert_recipe(connection, household_b, owner_b, item_b)
         own_item = insert_food(connection, household_a, "Own onion")

@@ -11,6 +11,7 @@ from meal_planner_api.catalog import _clean_emoji
 from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.database import get_engine
 from meal_planner_api.household_management import lock_household
+from meal_planner_api.permissions import require_permissions
 
 
 def _not_found() -> HTTPException:
@@ -323,6 +324,7 @@ def create_recipe(user: CurrentUser, household_id: str, values: dict, engine: En
     steps = _prepare_steps(values.get("steps"))
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "recipes.create")
         existing = connection.execute(text(
             _RECIPE_SELECT_BASE + "AND r.created_by_user_id = :user_id AND r.create_request_id = :request_id"
         ), {
@@ -368,6 +370,7 @@ def update_recipe(
         raise _invalid("An expected recipe revision is required to save changes.")
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "recipes.edit", resource=("household_recipes", recipe_id))
         current = connection.execute(text("""
             SELECT id::text AS id, name, normalized_name, cover_kind, cover_emoji,
                 servings, prep_minutes, cook_minutes, notes, source_url, edit_revision
@@ -470,6 +473,7 @@ def update_recipe(
 def archive_recipe(user: CurrentUser, household_id: str, recipe_id: str, engine: Engine | None = None) -> None:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "recipes.archive", resource=("household_recipes", recipe_id))
         updated = connection.execute(text("""
             UPDATE household_recipes SET archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
                 edit_revision = edit_revision + 1
@@ -483,6 +487,7 @@ def archive_recipe(user: CurrentUser, household_id: str, recipe_id: str, engine:
 def restore_recipe(user: CurrentUser, household_id: str, recipe_id: str, engine: Engine | None = None) -> None:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "recipes.restore", resource=("household_recipes", recipe_id))
         updated = connection.execute(text("""
             UPDATE household_recipes SET archived_at = NULL, updated_at = CURRENT_TIMESTAMP,
                 edit_revision = edit_revision + 1

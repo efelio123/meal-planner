@@ -3,9 +3,17 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel, EmailStr, Field, StrictBool, StrictInt, StrictStr
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    StrictBool,
+    StrictInt,
+    StrictStr,
+)
 
-from meal_planner_api import catalog, meal_planning, recipes
+from meal_planner_api import catalog, meal_planning, permissions, recipes
 from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.household_management import (
     delete_household,
@@ -34,6 +42,7 @@ from meal_planner_api.shopping_lists import (
     delete_item,
     get_item,
     get_list,
+    re_add_item,
     update_item,
 )
 
@@ -91,6 +100,16 @@ class SetMemberRoleRequest(BaseModel):
     role: str = Field(pattern="^(owner|member)$")
 
 
+class SetMemberPermissionsRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    permissions: list[StrictStr] = Field(max_length=25)
+    expected_revision: StrictInt = Field(gt=0)
+
+
+class ReAddShoppingListItemRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
 class CreateInvitationRequest(BaseModel):
     email: EmailStr
 
@@ -108,6 +127,7 @@ class CreateShoppingListItemRequest(BaseModel):
 
 
 class UpdateShoppingListItemRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     is_checked: StrictBool | None = None
     amount: StrictStr | None = Field(default=None, max_length=80)
     shopping_unit_code: StrictStr | None = Field(default=None, max_length=40)
@@ -276,6 +296,16 @@ def get_household_member(household_id: UUID, membership_id: UUID, user: User) ->
 def patch_household_member(household_id: UUID, membership_id: UUID, payload: SetMemberRoleRequest, user: User) -> Response:
     set_member_role(user, str(household_id), str(membership_id), payload.role)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@app.get("/v1/households/{household_id}/members/{membership_id}/permissions", tags=["households"])
+def get_member_permissions(household_id: UUID, membership_id: UUID, user: User) -> dict:
+    return permissions.get_member_permissions(user, str(household_id), str(membership_id))
+
+
+@app.patch("/v1/households/{household_id}/members/{membership_id}/permissions", tags=["households"])
+def patch_member_permissions(household_id: UUID, membership_id: UUID, payload: SetMemberPermissionsRequest, user: User) -> dict:
+    return permissions.set_member_permissions(user, str(household_id), str(membership_id), payload.permissions, payload.expected_revision)
 
 
 @app.delete("/v1/households/{household_id}/members/{membership_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["households"])
@@ -481,6 +511,11 @@ def post_shopping_list_item(household_id: UUID, payload: CreateShoppingListItemR
     if values.get("store_id") is not None:
         values["store_id"] = str(values["store_id"])
     return {"item": add_item(user, str(household_id), str(payload.catalog_item_id), values)}
+
+
+@app.post("/v1/households/{household_id}/shopping-list/items/{item_id}/re-add", tags=["shopping-list"])
+def re_add_shopping_list_item(household_id: UUID, item_id: UUID, payload: ReAddShoppingListItemRequest, user: User) -> dict:
+    return {"item": re_add_item(user, str(household_id), str(item_id))}
 
 
 @app.patch("/v1/households/{household_id}/shopping-list/items/{item_id}", tags=["shopping-list"])

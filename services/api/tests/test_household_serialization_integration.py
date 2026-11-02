@@ -10,6 +10,7 @@ from sqlalchemy.engine import make_url
 from meal_planner_api import onboarding
 from meal_planner_api.main import app
 from meal_planner_api.onboarding import CurrentUser, require_current_user
+from meal_planner_api.permissions import ACTION_KEYS
 
 DISPOSABLE_TEST_DATABASE = "meal_planner_disposable_test"
 
@@ -68,6 +69,9 @@ async def test_household_reads_serialize_rows_created_by_the_api(
                 "name": "Serialization test",
                 "time_zone": "Europe/London",
                 "role": "owner",
+                "membership_id": household["membership_id"],
+                "permissions": list(ACTION_KEYS),
+                "permissions_revision": 1,
             }
             assert household == expected_household
             assert created_list_count == 1
