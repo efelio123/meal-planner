@@ -150,6 +150,18 @@ acceptance does not imply every six-appearance or Android case was reported;
 native builds and deployment remain separate. Remaining
 unimplemented original major features are F12 calendar integration and F16 widgets.
 
+November 2 F12 exploration: `docs/plans/meal-calendar-sync.md` is proposed on
+`codex/calendar-sync-plan`. Felipe confirms timed events with configurable meal-
+slot times, automatic sync when opening/using the app, and both new-calendar and
+existing writable-calendar destinations. Recommend one-way personal sync with
+safe event ownership, a bounded read-only API projection, explicit timezone/DST
+rules and native calendar capability checks. Shared-calendar multi-writer behavior
+is still an open question; one designated syncing phone is recommended for the
+first version rather than claiming native calendar IDs prevent cross-phone races.
+The new SDK 58 Calendar API is documented as requiring a native build rather
+than Expo Go. No package/config/API/schema/native-build or live changes started.
+Plan approval and the remaining shared-writer decision precede implementation.
+
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for
 future pages. The source audit classifies all 64 page-route files and 11 layout
