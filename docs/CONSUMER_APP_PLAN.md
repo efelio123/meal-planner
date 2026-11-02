@@ -184,6 +184,15 @@ pass; phone rendering/signing/networking are unrun. Per the approved gate, stop
 before production integration and review `home-screen-widgets-native-sync.md`.
 No consumer-app dependency/config, API/schema/data or installed-app changes.
 
+Felipe then approved the app-owned native approach on November 2. Work continues
+on `codex/native-widgets`, beginning with isolated SwiftUI/WidgetKit and Glance
+targets. Both platforms compile and six native simulator/emulator tests pass
+(protected credential storage, durable Pending and authenticated fictional
+acknowledgement, including a separate Android widget process). iPhone signing
+still reports No Accounts after reauthentication; direct Xcode provisioning and
+actual phone widget actions remain pending. See `docs/qa/native-widget-gate.md`.
+Production app/API/schema integration has not started; F16 remains incomplete.
+
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for
 future pages. The source audit classifies all 64 page-route files and 11 layout

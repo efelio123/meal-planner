@@ -60,3 +60,11 @@ change the working consumer app's native project, team, identifiers or profiles.
 Before a future Mac native build, preserve its working native project/signing and
 use the separate lab directory; actual Personal Team signing remains unverified.
 The lab is unavailable in Expo Go. No app was installed or working server started.
+
+## Approved app-owned native follow-up
+
+The native replacement approach is approved. `native-probe/` contains separate
+SwiftUI/WidgetKit and Glance capability targets, without changing this stock SDK
+prototype or the consumer app. Both compile, and six native tests pass. iPhone
+signing and actual home-screen taps are still pending; see the probe README and
+`docs/qa/native-widget-gate.md`. The production widget feature is not complete.

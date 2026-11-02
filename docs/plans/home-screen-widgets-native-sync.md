@@ -1,7 +1,7 @@
 # F16 second slice — native widgets and shared-list sync
 
-Status: proposed after the approved SDK feasibility investigation, November 2.
-Not approved for implementation. Preserve the separate lab and Calendar changes.
+Status: approved for direct implementation November 2.
+Implementation branch: `codex/native-widgets`. Native build/storage gate first. Preserve the separate lab and Calendar changes.
 Evidence: `docs/qa/widget-feasibility.md`; stock Expo Widgets 58.0.26 handles local
 props but lacks the reviewed public action/storage/Android-sizing path needed
 for the complete feature. Do not patch/fork that dependency.
@@ -82,7 +82,13 @@ upgrades are outside this approval request.
 
 ## Review decisions
 
-Approve the native-target approach and proposed scoped credential/version/outbox
-work before coding it. Offline Pending/later sync is already confirmed. A smaller
+Felipe approved the native-target approach and scoped credential/version/outbox work on November 2. Offline Pending/later sync is already confirmed. A smaller
 read-only release remains an alternative only if Felipe explicitly changes scope;
 it would not complete the original interactive-widget request.
+
+## Native gate progress
+
+See `docs/qa/native-widget-gate.md` for the isolated native results. iOS/Android
+compile and six native tests pass; iPhone signing and actual home-screen actions
+are pending. The signed-device retry still reports No Accounts after Xcode
+reauthentication. Keep production integration behind this gate.
