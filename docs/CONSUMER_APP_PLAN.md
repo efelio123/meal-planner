@@ -81,7 +81,7 @@ November 1 continuation: the family-trial inventory is reconciled with the
 live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
 B11 stays on unreproduced regression watch. Felipe accepts F10 recipe importing November 1 and calls the current feature complete. Remaining features
 to implement are F12 calendar sync and F16 widgets. F14 themes is implemented
-locally, awaiting phone review (below). F15 member
+locally and accepted by Felipe November 2 (below). F15 member
 permissions is implemented locally, with page appearance accepted and broader
 permission checks still pending (below). Felipe accepts F09 ingredient sections and calls it complete after
 the final November 1 UI adjustments. Felipe approved F09 ingredient-only
@@ -128,12 +128,13 @@ release remains unchanged. Full mobile normal/cold runs passed 819 tests each;
 the later unchanged-access-response follow-up passed 142 relevant tests. API full
 disposable-PG suite passed 232 tests; types/lint, compatibility and native JS
 exports passed. Broader cross-phone permission/revocation checks and later coordinated live
-rollout remain outstanding. Themes are recommended next, ahead of the larger
-calendar and widget integrations. No merge, push, native installation or deployment
+rollout remain outstanding. Themes follow this slice and are recorded below;
+calendar and widget integrations remain larger separate features. No merge, push, native installation or deployment
 is included. See the dedicated plan for exact validation boundaries.
 
 November 2 F14 implementation: `docs/plans/app-color-themes.md` is approved
-and implemented directly on `codex/app-themes`, awaiting phone review. Profile →
+and implemented directly on `codex/app-themes`; Felipe accepts the theme slice
+as complete for this iteration after follow-up `6760c3c`. Profile →
 Appearance and a once-per-install native chooser offer Meal Planner (the default
 Apricot/Chocolate/Navy palette), Phone theme and Green in that order, all following
 phone light/dark mode. Meal Planner is a placeholder display name to replace when
@@ -143,8 +144,10 @@ installation-local persistence survives sign-out/household switching, with guard
 reads, ordered writes and retry. No account sync, API/schema/dependency change or
 live rollout. Full normal/cold mobile runs pass 851 each; normal precedes the last
 auth-button follow-up, which passes 33 focused tests and the final full cold run.
-Types/lint, compatibility, contrast checks and iOS/Android JS exports pass. Physical
-six-appearance review, native builds and deployment remain separate. Remaining
+Types/lint, compatibility, contrast checks and iOS/Android JS exports pass. Latest
+default/name/icon follow-up passes 86 targeted tests plus types/lint. Overall slice
+acceptance does not imply every six-appearance or Android case was reported;
+native builds and deployment remain separate. Remaining
 unimplemented original major features are F12 calendar integration and F16 widgets.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the

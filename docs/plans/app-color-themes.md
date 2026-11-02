@@ -1,6 +1,7 @@
 # App color themes — F14
 
-Status: implemented November 2, 2026 on `codex/app-themes`; awaiting phone review.
+Status: accepted by Felipe November 2, 2026 on `codex/app-themes`; feature complete
+for this iteration. Merge, native release and live rollout remain separate.
 Felipe approved direct implementation with light/dark versions of the colored
 palettes, installation-local persistence and the first-use chooser. This branch
 preserves accepted F09/F10/F15 work. No live deployment or native installation.
@@ -251,3 +252,13 @@ Follow-up validation: 86 tests across five targeted suites pass (appearance
 store/UI/first-use, palette contrast and actual recipe routing), plus TypeScript
 and lint with no warnings. Earlier full-suite/native-export results are historical;
 not rerun for this focused default/name/icon follow-up.
+
+## Slice acceptance — November 2
+
+Felipe reports “Perfect this looks great for the theme slice” after the main-theme
+order/default/name and preview-icon follow-up at `6760c3c`. Record overall theme
+slice acceptance for this iteration. This does not establish every individual
+six-appearance, Android or native release checklist case as performed. The
+placeholder-app-name reminder stays open until an official name is chosen.
+No merge, push, Mac trial change or installed-phone update is authorized by this
+acceptance. Remaining original major features are calendar integration and widgets.
