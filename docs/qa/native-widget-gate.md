@@ -23,7 +23,8 @@ private, mode-600 recovery file. The separate project was generated in a new Mac
 probe directory. The working Meal Planner project, live family API/database,
 running Expo/API servers and installed phone apps were not changed. Android APKs
 were installed only into a newly created, explicitly verified disposable emulator.
-No phone installation, paid resource or membership change occurred.
+A later explicitly authorized step installs only the separate iPhone probe; no
+consumer-app installation, paid resource or membership change occurred.
 
 ## Completed native validation
 
@@ -57,8 +58,8 @@ and its embedded ProbeWidget have valid code signatures. Both signed entitlement
 contain matching App Groups and matching shared Keychain groups; both development
 profiles authorize those groups. The profiles expire November 9. This validates
 the current free Personal Team provisioning, not physical shared-storage behavior.
-Felipe clarified the probe is not installed yet; no phone install has been done
-by the agent.
+Felipe initially clarified the probe was not installed. He then explicitly
+requested remote build/run because he was away from the Mac.
 
 The updated phone probe displays confirmed/pending counts, reloads its widget after
 native actions and offers Retry pending without a new queued tap. Its physical
@@ -68,13 +69,24 @@ confirms the existing Serve configuration is otherwise identical and the family
 API remains healthy. No Funnel, ACL change, public hosting or real API credential
 is involved. The generated probe plists receive this fixture URL; it is not stored
 in repository source. The owned fixture can be removed using phone-fixture.py stop.
-The updated remote Debug build compiles but still encounters errSecInternalComponent
-at widget debug-dylib signing. A direct Xcode Run and the physical self-check/widget
-sequence are pending; the successfully signed baseline above is a separate result.
+The updated SSH Debug build again encountered errSecInternalComponent. Running
+that same isolated build as a one-shot Aqua job in the existing signed-in desktop
+session **succeeds**. The completed job was removed afterward; no Keychain ACL,
+password, login-account or security setting was changed. A read-only AppleScript
+state query that waited for desktop authorization was terminated without action.
+
+Before installation, both updated signatures, matching shared groups, unexpired
+profiles authorizing the intended phone and the exact fixture URL were verified.
+Apple devicectl then successfully **installed and launched NativeWidgetProbe on
+Felipe's physical iPhone**, as requested. No app was installed on Loryn's phone;
+the existing Meal Planner app remains untouched. The fixture subsequently reports
+one acknowledged fictional operation; phone-screen confirmation and actual
+home-screen widget interaction still require Felipe's observations.
 
 ## Still required before production integration
 
-- Coordinate installing only the isolated probe on an available iPhone/Samsung.
+- iPhone probe is installed; coordinate the remaining widget checks and a
+  separate Samsung installation when available.
 - Actual WidgetKit/Glance home-screen tap while main app is closed; native process
   credential sharing, protected data/locked-phone behavior and persisted Pending.
 - Use the prepared private HTTPS fixture on an actual phone; simulator/emulator

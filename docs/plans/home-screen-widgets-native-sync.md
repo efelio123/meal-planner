@@ -92,5 +92,7 @@ See `docs/qa/native-widget-gate.md` for the isolated native results. Both platfo
 compile and seven native tests pass. The baseline app/extension signatures and
 profile authorization for matching shared App Group/Keychain groups are verified
 with the free Personal Team. A separate private HTTPS fixture and confirmed/pending
-phone-test UI are prepared. The updated phone build and actual home-screen action
-checks are pending; keep production integration behind this gate.
+phone-test UI are prepared. The updated desktop-session build succeeds, and the
+verified probe is installed/launched on the test iPhone with explicit authorization.
+The fixture reports one fictional acknowledgement; actual home-screen actions
+remain pending. Keep production integration behind this gate.
