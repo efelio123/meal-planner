@@ -6,9 +6,10 @@ Branch: `codex/native-widgets`, following the approved
 **Result: partial gate passed; production integration remains gated.** Both native
 platforms compile and seven native simulator/emulator tests pass. Baseline iPhone
 app/extension signatures and provisioned shared groups are verified. Felipe
-confirms native iPhone widget taps in small, medium and large sizes; four unique
-fictional server acknowledgements are observed. Offline retry, termination/lock
-behavior and physical Samsung acceptance remain unverified. This does not complete F16.
+confirms native iPhone widget taps in small, medium and large sizes and successful
+offline Pending/reconnect/retry behavior. The post-test fixture aggregate is six
+unique fictional acknowledgements. Termination/lock behavior and physical Samsung
+acceptance remain unverified. This does not complete F16.
 
 ## Isolation and recovery
 
@@ -86,13 +87,19 @@ one acknowledged fictional operation after launch. Felipe then reports that
 read shows **four unique acknowledged operations**, consistent with the initial
 self-check and three widget taps. This is physical WidgetKit/native handler, shared
 credential and private HTTPS execution evidence; it is not a force-quit, lock-state,
-offline-retry, larger-text or final production-layout result.
+offline-retry, larger-text or final production-layout result by itself.
+
+Felipe subsequently confirms the requested offline sequence worked as planned:
+disconnecting Tailscale leaves the tap visibly Pending without incrementing the
+confirmed count; reconnecting and using Retry pending clears Pending and increments
+confirmed after acknowledgement, with the probe remaining in the background.
+The next server status read reports six unique fictional acknowledgements in
+aggregate. That count includes the manual test session; per-tap attribution was
+not captured, so it is not evidence of an exact number of offline retries.
+Termination/lock-unlock persistence is a separate pending check.
 
 ## Still required before production integration
 
-- iPhone: disconnect Tailscale, queue a tap, observe Pending with the confirmed
-  count unchanged; reconnect and Retry pending from the widget without reopening
-  the probe. Confirmation must follow a new server acknowledgement.
 - Separately verify app termination/lock-unlock behavior; ordinary Home Screen
   tap success does not establish these states.
 - Coordinate the separate Samsung probe installation and actual Glance home-screen

@@ -94,7 +94,8 @@ profile authorization for matching shared App Group/Keychain groups are verified
 with the free Personal Team. A separate private HTTPS fixture and confirmed/pending
 phone-test UI are prepared. The updated desktop-session build succeeds, and the
 verified probe is installed/launched on the test iPhone with explicit authorization.
-Felipe confirms small/medium/large iPhone widget taps; the fixture reports four
-unique fictional acknowledgements. Offline retry, termination/lock behavior and
-physical Samsung acceptance remain pending. Keep production integration behind
+Felipe confirms small/medium/large iPhone widget taps and offline Pending followed
+by successful reconnect/retry. The fixture later reports six unique fictional
+acknowledgements in aggregate. Termination/lock behavior and physical Samsung
+acceptance remain pending. Keep production integration behind
 this gate; these findings do not complete F16.
