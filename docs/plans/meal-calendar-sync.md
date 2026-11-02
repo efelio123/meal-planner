@@ -10,6 +10,8 @@ Automatically show planned meals in the phone calendar without exporting each
 meal manually. Felipe confirms timed events with configurable Breakfast/Lunch/
 Dinner times, and foreground sync when the app opens or changes a meal. He wants
 both destination options: create a new calendar or select an existing one.
+He confirms one calendar manager per household, ideally its creator, and setup
+should recommend a shared calendar so other members can see the meals.
 
 Recommend one-way **Meal Planner → calendar**. Calendar changes do not edit the
 shared meal plan. Recipe meals, Leftovers and Eating out all participate. The
@@ -31,25 +33,32 @@ library or push service is proposed in this first slice.
 ## Proposed product experience
 
 Profile → **Calendar sync** opens a regular native-stack page using shared
-`Screen layout="tab-stack"`. Every signed-in member can manage their own export,
-independently of product-write permissions. No prompt on launch; off by default.
+`Screen layout="tab-stack"`. Only the household’s designated calendar manager
+can configure, enable, retry or disconnect sync. Other members see read-only
+status and who manages it. No OS permission prompt for them. Off by default.
 
 Setup:
 
 1. Explain one-way sync and request calendar access only after Enable is tapped.
-2. Confirm the linked household; one household/destination binding per signed-in
-   user on that device for this version. Switching the app's selected household
-   never silently changes that binding or its calendar.
+2. Confirm the linked household; one manager, one active syncing phone and one
+   destination per household. Switching the app’s selected household never
+   silently changes that binding or its calendar.
 3. Choose **Create a Meal Planner calendar** (default title `Meal Planner —
    <household>`) or **Use an existing calendar**. List only OS-visible calendars
    with enough access to read and modify events; exclude subscribed/read-only
    calendars. Creation uses an available supported source, not a hard-coded
    iCloud/Google/Exchange assumption. Explain whether its source is local/cloud.
+   Recommend an existing shared family calendar; other members view its meals
+   through the provider’s existing sharing. Creating a calendar does not share
+   it automatically. Local-only calendars cannot be promised shared access; guide
+   users to a supported cloud calendar/provider sharing UI where needed.
 4. Start with editable presets: Breakfast 8:00 AM, Lunch 12:00 PM and Dinner
    6:00 PM, shown in the device's normal clock format. Felipe confirms preset
    times must remain individually changeable during setup and later in Calendar
    sync settings; these values are starting suggestions, not fixed meal times. These are
-   personal calendar display preferences, not new shared meal schedule fields.
+   calendar-display settings controlled by the manager for this household’s
+   single integration, not new shared meal schedule fields. Other members
+   cannot change them or start independent exports through this feature.
 5. Proposed event length: one hour, with a common 15/30/60/90/120-minute selector.
    Show the household time zone explicitly. Changes apply to managed events.
 6. Show a short example and **Enable sync**. No event write until setup is
@@ -96,44 +105,73 @@ transition gap. Validate by round-trip; attaching tzinfo alone does not validate
 a missing wall-clock time. Event length is elapsed minutes after the resolved
 start. Include leap days, midnight and DST tests.
 
-## Shared destinations — decision still open
+## One household calendar manager and one syncing phone
 
-Calendar IDs are native-store identifiers; matching a title does not prove two
-phones selected the same remote calendar. A pre-insert scan/marker by itself
-cannot prevent simultaneous creation on two independent devices.
+Felipe resolves the shared-writer decision: restrict calendar control to one user,
+preferably the household creator. Recommend a shared calendar for other members
+to see exported meals; they do not run additional independent syncs.
 
-Recommended first version: **one configured syncing phone per shared calendar**.
-Other people see the events through the calendar's existing sharing, and the
-syncing phone must open Meal Planner to collect changes. Personal calendars may
-be configured separately. Make this limitation clear during setup; do not claim
-automatic global duplicate prevention. A device-local lock is not a cross-phone
-lock. Ownership checks/markers still prevent duplicates on ordinary retries.
+Proposed lifecycle rules for the revised plan:
 
-Felipe was asked whether that first-version restriction is acceptable or multiple
-phones must safely write the same shared calendar. Await his answer before
-implementation approval. If multiple writers are required, revise this plan to
-include a server-coordinated shared destination identity and writer ownership/
-lease protocol; native calendar IDs alone are insufficient. That larger design
-would need schema/concurrency/transition review, not an improvised client patch.
+- Default manager to `households.created_by_user_id` when that person is an active
+  Owner. If they are no longer eligible, select the earliest active Owner
+  deterministically. Store the assignment explicitly; creator identity alone
+  is not a permanent bypass of membership/role checks.
+- The manager must remain an active Owner. Calendar management is household
+  integration administration, outside the 25 product-action checkboxes.
+- Owners may explicitly transfer the manager assignment to another active Owner
+  through a confirmation flow. This is a household-administration action, not
+  permission for multiple owners to control the integration simultaneously.
+- On manager demotion/removal/leave, disable sync, revoke the writer and assign
+  the fallback eligible Owner under the existing household lock. The new manager
+  must reconnect/confirm a destination; never inherit another person's OS access.
+  Preserve existing last-owner safeguards. No automatic calendar writes by the
+  replacement manager before setup confirmation.
+- Restrict the manager to one registered syncing phone per household as well:
+  one user can otherwise sign in on two phones and still create duplicates.
+  Register a device credential with a server-stored digest; keep its secret in
+  the already-installed SecureStore. Other devices show which phone is linked
+  and offer explicit reconnect/takeover, not another independent sync loop.
+- Server validation checks the live manager, writer credential, enabled state
+  and configuration revision before issuing synchronization work. Serialize
+  registration/configuration/takeover with household administration. Pause old
+  runs and reject stale credentials/revisions after a transfer or takeover.
+- An in-flight OS write is not a database transaction and cannot be recalled by
+  revoking a server credential. During takeover do not start a second writer
+  until the prior run is quiescent/reconciled; ambiguous cases stay paused and
+  require recovery. Use bounded run authority and tests rather than claiming
+  cross-device exactly-once writes from a device-local lock or calendar name.
+
+Calendar IDs are native-store identifiers and cannot serve as a shared destination
+identity across phones. Retain a household integration/binding ID, ownership
+markers, journal and explicit recovery when a different phone takes over. Do not
+silently adopt another calendar or blindly recreate old exported events.
+
+Only the manager’s linked phone updates the shared calendar. If another member
+changes a meal, its calendar representation updates after that phone next opens/
+refreshes Meal Planner. Seeing it on the other phones depends on the calendar
+provider's own sharing and refresh; no instant delivery guarantee.
 
 ## Reconciliation and event ownership
 
 - Central coordinator, not one effect per screen. Serialize/coalesce work by
-  user/household/destination generation. Trigger after confirmed Plan mutations,
+  manager/household/writer/destination generation. Trigger after confirmed Plan mutations,
   app foreground, relevant successful plan refresh and explicit Sync now. An
   unrelated phone's edits are collected on the next successful fresh read; no
   claim of live updates without a fetch. Recipe-name changes affect event titles.
 - Persist versioned settings, calendar identity, an opaque binding identifier,
   source-entry → native-event mappings and desired fingerprints in user-scoped
-  local storage. Do not reuse theme's installation-global preference scope.
+  local storage for the authorized writer. Keep integration configuration and
+  manager/writer authority on the server; do not reuse theme’s global scope.
 - Fetch a complete authorized snapshot before deciding deletes. Network errors,
   partial/invalid results and unavailable permissions must never mean empty plan.
-  Check live membership/session/binding generation before each native operation.
+  Check live membership/manager/writer authority and session/binding generation
+  before each native operation; pause on failed authority refresh.
 - Journal a create intention before native creation, then save its returned ID.
   Recover uncertain results by inspecting app-owned markers in the chosen
   calendar, rather than blindly creating again after a crash/storage failure.
 - Update events by stable source entry ID; compare projected fields, not only
-  meal edit_revision (recipe names and personal times may change independently).
+  meal edit_revision (recipe names and configured times may change independently).
   Only delete/update an event when stored mapping, calendar and ownership marker
   agree. Never touch unrelated events or match solely by title/date.
 - Keep mappings needed to reconcile moves and history; query known IDs as well
@@ -161,9 +199,10 @@ Previously exported calendar copies may remain; they cannot be reliably recalled
 if OS access is revoked or the app is absent. Explain this in setup. Another user
 signing into the phone cannot adopt or resume the previous user's binding.
 
-OS calendar authorization is separate from app permissions. Read-only household
-members can export content they can already view; calendar edits do not grant
-Plan Add/Edit/Remove. Ask for the iOS full access needed to reconcile existing
+OS calendar authorization is separate from app permissions and is requested
+only on the manager’s linked phone. Members retain normal meal-plan access but
+cannot enable exports, change times/destination or invoke sync controls. Calendar
+edits do not grant Plan Add/Edit/Remove. Ask for full iOS access to reconcile existing
 owned events; handle write-only/denied/restricted access with an actionable state.
 Android requires runtime read/write calendar permission. Do not request Reminders
 access, upload unrelated calendar contents or log event titles/private details.
@@ -172,14 +211,29 @@ Permission loss pauses reconciliation; re-enable only after a successful recheck
 ## API and module changes proposed
 
 - Add one bounded, membership-scoped read-only calendar projection endpoint under
-  `/v1/households/{household_id}/meal-plan/`. Accept validated slot times/common
-  duration, return household-local bounds/timezone and a complete event projection
-  from one consistent read. No week-by-week fetch/delete inference or public feed.
-  Shared meal records remain unchanged; no DB migration for the proposed
-  single-writer version. The existing seven-day Plan and shopping limits stay.
+  `/v1/households/{household_id}/meal-plan/`, guarded by manager and active-writer
+  authority. Use confirmed server-stored times/length, return household-local
+  bounds/timezone and a complete event projection from one consistent read. No
+  caller-supplied timing override, week-by-week delete inference or public feed.
+  Shared meal records and existing Plan/Shopping limits stay unchanged.
 - Derive projected titles/times from existing stable entry IDs, date/slot, recipe
   name, special-entry detail and household timezone. Scope every join to the
   household; return no other person's calendar settings or data.
+- Add an additive household calendar-integration table: household PK, assigned
+  manager membership, enabled/configuration revision, slot times/event length,
+  binding ID and registered-writer credential digest/authority state. Keep native
+  event IDs/journal and private OS account metadata on the writer device.
+- Add authenticated configuration/status, explicit manager transfer, device
+  registration/takeover, run authority and disconnect endpoints. Members receive
+  a safe read-only summary without credentials or private calendar account data.
+  Configuration/integration mutations require the current manager; transfer
+  requires an active Owner. All role, scope, revision and writer checks are
+  service-level, using the existing household lock, never UI-only.
+- Backfill manager assignment from active creator-Owner or deterministic fallback
+  Owner; integration starts disabled with no writer. Do not change meal records
+  or member product grants. Extend membership role/removal/leave lifecycle to
+  invalidate authority atomically. Reject downgrades that would discard saved
+  integration configuration without an explicitly reviewed recovery plan.
 - New mobile support under `src/features/calendar-sync/`, thin Profile route,
   pure reconciliation planner, preference/journal store, platform adapter,
   capability check and one coordinator mounted outside retained tab screens.
@@ -202,11 +256,14 @@ Permission loss pauses reconciliation; re-enable only after a successful recheck
    creation, shared-calendar visibility and account sync differ by provider.
    Do not promise a new calendar is always local or cloud-synced. Stop/review
    the design if the adapter cannot provide the required safe identity operations.
-2. Implement the bounded API projection and pure mobile planner/store/coordinator,
-   then shared setup/status UI and permissions. Complete all intended edits before
+2. Implement migration, manager/writer lifecycle and API projection with the
+   pure mobile planner/store/coordinator,
+   then manager setup/read-only member status UI and authorization. Complete all intended edits before
    coordinated validation; keep focused commits on a dedicated implementation
    branch derived from this plan, preserving the accepted prior slices.
-3. Native device acceptance and release are separate. Preserve the Mac's native
+3. Native device acceptance and release are separate. Before any live migration,
+   take a fresh restore-verified Mac database backup and review the additive
+   migration; this planning change authorizes neither. Preserve the Mac's native
    project/signing/scene-support configuration, take a native-project recovery
    copy before regeneration, and verify embedded JS/API URL and both device
    profiles. No deployment/install/working-server restart is authorized now.
@@ -223,11 +280,14 @@ new native module works with existing Personal Team builds during the gate.
   uncertain create recovery, partial failure, stale snapshots, sign-out/account/
   household/destination changes, native permission loss and reconnect duplicates.
 - API integration against verified disposable PostgreSQL: access/tenant isolation,
-  complete bounded snapshots, deleted meals, renamed/archived recipes, special
+  single-manager/one-phone authority, creator/fallback backfill, transfer and
+  revocation races, stale config/writer credentials, complete snapshots, deleted
+  meals, renamed/archived recipes, special
   meals, timezone projection and existing Plan/Shopping contracts. No tests on
   the family Mac data. Full API suite before final major-feature release.
 - Actual-router tests for Profile, setup/pickers/Back, no lost drafts, read-only
-  members, all theme appearances and OS-capability fallback. Full mobile normal/
+  member status with no mutation controls or OS prompt, manager setup/times,
+  transfer/takeover, all theme appearances and OS-capability fallback. Full mobile normal/
   cache-cleared tests, types/lint, Expo compatibility, native JS exports and real
   native builds; JS exports alone do not exercise Calendar APIs.
 - Physical iPhone and Samsung: new/existing calendars, denied/write-only/full/
@@ -236,13 +296,16 @@ new native module works with existing Personal Team builds during the gate.
   cleanup without unrelated-event loss and no duplicate events. Record actual
   devices/calendars/providers tested; do not infer universal provider behavior.
 
-## Open point and review
+## Revised-plan review
 
-Confirmed: timed entries with individually editable default presets during setup
-and later in settings, foreground automatic sync, new or existing writable
-calendar. Proposed for approval: the suggested preset values/event length, household-zone timestamps,
-rolling range, one-way/manual-change handling, cleanup and single-writer shared
-calendar behavior. The shared-writer answer can materially change scope.
+Confirmed: editable timed presets, foreground automatic sync, new or existing
+writable calendar, one calendar-control user per household (ideally the creator),
+and guidance to use a shared calendar for other members.
+
+The new manager restriction supersedes the earlier personal-export model and
+adds server configuration/authority plus an additive migration. Review the
+proposed active-Owner eligibility/fallback, transfer/takeover recovery, preset
+values/length, timezone/window and cleanup behavior before implementation.
 No code, dependency, migration, native build or deployment has started.
 
 ## Primary references reviewed November 2
@@ -264,7 +327,16 @@ coverage above are product recommendations, not guarantees supplied by the OS.
 Felipe confirms default preset meal times with user overrides. Breakfast, Lunch
 and Dinner each have their own editable time; users may accept the suggested
 8:00 AM/noon/6:00 PM or replace any of them, both during setup and afterward.
-Changes update that user's managed calendar events on the next successful sync;
-they do not change shared meal-plan dates/slots or other people's preferences.
-The specific starting values remain proposed; shared-calendar writer behavior
-and overall implementation approval remain open.
+Under the subsequently confirmed one-manager model, only that manager can
+change these presets for the household integration. Changes update managed
+calendar events on the next successful sync; shared meal-plan dates/slots do
+not change. Specific starting values and overall revised-plan approval remain open.
+
+## Household manager clarification — November 2
+
+Felipe confirms one user controls household calendar sync, preferably the creator,
+and asks that setup suggest a shared calendar so others can see meals. This is
+now reflected throughout the proposal, including server enforcement and the
+one-active-phone guard for that manager. The active-Owner fallback/transfer rules
+are recommendations to prevent a household being stuck if its creator leaves;
+they have not yet been separately accepted. No implementation started.

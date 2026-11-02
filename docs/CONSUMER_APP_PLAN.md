@@ -151,17 +151,16 @@ native builds and deployment remain separate. Remaining
 unimplemented original major features are F12 calendar integration and F16 widgets.
 
 November 2 F12 exploration: `docs/plans/meal-calendar-sync.md` is proposed on
-`codex/calendar-sync-plan`. Felipe confirms timed events with configurable meal-
-slot times with editable presets during setup and later in settings, automatic
-sync when opening/using the app, and both new-calendar and
-existing writable-calendar destinations. Recommend one-way personal sync with
-safe event ownership, a bounded read-only API projection, explicit timezone/DST
-rules and native calendar capability checks. Shared-calendar multi-writer behavior
-is still an open question; one designated syncing phone is recommended for the
-first version rather than claiming native calendar IDs prevent cross-phone races.
-The new SDK 58 Calendar API is documented as requiring a native build rather
-than Expo Go. No package/config/API/schema/native-build or live changes started.
-Plan approval and the remaining shared-writer decision precede implementation.
+`codex/calendar-sync-plan`. Felipe confirms timed entries with individually editable
+presets, foreground automatic sync, new/existing writable calendars, and one
+calendar-control user per household, ideally its creator. Setup should recommend
+a shared calendar for other members to see the meals. The revised plan replaces
+personal independent exports with server-enforced manager/configuration and one
+registered syncing phone, adding an additive integration migration. Active-Owner
+eligibility, creator/fallback/transfer and device-takeover recovery are proposed
+for review. SDK 58 Calendar requires native capability/build verification rather
+than relying on Expo Go. No implementation, package/config/schema/live changes
+started; revised-plan approval precedes implementation.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for
