@@ -80,8 +80,8 @@ provenance, operational paths and recovery.
 November 1 continuation: the family-trial inventory is reconciled with the
 live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
 B11 stays on unreproduced regression watch. Felipe accepts F10 recipe importing November 1 and calls the current feature complete. Remaining features
-to implement are F12 calendar sync, F14 themes, F15 member permissions and
-F16 widgets. Felipe accepts F09 ingredient sections and calls it complete after
+to implement are F12 calendar sync, F14 themes and F16 widgets. F15 member
+permissions is implemented locally and awaiting phone acceptance (below). Felipe accepts F09 ingredient sections and calls it complete after
 the final November 1 UI adjustments. Felipe approved F09 ingredient-only
 sections and assigned implementation directly to this chat on
 `codex/recipe-ingredient-sections`. The shared recipe editor/detail, native
@@ -113,18 +113,21 @@ future companion feature to plan, including their relationship to section import
 Current singular-section imports remain ingredients-only. Merge and live rollout
 remain separate.
 
-November 1 F15 planning: `docs/plans/household-member-permissions.md` proposes
-per-member action checkboxes with owner-only configuration and service-level
-API enforcement. Felipe accepts the general approach and confirms that new
-invitees are Members with full Shopping, Recipes, Plan and Catalog access;
-household administration remains owner-only. Restricted Shopping-only access
-includes Add, Edit and Check/uncheck. Owners can customize the action grants. Felipe requests a global checkbox for
-each permission section (Shopping, Recipes, Meal planning, Catalog), including
-a mixed state for partial selection, instead of Allow all / Shopping only
-shortcuts. Save commits the explicit individual grants.
-The updated plan proposes preserving existing members' full content access at
-migration; lifecycle refinements await review on `codex/member-permissions-plan`. No F15 implementation, migration
-or live rollout has started.
+November 1 F15 implementation: `docs/plans/household-member-permissions.md`
+is approved and implemented directly in this chat on `codex/member-permissions`,
+awaiting phone acceptance. Owners exclusively administer households and configure
+25 per-member product actions through four section checkboxes (all/none/mixed),
+individual checkboxes and explicit Save. New invitees and existing active Members
+at migration retain full product access; demotion explicitly resets to Shopping
+Add/Edit/Check. Server enforcement is transactional across all product mutations;
+mobile guards/refresh preserve open drafts. Local `meal_planner_dev` is backed up
+and migrated to `member_permissions`, with content counts preserved. The live Mac
+release remains unchanged. Full mobile normal/cold runs passed 819 tests each;
+the later unchanged-access-response follow-up passed 142 relevant tests. API full
+disposable-PG suite passed 232 tests; types/lint, compatibility and native JS
+exports passed. Physical owner/member acceptance and later coordinated live
+rollout remain outstanding. No merge, push, native installation or deployment
+is included. See the dedicated plan for exact validation boundaries.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

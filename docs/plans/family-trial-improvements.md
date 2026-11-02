@@ -8,8 +8,9 @@ current deployment state. B11 remains unreproduced and on watch; no speculative
 Catalog loading repair is proposed. Broader per-origin/device cases remain part
 of the testing week, not newly confirmed bugs.
 
-Remaining planned feature inventory: F12 calendar sync, F14 themes,
-F15 configurable member permissions and F16 widgets. Felipe accepts F09 ingredient
+Remaining unimplemented feature inventory: F12 calendar sync, F14 themes and
+F16 widgets. F15 configurable member permissions is implemented locally on
+`codex/member-permissions` and awaiting phone acceptance; see its dedicated plan. Felipe accepts F09 ingredient
 sections and its recipe-editor follow-ups on November 1 and calls the feature
 complete. Work is committed on `codex/recipe-unsaved-changes` (including the
 original sections branch). F10 Import from recipe was approved and implemented directly in this chat on
@@ -185,7 +186,7 @@ individual slices, even when they depend on the same bug fixes.
 | F12 | Optional Apple/Android Calendar integration, preferably automatic sync of planned meals. | Future integration plan. Automatic sync is the desired behavior; a one-off export button is an alternative, not an approved substitute. Research consent, updates/deletes, duplicates, household changes, and realistic background behavior. |
 | F13 | Shopping tab badge shows the number of unpurchased items. | **Shipped in the November 1 iPhone trial.** Historical slice record: Approved and implemented directly October 31 on `codex/shopping-tab-badge`, from `65c8e50`. One scoped Shopping owner for list, mutations, Plan reconciliation and native/web badges; count all unchecked household rows, hide zero/unknown, show 99+ with exact accessible count. Lifecycle/tab-focus freshness without polling; accepted sheet returns and rollback preserved. All 64 mobile suites / 665 tests, types, lint, whitespace and iOS JS export pass, plus 13 targeted tests after import-only polish. Felipe accepts the reviewed badge on his phone October 31 at `5bebb90`; broader checklist/Android/browser coverage is not inferred. No API/schema/dependency, live trial or deployment changes. See `shopping-tab-badge.md`. |
 | F14 | Three color presets: phone/system light-dark, website Apricot/Chocolate/Navy, and saved alternate green; choose in settings and during first use. | Separate theme plan. One semantic token system and shared components, no duplicated screens per theme. Inspect actual saved website palettes; clarify persistence and brand-theme light/dark behavior. |
-| F15 | Owners have all permissions and exclusive household administration. Newly invited Members start with full product access. Owners can customize per-member action checkboxes; the restricted Shopping-only baseline includes Add, Edit and Check/uncheck. | General approach and invitation policy confirmed November 1. Revised plan `household-member-permissions.md` on `codex/member-permissions-plan` covers 25 actions, API enforcement and nested flows. Felipe replaces preset shortcuts with per-section checkboxes (all/none/mixed), with explicit Save. Preserving existing member access at migration and lifecycle refinements remain proposals awaiting review. No implementation or deployment started. |
+| F15 | Owners have all permissions and exclusive household administration. Newly invited Members start with full product access. Owners can customize per-member action checkboxes; the restricted Shopping-only baseline includes Add, Edit and Check/uncheck. | Approved and implemented November 1 on `codex/member-permissions`: 25 transactionally enforced actions, four section master checkboxes with individual controls and explicit Save, invitation/lifecycle defaults and app-wide nested-flow guards. Full mobile normal/cold 819 each; later focused refresh follow-up 142; full disposable-PG API 232; types/lint/compatibility and native JS exports pass. Local DB backed up/migrated with content counts preserved. Phone acceptance pending; live Mac release unchanged, no merge/deployment. See `household-member-permissions.md`. |
 | F16 | Home-screen widgets: small unpurchased-item count; medium/large checkable Shopping and complete weekly meal view with a two-view/tab concept. Explore Android equivalent. | Major separate native/platform plan. Research iOS WidgetKit and Android App Widgets/Glance, supported mode switching, layout limits, background updates, secure shared state, signing capabilities, and checkoff policy/offline behavior. Do not promise an embedded copy of the app UI or any paid entitlement. |
 
 ## Initial source inspection (not device reproduction)
@@ -242,8 +243,8 @@ individual slices, even when they depend on the same bug fixes.
 6. **November 1 checkpoint:** all confirmed bug batches and F01-F08/F11/F13 are
    now in the live two-iPhone trial. F09 ingredient sections was then approved
    for direct implementation on its own branch; F10 recipe copying follows
-   separately after section acceptance. F12/F14/F15/F16 still need separate plans and
-   prioritization. Permissions should inform later calendar/widget mutations.
+   separately after section acceptance. F15 is now implemented locally pending phone acceptance. F12/F14/F16
+   still need separate plans and prioritization. Permissions should inform later calendar/widget mutations.
    B11 stays on regression watch unless concrete reproduction returns.
 
 The initial improved build should deliver accepted bug batches without waiting

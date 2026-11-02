@@ -1,13 +1,10 @@
 # Household member permissions — F15
 
-Status: revised November 1, 2026; general design and invitation role/access
-clarified by Felipe. Section-wide checkboxes replace preset shortcuts; lifecycle
-refinements below remain proposals.
-Planning only; no implementation started.
-Branch: `codex/member-permissions-plan`, from accepted recipe work at `ab312cb`.
-No application, schema, dependency, configuration or deployment changes are
-approved by this document. Preserve F09/F10; they are accepted and committed,
-but not merged or deployed to the Mac trial.
+Status: implemented November 1, 2026 on `codex/member-permissions`, awaiting
+Felipe's phone acceptance. Felipe approved direct implementation, including
+section checkboxes and the lifecycle/migration decisions. Accepted F09/F10 work
+is preserved. The local development database is migrated; the live Mac trial,
+Render, installed phone builds and main remain unchanged.
 
 ## Goal and scope
 
@@ -26,7 +23,7 @@ creator, permission templates, calendar integration, widgets or paid services.
 Self-service profile, sign-out, personal date/view preferences, creating/joining
 another household and voluntary leave remain independent of these grants.
 
-## Findings from the current source
+## Pre-implementation findings
 
 - `household_management.lock_household` serializes household mutations and checks
   active membership; its owner flag protects household administration. Most
@@ -43,7 +40,7 @@ another household and voluntary leave remain independent of these grants.
 - Household state holds role snapshots and guards session/selection races.
   Permission refresh must preserve the mounted navigator and open drafts.
 
-## Proposed owner experience
+## Approved owner experience
 
 Profile → My households → household → person → **Permissions**.
 Only owners see this action. Use a full stack page, titled **Member permissions**,
@@ -85,10 +82,10 @@ reconcile the saved revision/list first.
 For an owner target, show **Owners have full access** and a read-only all-enabled
 list. Their access cannot be reduced with checkboxes. Changing their role stays
 in the existing role flow, which explains full access on promotion and the
-proposed Shopping-only reset on demotion before confirming. Household administration appears as an Owner-only
+approved Shopping-only reset on demotion before confirming. Household administration appears as an Owner-only
 summary, separate from the editable product-action groups.
 
-## Proposed action matrix
+## Approved action matrix
 
 Owners can perform every action. New invitees receive all 25 product grants.
 The first three rows form the Shopping-only starting point for owners choosing
@@ -172,7 +169,7 @@ viewing shared product content does not expose owner-only administrative data.
   replay handling. Revoked access cannot use an old recipe-create or review
   request ID to bypass current authorization. All records stay household-owned.
 
-## Proposed storage and API contract
+## Approved storage and API contract
 
 Use a small backend permission registry and normalized grant rows, with no new
 permission service, library or JWT claim. The registry defines supported keys,
@@ -192,14 +189,14 @@ permissions enabled. Pending invitations retain Member as their invited role;
 apply grants transactionally when the invitation is actually accepted. Do not
 promote invitees to Owner implicitly. Invitation management remains owner-only.
 
-For migration, propose seeding all current product grants for existing active
+For migration, seed all current product grants for existing active
 members to preserve their current content access. Owners can restrict them after
 rollout. Preserve users, recipes, Catalog, Shopping and Plan records. Inventory
 roles read-only before a later live rollout. This replaces the earlier migration
 proposal that would have restricted existing members automatically.
 
 Owners' effective access is computed as all actions. Promoting a member removes
-custom grants. Proposed demotion behavior remains a reset to Shopping only
+custom grants. Demotion behavior is a reset to Shopping only
 (Add, Edit, Check), with that outcome explicit in its confirmation; an owner can
 then change the member's checkboxes. Removal clears grants. Rejoining through a
 new owner-issued invitation receives full product access under the invitation
@@ -209,7 +206,7 @@ membership invariants. Never assign grants to another membership or household.
 
 Add effective permissions and their revision to each current-user Household
 snapshot (`/me`, household lists/detail, create responses). Do not add other
-members' grant sets to broadly readable People responses. Proposed owner endpoints:
+members' grant sets to broadly readable People responses. Owner endpoints:
 
 - `GET /v1/households/{household_id}/members/{membership_id}/permissions` returns
   target role, revision, effective grants and grouped action definitions/defaults.
@@ -284,7 +281,7 @@ quick checkoffs must retain their existing per-item responsiveness.
 5. Complete intended tests and implementation, then run one coordinated validation
    pass. Commit focused changes on `codex/member-permissions` from this planning
    branch after approval. Follow the standing coding-agent/direct-assignment
-   agreement; Felipe has requested planning only for this slice so far.
+   agreement; Felipe explicitly assigned this implementation to the chat agent.
 
 ## Validation and later rollout
 
@@ -316,10 +313,11 @@ quick checkoffs must retain their existing per-item responsiveness.
   role inventory, migration review, both-phone client upgrade and coordinated
   API deployment. Older clients remain subject to server enforcement and may see
   denials when an owner restricts their actions. Avoid rolling back to an API that stops enforcing
-  the configured policy; prefer a permission-compatible fix. This plan does not
-  merge, migrate, deploy, reinstall apps or change staging auto-deploy.
+  the configured policy; prefer a permission-compatible fix. This plan does not authorize a merge, live migration/deployment, app
+  reinstall or staging auto-deploy change. Local development migration is
+  recorded below.
 
-## Confirmed decisions and remaining refinements
+## Confirmed decisions
 
 Felipe accepts the overall permissions approach and confirms:
 
@@ -331,15 +329,14 @@ Felipe accepts the overall permissions approach and confirms:
 4. Each major section has a checkbox to check/uncheck its actions together;
    partial selection is mixed. These replace Allow all / Shopping only shortcuts.
 
-Proposed refinements for the updated plan:
+Lifecycle refinements approved with the final plan:
 
 - Preserve existing members' current full product access at migration.
 - On demotion, explicitly confirm resetting to Shopping only. A new invitation
   on rejoin grants full product access, consistent with the invitation rule.
 
 The accepted Add/re-add and field-aware Edit/Check rules above remain intact.
-No external credentials, paid resource or package change is needed. Review the
-updated lifecycle choices before application/schema implementation.
+No external credentials, paid resource or package change was needed.
 
 ## Invitation policy decision — November 1
 
@@ -351,6 +348,61 @@ settings/deletion. Owners may restrict content actions afterward.
 
 This supersedes the earlier three-grant invitation assumption. The three Shopping
 grants now describe the restricted starting point, not newly invited Members'
-initial rights. Existing-member migration and demotion/rejoin refinements remain
-proposals listed above. Felipe subsequently replaces the named shortcuts with
+initial rights. Existing-member migration and demotion/rejoin refinements were
+approved with the final plan. Felipe subsequently replaces the named shortcuts with
 section-wide checkboxes; no preset shortcut UI remains in the plan.
+
+## Implementation and review handoff — November 1
+
+Code commits: `dca9b6c` (API/migration/contract) and `a9a244d` (mobile controls,
+refresh and app-wide guards). No dependency changes.
+
+Implemented all 25 action grants, transactional service enforcement, owner GET/
+PATCH with revision conflicts, field-aware Shopping PATCH and strict re-add,
+invitation defaults and role/removal/rejoin lifecycle. Migration
+`member_permissions` follows `recipe_ingredient_sections`; existing active Members
+receive all 25 grants. Downgrade refuses to discard saved permission changes.
+
+The new Profile stack page provides four all/none/mixed section checkboxes,
+individual actions, explicit Save, conflict reload, uncertain-save reconciliation
+and unsaved-Back protection. Shared access selectors gate writes across Catalog,
+Recipes, Shopping, Plan/review and nested sheets. Forbidden entry/toolbar actions
+are hidden; forms/status controls can remain visible but disabled with an access
+explanation. Access refresh preserves navigators and drafts, coalesces requests,
+ignores stale responses and leaves unchanged household snapshots alone. There is
+no realtime push; API checks are immediately authoritative.
+
+Validation completed using the committed lockfile in an isolated temporary
+mobile runtime, without installing packages into the serving Expo checkout:
+
+- Full normal and cache-cleared mobile runs: 77 suites / 819 tests each, no skips.
+- The subsequent unchanged-access-response guard and regression test passed the
+  relevant household-state/router checks: 142 tests, no skips. The earlier full
+  runs do not claim coverage of this final follow-up.
+- TypeScript, Expo lint, SDK dependency compatibility and iOS/Android production
+  JavaScript exports passed. JavaScript exports are not signed native builds.
+- API Ruff and full guarded disposable-PostgreSQL suite: 232 passed, no skips;
+  Alembic head verified. Coverage includes all 25 mutation grants, migration,
+  lifecycle, tenant isolation, raw-field restrictions, replay, stale revisions,
+  concurrent updates and transaction-ordered revocation.
+- Legacy Member test fixtures now seed explicit full-product grants; production
+  code never treats absent grants as full access. Registry contract tests compare
+  mobile and API action keys.
+- After the final permission-warning copy correction, three relevant actual-
+  router permission cases passed; 50 unrelated cases were unselected, not claimed
+  as passing in that focused run.
+
+Local development only: created a custom-format PostgreSQL backup in Felipe's
+local temporary directory before migration and verified its restore catalog
+(the backup has not been restored). Migrated `meal_planner_dev`, checked all eight
+tracked content/membership table counts unchanged and all existing active Member
+grants seeded. Restarted the local API; health is OK. Existing Expo remains
+running. No Mac trial database or services were accessed.
+
+Phone acceptance remains unrun: review Profile → My households → person →
+Permissions as Owner, section mixed/all/none states and Catalog descendants,
+Save and Back/discard, then restricted Member browsing and denied writes across
+all tabs and nested sheets. Test a grant/revocation across phones after refresh,
+open-draft preservation, long lists/larger text and nested Back. Dedicated light/
+dark release review, Android device acceptance, native builds and live rollout
+remain separate. No merge, push or deployment is included in this implementation.
