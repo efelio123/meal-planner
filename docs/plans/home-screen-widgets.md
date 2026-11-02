@@ -1,7 +1,8 @@
 # Home-screen widgets — F16
 
-Status: proposed November 2, 2026; offline Pending confirmed.
-No implementation/dependency/config changes.
+Status: native feasibility approved November 2, 2026; offline Pending confirmed.
+Implementation branch: `codex/widget-feasibility`. Use an isolated fictional-data
+lab; consumer-app configuration/dependencies and the family trial remain unchanged.
 Branch: `codex/home-screen-widgets-plan`, from calendar checkpoint `c0780de`.
 Calendar phone acceptance remains pending and is not replaced by this work.
 
@@ -178,3 +179,21 @@ phone installation or paid capability follows from this planning change.
 - [Android Glance state and updates](https://developer.android.com/develop/ui/compose/glance/glance-app-widget)
 - [Android widget actions](https://developer.android.com/develop/ui/compose/glance/user-interaction)
 - [Expo AppIntents, evaluated but not selected](https://docs.expo.dev/versions/v58.0.0/sdk/app-intents/)
+
+
+## Feasibility findings — November 2
+
+Felipe approved the native feasibility slice. Implemented a separate fictional-data
+lab under `apps/widget-lab/` on `codex/widget-feasibility`; the consumer app and all
+API/data/native working projects remain unchanged. Exact 58.0.26 source audit,
+type/compatibility checks, app exports, SDK widget-runtime bundles, two runs of
+nine isolated-runtime checks and Android native scaffolding generation pass.
+Physical/native signing/rendering/networking remain unrun.
+
+The reviewed public SDK path cannot supply the required app-closed authenticated
+checkoff and coordinated durable outbox. Android also lacks the reviewed timeline
+readback/size environment used by iOS. Stop under step 4 above, preserving the lab;
+do not add production credentials, schema, SDK forks or misleading local-only
+checkmarks. `docs/qa/widget-feasibility.md` records evidence and limits. Recommend
+the app-owned native WidgetKit/Glance approach proposed separately in
+`docs/plans/home-screen-widgets-native-sync.md`; that next slice needs review.

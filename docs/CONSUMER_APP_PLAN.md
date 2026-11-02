@@ -174,8 +174,15 @@ before selecting the implementation. Apple's current capability table lists App
 Groups for free Apple Developer accounts; actual Personal Team extension signing
 remains unverified, so do not assume a paid membership or promise a working build.
 Felipe confirms offline widget checkoffs should show Pending and sync later,
-with an explicit distinction from server-confirmed purchases. Planning only on
-`codex/home-screen-widgets-plan`; no implementation authorized.
+with an explicit distinction from server-confirmed purchases. The feasibility slice is then approved and implemented separately on
+`codex/widget-feasibility` in `apps/widget-lab/`, using only fictional data.
+The pinned SDK supports local widgets but its reviewed public tap/storage path
+cannot complete authenticated closed-app Shopping writes or a durable outbox;
+Android also lacks iOS timeline readback/size context. Local type/compatibility,
+JS exports, SDK bundles/runtime contract checks and Android native generation
+pass; phone rendering/signing/networking are unrun. Per the approved gate, stop
+before production integration and review `home-screen-widgets-native-sync.md`.
+No consumer-app dependency/config, API/schema/data or installed-app changes.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for
