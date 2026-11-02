@@ -385,7 +385,23 @@ def test_invitation_defaults_and_role_transitions_are_explicit(data):
         household_management.household_detail(d["member"], d["home"], d["engine"])[
             "permissions"
         ]
-    ) == set(permissions.SHOPPING_ONLY)
+    ) == set(permissions.ACTION_KEYS)
+    # Explicit owner restrictions survive a redundant Member-role update.
+    demoted = household_management.household_detail(d["member"], d["home"], d["engine"])
+    permissions.set_member_permissions(
+        d["owner"],
+        d["home"],
+        membership,
+        ["shopping.add"],
+        demoted["permissions_revision"],
+        d["engine"],
+    )
+    household_management.set_member_role(
+        d["owner"], d["home"], membership, "member", d["engine"]
+    )
+    assert household_management.household_detail(d["member"], d["home"], d["engine"])[
+        "permissions"
+    ] == ["shopping.add"]
     with pytest.raises(HTTPException) as last:
         owner_membership = household_management.household_detail(
             d["owner"], d["home"], d["engine"]

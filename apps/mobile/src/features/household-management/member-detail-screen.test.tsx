@@ -83,6 +83,23 @@ describe('household member detail', () => {
     expect(householdMembersRevision({ householdId: 'home-a', sessionId: 'session-a', userId: 'user-a' })).toBe(revisionBefore + 1);
   });
 
+  it('confirms full product access when an owner becomes a member', async () => {
+    mockRole = 'owner';
+    mockMember = { ...mockMember, role: 'owner' };
+    setRole.mockImplementation(async (_token, _home, _member, role) => {
+      mockMember = { ...mockMember, role };
+    });
+    await render(<MemberDetailScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Make member' }));
+    expect(Alert.alert).toHaveBeenLastCalledWith('Make member?',
+      'They will keep full access to Shopping, Recipes, Meal planning and Catalog. Household administration will be owner-only. You can adjust their permissions afterward.',
+      expect.any(Array));
+    expect(setRole).not.toHaveBeenCalled();
+    await act(async () => { jest.mocked(Alert.alert).mock.calls.at(-1)?.[2]?.at(-1)?.onPress?.(); });
+    await waitFor(() => expect(setRole).toHaveBeenCalledWith(mockGetToken, 'home-a', 'membership-b', 'member'));
+    expect(await screen.findByText('Member')).toBeTruthy();
+  });
+
   it('shows a safe last-owner conflict', async () => {
     mockRole = 'owner';
     mockMember = { ...mockMember, role: 'owner' };

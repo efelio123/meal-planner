@@ -7,7 +7,7 @@ from sqlalchemy import Engine, text
 
 from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.database import get_engine
-from meal_planner_api.permissions import SHOPPING_ONLY, seed_grants, with_access
+from meal_planner_api.permissions import ACTION_KEYS, seed_grants, with_access
 
 
 def _not_found() -> HTTPException:
@@ -136,7 +136,7 @@ def set_member_role(user: CurrentUser, household_id: str, membership_id: str, ro
             raise _conflict("LAST_OWNER", "At least one active owner must remain.")
         if target["role"] == role:
             return
-        seed_grants(connection, membership_id, SHOPPING_ONLY if role == "member" else ())
+        seed_grants(connection, membership_id, ACTION_KEYS if role == "member" else ())
         connection.execute(text("UPDATE household_members SET role = :role, permissions_revision=permissions_revision+1, updated_at = CURRENT_TIMESTAMP WHERE id = :id"),
                            {"role": role, "id": membership_id})
 

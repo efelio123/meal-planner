@@ -33,7 +33,6 @@ ACTIONS = (
     ("catalog.units.archive", "Shopping units", "Remove custom shopping units"),
 )
 ACTION_KEYS = tuple(action[0] for action in ACTIONS)
-SHOPPING_ONLY = ("shopping.add", "shopping.check", "shopping.edit")
 
 
 def access_snapshot(connection, household_id: str, user_id: str) -> dict:

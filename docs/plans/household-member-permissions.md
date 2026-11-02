@@ -82,7 +82,7 @@ reconcile the saved revision/list first.
 For an owner target, show **Owners have full access** and a read-only all-enabled
 list. Their access cannot be reduced with checkboxes. Changing their role stays
 in the existing role flow, which explains full access on promotion and the
-approved Shopping-only reset on demotion before confirming. Household administration appears as an Owner-only
+full-product access retained on demotion before confirming. Household administration appears as an Owner-only
 summary, separate from the editable product-action groups.
 
 ## Approved action matrix
@@ -196,8 +196,8 @@ roles read-only before a later live rollout. This replaces the earlier migration
 proposal that would have restricted existing members automatically.
 
 Owners' effective access is computed as all actions. Promoting a member removes
-custom grants. Demotion behavior is a reset to Shopping only
-(Add, Edit, Check), with that outcome explicit in its confirmation; an owner can
+custom grants. Demotion grants all current product actions
+with that outcome explicit in its confirmation; an owner can
 then change the member's checkboxes. Removal clears grants. Rejoining through a
 new owner-issued invitation receives full product access under the invitation
 rule, without resurrecting the previous membership's custom grants. Increment the
@@ -332,7 +332,7 @@ Felipe accepts the overall permissions approach and confirms:
 Lifecycle refinements approved with the final plan:
 
 - Preserve existing members' current full product access at migration.
-- On demotion, explicitly confirm resetting to Shopping only. A new invitation
+- On demotion, explicitly confirm retaining full product access. A new invitation
   on rejoin grants full product access, consistent with the invitation rule.
 
 The accepted Add/re-add and field-aware Edit/Check rules above remain intact.
@@ -406,3 +406,20 @@ all tabs and nested sheets. Test a grant/revocation across phones after refresh,
 open-draft preservation, long lists/larger text and nested Back. Dedicated light/
 dark release review, Android device acceptance, native builds and live rollout
 remain separate. No merge, push or deployment is included in this implementation.
+
+## Demotion default correction — November 1
+
+Felipe clarifies that every default Member transition, including Owner → Member,
+must start with all current product actions checked. This supersedes the earlier
+Shopping-only demotion decision. Household administration becomes owner-only;
+owners can subsequently restrict individual actions through Permissions. The
+role-change warning and backend now agree. Existing saved Member restrictions
+are not rewritten or widened; a redundant Member → Member update preserves them.
+For an account already demoted under the earlier behavior, an owner can enable
+all four section checkboxes and Save, or promote and demote it again.
+
+Follow-up validation: 45 permission/household-management API tests passed on the
+verified disposable database, plus Ruff; all five member-detail mobile tests
+passed. Local API restarted and health verified. No database records or live
+Mac services changed for this correction. Earlier full-suite results are
+historical, not rerun for this focused follow-up.

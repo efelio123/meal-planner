@@ -118,8 +118,8 @@ is approved and implemented directly in this chat on `codex/member-permissions`,
 awaiting phone acceptance. Owners exclusively administer households and configure
 25 per-member product actions through four section checkboxes (all/none/mixed),
 individual checkboxes and explicit Save. New invitees and existing active Members
-at migration retain full product access; demotion explicitly resets to Shopping
-Add/Edit/Check. Server enforcement is transactional across all product mutations;
+at migration retain full product access; Owner-to-Member demotion also starts
+with every product action enabled, while removing household administration. Server enforcement is transactional across all product mutations;
 mobile guards/refresh preserve open drafts. Local `meal_planner_dev` is backed up
 and migrated to `member_permissions`, with content counts preserved. The live Mac
 release remains unchanged. Full mobile normal/cold runs passed 819 tests each;
