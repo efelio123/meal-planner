@@ -1,4 +1,4 @@
-# Import recipe ingredients from Add ingredient — F10
+# Import a whole recipe or ingredient section — F10
 
 Status: revised proposal November 1, 2026; awaiting review. Planning only.
 Branch: `codex/recipe-copy-plan`, based on accepted recipe work at `917d661`.
@@ -13,11 +13,10 @@ recipe or one of its sections. Imported occurrences are independent editable
 recipe-draft entries; the source recipe is never modified. Reuse the shared
 Create/Edit editor in Recipes and recipe creation from Plan.
 
-The original request also included directions. Felipe's revised flow explicitly
-selects ingredients, while current directions have no section association.
-One review question remains: ingredients only for this version (recommended),
-or an optional **Include all recipe directions** choice. Do not silently assume
-that a selected ingredient section identifies a subset of directions.
+Felipe confirms the import rule: a singular section (including Other ingredients)
+imports ingredients only; a whole-recipe import brings all ingredients and all
+directions. Existing directions remain one list without section associations.
+There is no separate directions checkbox or inferred section-to-step mapping.
 
 ## Proposed interaction
 
@@ -25,23 +24,28 @@ that a selected ingredient section identifies a subset of directions.
    item in Catalog** and place **Import from recipe** directly below it. Both
    actions remain reachable above the keyboard and long Food results. No extra
    Import/Copy action appears in the main editor.
-2. Import opens an expanded native **Import ingredients** sheet with an in-content
+2. Import opens an expanded native **Import from recipe** sheet with an in-content
    Back/Cancel, recipe-name search and current-household recipe list. Back or
    dismiss returns to the Food picker with its search intact and both footer
    actions usable again; a duplicate-tap latch must not strand the picker. Show active recipes
    only and exclude the recipe currently being edited.
 3. A recipe with sections has the shared expandable chevron. Tapping its heading
    expands/collapses it; that action never imports. Expanded choices are
-   **All ingredients (N)** followed by its named sections with ingredient counts.
+   **Whole recipe — ingredients & directions** followed by its named sections
+   with ingredient counts. Make the distinction visible before Import.
    Show **Other ingredients** last if unassigned rows exist. Each choice has an
    explicit **Import** action with a 44-point target and an accessible name such
-   as **Import Mash ingredients from Chicken and Mash**.
-4. A flat recipe has one whole-recipe Import action; no pointless empty expansion.
+   as **Import Mash ingredients from Chicken and Mash**, or **Import whole recipe
+   Chicken and Mash** for the complete selection.
+4. A flat recipe has one whole-recipe Import action including all directions;
+   no pointless empty expansion.
    An empty section stays visible with a disabled Import action. Multiple recipes
    may stay expanded. Expansion is keyed by recipe ID; search does not destroy
    expansion state or the Food picker's separate search.
-5. Selecting Import validates/loads the selected snapshot and appends only those
-   ingredient occurrences. Do not add a mandatory separate preview/confirmation
+5. Selecting Import validates/loads the selected snapshot and appends the chosen
+   ingredients. Whole-recipe selection also appends every source direction after
+   the destination's existing steps, continuing ordinary step numbering. A section
+   selection leaves existing directions untouched. Do not add a mandatory preview/confirmation
    for this non-destructive draft addition. Show a small accessible confirmation
    such as **6 ingredients imported from Mash** and return to the same editor,
    dismissing this flow's import and Food-selection sheets once.
@@ -76,14 +80,18 @@ The entry context remains visible (for example **Import into Chicken**).
 - Generate fresh local keys for imported sections and occurrences. Shared Food
   Catalog references stay shared, so editing Catalog itself remains household-wide;
   recipe amounts, membership, order, units and notes are independent of the source.
+  Whole-recipe imports also give every imported direction a fresh local key;
+  editing those steps never changes the source recipe.
 - Preserve destination name, cover, timings, source-link field and existing
-  metadata. For ingredients-only import, directions and recipe Notes stay unchanged.
-  If directions import is selected in review, offer **Include all recipe directions**
-  explicitly, default off; append the full source step list and a source name/URL
-  attribution line to Notes when a source URL exists, preserving existing notes.
+  metadata. Section imports leave directions and recipe Notes unchanged. Whole
+  imports append the full source step list and, when a source URL exists, one
+  source name/URL attribution line to Notes, preserving existing notes and avoiding
+  duplicate attribution lines. Source name, timings, cover and servings do not
+  replace destination values; Whole recipe refers to ingredients and directions.
 - Validate the selected addition atomically against 200 ingredients, 20 sections
-  and all applicable field limits. If optional directions are approved, also
-  check 200 steps and Notes length. No partial imports or silent truncation.
+  and all applicable field limits. Whole imports also check the 200-step and Notes
+  limits; section imports do not add steps or attribution. If the whole addition
+  cannot fit, leave the draft intact. No partial imports or silent truncation.
 - Verify selected Food references against active Catalog data. An unavailable
   ingredient blocks that selection with a clear error/retry, without omitting or
   relinking it. Unavailable rows outside a selected section do not block that
@@ -119,7 +127,8 @@ Existing create/update payloads and the F09 schema already persist the resulting
 independent groups/occurrences. No new table, migration, import endpoint, dependency,
 paid resource or live deployment is proposed. This remains a local draft import,
 not external website import, whole-recipe duplication, serving conversion or a
-live linked sub-recipe. Directions import awaits the explicit review decision.
+live linked sub-recipe. Whole imports include all directions; singular sections
+remain ingredient-only, as Felipe confirmed.
 
 ## Native sheets and layout
 
@@ -143,7 +152,10 @@ and `native-sheets-app-wide.md`, including the recurring header-overlap rule.
 - Pure selection/merge cases: flat and sectioned recipes; whole, singular and
   Other selection; empty sections; existing destination section versus new groups;
   duplicate names/Food, independent keys, correct order, To taste/custom units,
-  limits and no partial mutation. Cover directions only after the review decision.
+  limits and no partial mutation. Verify that whole imports append all directions
+  with fresh keys, keep existing step order, and handle zero directions. Verify
+  that singular/Other section imports never add steps or change recipe Notes.
+  Check whole-import step/attribution limits and independent source step edits.
 - Actual-router cases in Recipes Create/Edit and Plan Create: exact footer action
   order/reachability, independent searches, multi-expansion and chevrons, whole
   versus section Import, correct return depth, add once, normal Save/reload and
@@ -164,5 +176,6 @@ and `native-sheets-app-wide.md`, including the recurring header-overlap rule.
 
 The footer entry, expandable searchable list and whole/section ingredient choices
 are Felipe's requested revision. Destination grouping above is proposed for
-review. Directions scope is explicitly pending the clarification sent in chat.
+review. Felipe resolves directions scope: section imports are ingredients-only,
+whole imports include all directions. No remaining directions question or toggle.
 This plan is not implementation approval; application code is unchanged.

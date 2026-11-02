@@ -106,8 +106,10 @@ not deployed to the Mac trial. F10 is proposed in `docs/plans/recipe-copying.md`
 awaiting review. Felipe revises the flow to Import from the Add ingredient footer,
 below Create Food item in Catalog, with searchable expandable recipes and whole
 or singular-section ingredient selection. Draft additions remain independent and
-unscaled. Directions scope is pending clarification because directions are not
-associated with ingredient sections. No F10 implementation/live rollout is approved.
+unscaled. Felipe confirms that importing a whole recipe includes all directions;
+importing a singular section adds ingredients only. Directions append to the
+existing step list; section-specific directions are not inferred. No F10
+implementation/live rollout is approved yet.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for
