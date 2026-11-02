@@ -229,3 +229,17 @@ text; native drag/Back and retained searches; confirmation, Save/reopen and
 discard warning. Those physical geometry/gesture checks, Android review and the
 dedicated light/dark release pass remain unrun. This chat owns any requested
 follow-up fixes; a later merge/native rollout needs its own release step.
+
+
+### Presentation follow-up — November 1
+
+At Felipe's request, Add section stays beside Ingredients while there are no
+named sections. Once a section exists it moves below the ingredient list,
+following the main Add ingredient action; Manage sections stays at the top right.
+Removed the flat-recipe Includes all directions caption and the word only from
+section ingredient counts. Import behavior is unchanged.
+
+All 60 focused recipe-router/import-sheet tests, TypeScript and lint pass.
+The earlier full-suite/export results are historical validation of the initial
+implementation; no API/database changes or new database run for this small UI
+follow-up. Physical layout review remains pending.

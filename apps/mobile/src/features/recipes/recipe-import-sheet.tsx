@@ -119,7 +119,7 @@ export function RecipeImportSheet({ householdId, expectedFlowScope, getToken, is
         const source = details[recipe.id];
         const expandable = source ? Boolean(source.ingredient_sections?.length) : recipe.ingredient_section_count !== 0;
         const open = expandable && Boolean(expanded[recipe.id]);
-        const summary = <><RecipeCover recipe={recipe} size="row" /><View style={styles.copy}><ThemedText style={styles.name}>{recipe.name}</ThemedText><ThemedText themeColor="textSecondary">{recipe.ingredient_count} ingredients{recipe.servings ? ` · Serves ${recipe.servings}` : ''}</ThemedText>{!expandable ? <ThemedText themeColor="textSecondary">Includes all directions{!destinationName ? ` · New section: ${importedSectionName(recipe.name)}` : ''}</ThemedText> : null}</View></>;
+        const summary = <><RecipeCover recipe={recipe} size="row" /><View style={styles.copy}><ThemedText style={styles.name}>{recipe.name}</ThemedText><ThemedText themeColor="textSecondary">{recipe.ingredient_count} ingredients{recipe.servings ? ` · Serves ${recipe.servings}` : ''}</ThemedText>{!expandable && !destinationName ? <ThemedText themeColor="textSecondary">New section: {importedSectionName(recipe.name)}</ThemedText> : null}</View></>;
         return <View key={recipe.id} style={[styles.card, { backgroundColor: theme.surface }]}>
           {expandable ? <Pressable accessibilityRole="button" accessibilityLabel={`Expand ${recipe.name}`} accessibilityState={{ expanded: open }} disabled={busyId !== null || refreshing} onPress={() => toggle(recipe)} style={styles.recipeRow}>{summary}<ExpansionChevron expanded={open} /></Pressable>
             : <View style={styles.recipeRow}>{summary}{importButton(recipe, { kind: 'whole' }, `Import whole recipe ${recipe.name}`, recipe.ingredient_count)}</View>}
@@ -130,7 +130,7 @@ export function RecipeImportSheet({ householdId, expectedFlowScope, getToken, is
             {[...(source.ingredient_sections ?? []), { name: 'Other ingredients', position: null }].map((section) => {
               const count = source.ingredients!.filter((row) => (row.section_position ?? null) === section.position).length;
               if (section.position === null && count === 0) return null;
-              return <View key={section.position ?? 'other'} style={[styles.choice, { borderTopColor: theme.border }]}><View style={styles.copy}><ThemedText style={styles.name}>{section.name}</ThemedText><ThemedText themeColor="textSecondary">{count} ingredients only{!destinationName && section.position !== null ? ` · New section: ${section.name}` : ''}</ThemedText></View>{importButton(recipe, { kind: 'section', position: section.position }, `Import ${section.name} ingredients from ${recipe.name}`, count)}</View>;
+              return <View key={section.position ?? 'other'} style={[styles.choice, { borderTopColor: theme.border }]}><View style={styles.copy}><ThemedText style={styles.name}>{section.name}</ThemedText><ThemedText themeColor="textSecondary">{count} ingredients{!destinationName && section.position !== null ? ` · New section: ${section.name}` : ''}</ThemedText></View>{importButton(recipe, { kind: 'section', position: section.position }, `Import ${section.name} ingredients from ${recipe.name}`, count)}</View>;
             })}
           </View> : null}
         </View>;

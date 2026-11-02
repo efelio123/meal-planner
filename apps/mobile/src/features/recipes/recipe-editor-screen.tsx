@@ -636,7 +636,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
               <View style={styles.sectionHeadingRow}>
                 <ThemedText accessibilityRole="header" style={[visualStyles.sectionTitle, styles.sectionHeadingText]}>Ingredients <ThemedText themeColor="error">*</ThemedText></ThemedText>
                 <View style={styles.headingLinks}>
-                  <Pressable accessibilityRole="button" disabled={!editable || sections.length >= 20} onPress={openSectionName} style={[styles.headingAction, styles.headingLink]}><ThemedText themeColor={editable && sections.length < 20 ? 'link' : 'textSecondary'}>Add section</ThemedText></Pressable>
+                  {sections.length === 0 ? <Pressable accessibilityRole="button" disabled={!editable || sections.length >= 20} onPress={openSectionName} style={[styles.headingAction, styles.headingLink]}><ThemedText themeColor={editable && sections.length < 20 ? 'link' : 'textSecondary'}>Add section</ThemedText></Pressable> : null}
                   {sections.length > 0 ? <Pressable accessibilityRole="button" disabled={!editable} onPress={manageSections} style={[styles.headingAction, styles.headingLink]}><ThemedText themeColor={editable ? 'link' : 'textSecondary'}>Manage sections</ThemedText></Pressable> : null}
                 </View>
               </View>
@@ -669,6 +669,7 @@ export function RecipeEditorScreen({ routeBase = 'recipes' }: { routeBase?: 'rec
                 <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus', android: 'add', web: 'add' }} size={21} tintColor={theme.link} />
                 <ThemedText themeColor="link">Add ingredient</ThemedText>
               </Pressable>
+              {sections.length > 0 ? <Pressable accessibilityRole="button" disabled={!editable || sections.length >= 20} onPress={openSectionName} style={styles.inlineAction}><ThemedText themeColor={editable && sections.length < 20 ? 'link' : 'textSecondary'}>Add section</ThemedText></Pressable> : null}
             </View>
 
             <View style={styles.section}>
