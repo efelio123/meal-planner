@@ -25,6 +25,8 @@ beforeEach(() => { jest.clearAllMocks(); mockMode = 'light'; });
 it('applies a choice immediately while keeping existing draft and open-sheet state', async () => {
   const { store, storage } = fixture(); await render(<AppearanceProvider store={store}><AppearanceChoices /><DraftAndSheet /></AppearanceProvider>);
   await waitFor(() => expect(screen.getByRole('radio', { name: 'Green' })).not.toBeDisabled());
+  expect(screen.getAllByRole('radio').map((row) => row.props.accessibilityLabel)).toEqual(['Meal Planner', 'Phone theme', 'Green']);
+  expect(screen.getByRole('radio', { name: 'Meal Planner' })).toBeChecked();
   await fireEvent.changeText(screen.getByLabelText('Recipe draft'), 'Dinner for Sunday'); await fireEvent.press(screen.getByText('Open retained sheet'));
   await fireEvent.press(screen.getByRole('radio', { name: 'Green' }));
   expect(screen.getByRole('radio', { name: 'Green' })).toBeChecked();
@@ -46,7 +48,7 @@ it('shows a failed save and retries without an extra Save step', async () => {
   const { store, storage } = fixture(); await store.load(); storage.setItem.mockRejectedValueOnce(new Error('disk'));
   await render(<AppearanceProvider store={store}><AppearanceChoices /></AppearanceProvider>);
   await fireEvent.press(screen.getByRole('radio', { name: 'Green' })); await screen.findByRole('alert');
-  expect(screen.getByRole('radio', { name: 'Phone theme' })).toBeChecked();
+  expect(screen.getByRole('radio', { name: 'Meal Planner' })).toBeChecked();
   await fireEvent.press(screen.getByRole('button', { name: 'Retry appearance' }));
   await waitFor(() => expect(screen.getByRole('radio', { name: 'Green' })).toBeChecked());
 });

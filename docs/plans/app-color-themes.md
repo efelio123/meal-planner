@@ -46,8 +46,8 @@ matches. No screenshot resampling or new fonts/receipt styling.
    every signed-in role regardless of household permissions.
 2. Open a normal native-stack page titled Appearance, using `Screen` with
    `layout="tab-stack"`, one native header and the shared bounded scrolling body.
-3. Show three full-width selectable cards: Phone theme, Apricot, Chocolate & Navy,
-   and Green. Each has a small illustrative app preview, name, short description
+3. Show three full-width selectable cards: Meal Planner (Apricot/Chocolate/Navy),
+   Phone theme, and Green. Each has a small illustrative app preview, name, short description
    and far-right selected indicator. Use accessible single-choice/radio semantics
    and a checkmark; color alone must not indicate selection.
 4. Tapping a card applies and saves immediately. No extra Save button. Previews
@@ -55,7 +55,7 @@ matches. No screenshot resampling or new fonts/receipt styling.
    simple non-interactive illustrations, not three duplicated app screens.
 5. On the first eligible app visit on that installation, show **Choose your look**
    with the same selection component in the accepted full-height native sheet.
-   Phone theme starts selected. Continue closes it; swiping down also continues
+   Meal Planner starts selected. Continue closes it; swiping down also continues
    with the current choice. Explain that it can be changed in Profile → Appearance.
 6. Offer the chooser once to current testers after upgrading, too. Present only
    after sign-in/profile/household setup reaches an idle app tab root. Never
@@ -87,7 +87,7 @@ values and contrast pairings will be recorded during implementation/review.
 - Use installed AsyncStorage 2.2.0 for a small versioned record containing only
   theme identifier and chooser-seen version. No household/recipe data, secrets,
   API endpoint, database migration or permissions grant is needed.
-- Default missing/invalid values to Phone theme. Read before presenting themed
+- Default missing/invalid values to Meal Planner. Read before presenting themed
   app content where practical, with a safe bounded fallback on storage failure.
   The OS launch screen remains native/static; do not promise a dynamically themed
   launch asset. Reuse existing startup handling rather than hanging on a read.
@@ -232,3 +232,22 @@ color audit). Physical review remains unrun by the agent. Use
 light/dark changes, first-use/native-sheet geometry and auth controls. Existing
 Expo is still serving this checkout; reload if necessary. No Mac trial changes,
 merge, push or native release is included.
+
+## Main-theme follow-up — November 2
+
+Felipe accepts the overall chooser and selects Apricot/Chocolate/Navy as the
+main app theme. Show it first and default new/missing/invalid preferences to it;
+Phone theme is second, Green third. Existing saved choices remain unchanged.
+Name the main theme **Meal Planner** for now, retaining the current descriptions.
+Replace that placeholder with the official app name once it is chosen; the
+registry has an `app-name` TODO at the single display-name definition. Stable
+stored IDs remain unchanged so renaming will not reset anyone's preference.
+
+Preview action circles now use the shared native plus symbol inside the existing
+centered container instead of a text glyph affected by font baseline spacing.
+Physical/optical centering remains for Felipe's phone review.
+
+Follow-up validation: 86 tests across five targeted suites pass (appearance
+store/UI/first-use, palette contrast and actual recipe routing), plus TypeScript
+and lint with no warnings. Earlier full-suite/native-export results are historical;
+not rerun for this focused default/name/icon follow-up.

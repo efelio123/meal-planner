@@ -34,7 +34,7 @@ export function AppearanceChoices() {
 /** Same shared palette roles as the app; a compact illustration, not a second app. */
 function ThemePreview({ palette }: { palette: ThemeTokens }) {
   return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.preview, { backgroundColor: palette.screen, borderColor: palette.border }]}>
-    <View style={styles.previewHeading}><Text style={[styles.previewTitle, { color: palette.text }]}>Dinner</Text><View style={[styles.previewAction, { backgroundColor: palette.primary }]}><Text style={[styles.previewPlus, { color: palette.primaryText }]}>+</Text></View></View>
+    <View style={styles.previewHeading}><Text style={[styles.previewTitle, { color: palette.text }]}>Dinner</Text><View style={[styles.previewAction, { backgroundColor: palette.primary }]}><SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={18} tintColor={palette.primaryText} /></View></View>
     <View style={[styles.previewRow, { backgroundColor: palette.surface, borderColor: palette.border }]}><View style={[styles.previewCheck, { borderColor: palette.textSecondary }]} /><Text style={[styles.previewLabel, { color: palette.text }]}>Tomato soup</Text><Text style={{ color: palette.textSecondary }}>›</Text></View>
   </View>;
 }
@@ -56,6 +56,6 @@ export function AppearanceChooser() {
 const styles = StyleSheet.create({
   choices: { gap: 16 }, feedback: { gap: 12 },
   card: { borderRadius: 16, padding: 16, gap: 10 }, cardHeading: { flexDirection: 'row', alignItems: 'center', gap: 12 }, choiceName: { flex: 1, fontWeight: '700', fontSize: 18, lineHeight: 26 },
-  preview: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 12, gap: 8 }, previewHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, previewTitle: { fontWeight: '700', fontSize: 16, lineHeight: 22 }, previewAction: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, previewPlus: { fontSize: 22, lineHeight: 26 }, previewRow: { flexDirection: 'row', alignItems: 'center', padding: 10, gap: 8, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth }, previewCheck: { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5 }, previewLabel: { flex: 1, fontSize: 14, lineHeight: 20 },
+  preview: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 10, padding: 12, gap: 8 }, previewHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }, previewTitle: { fontWeight: '700', fontSize: 16, lineHeight: 22 }, previewAction: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' }, previewRow: { flexDirection: 'row', alignItems: 'center', padding: 10, gap: 8, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth }, previewCheck: { width: 16, height: 16, borderRadius: 8, borderWidth: 1.5 }, previewLabel: { flex: 1, fontSize: 14, lineHeight: 20 },
   sheet: { flex: 1 }, sheetHeader: { flexShrink: 0, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 16, gap: 8 }, scroll: { flex: 1, minHeight: 0 }, sheetBody: { paddingHorizontal: 22, paddingBottom: 20 }, sheetFooter: { flexShrink: 0, paddingHorizontal: 22, paddingTop: 16, borderTopWidth: StyleSheet.hairlineWidth },
 });

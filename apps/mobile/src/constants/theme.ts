@@ -10,6 +10,7 @@ import { Platform } from 'react-native';
 /** Every palette supplies the same semantic roles; screens never select theme IDs. */
 export type ThemeMode = 'light' | 'dark';
 export type ThemeId = 'system' | 'apricot' | 'green';
+export const DEFAULT_THEME_ID: ThemeId = 'apricot';
 export type ThemeTokens = {
   screen: string; surface: string; elevatedSurface: string; surfaceSelected: string;
   text: string; textSecondary: string; border: string; inputBackground: string;
@@ -39,8 +40,9 @@ export const ThemePalettes: Record<ThemeId, Record<ThemeMode, ThemeTokens>> = {
   },
 };
 export const themeChoices: readonly { id: ThemeId; name: string; description: string }[] = [
+  // TODO(app-name): Replace Meal Planner with the official app name once chosen.
+  { id: 'apricot', name: 'Meal Planner', description: 'Warm apricot with chocolate and navy.' },
   { id: 'system', name: 'Phone theme', description: 'The familiar look, following your phone.' },
-  { id: 'apricot', name: 'Apricot, Chocolate & Navy', description: 'Warm apricot with chocolate and navy.' },
   { id: 'green', name: 'Green', description: 'Soft sage, cream and deep green.' },
 ];
 export type ThemeColor = keyof ThemeTokens;

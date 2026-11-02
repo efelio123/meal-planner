@@ -134,8 +134,10 @@ is included. See the dedicated plan for exact validation boundaries.
 
 November 2 F14 implementation: `docs/plans/app-color-themes.md` is approved
 and implemented directly on `codex/app-themes`, awaiting phone review. Profile →
-Appearance and a once-per-install native chooser offer Phone theme, the saved
-Apricot/Chocolate/Navy palette and Green, all following phone light/dark mode.
+Appearance and a once-per-install native chooser offer Meal Planner (the default
+Apricot/Chocolate/Navy palette), Phone theme and Green in that order, all following
+phone light/dark mode. Meal Planner is a placeholder display name to replace when
+the app has an official name; existing saved theme choices are preserved.
 One semantic registry/provider updates the existing app without resetting drafts;
 installation-local persistence survives sign-out/household switching, with guarded
 reads, ordered writes and retry. No account sync, API/schema/dependency change or

@@ -1270,13 +1270,14 @@ describe('Recipes through the actual Expo Router', () => {
     mockedStorage.getItem.mockImplementation(async (key) => key === 'meal-planner:appearance:v1' ? null : 'household-a');
     await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await screen.findByText('Choose your look');
+    expect(screen.getByRole('radio', { name: 'Meal Planner' })).toBeChecked();
     expect(screen.getByTestId('appearance-chooser-header').props.collapsable).toBe(false);
-    await fireEvent.press(screen.getByRole('radio', { name: 'Apricot, Chocolate & Navy' }));
+    await fireEvent.press(screen.getByRole('radio', { name: 'Meal Planner' }));
     await waitFor(() => expect(mockedStorage.setItem).toHaveBeenCalledWith('meal-planner:appearance:v1', JSON.stringify({ version: 1, themeId: 'apricot', chooserSeenVersion: 1 })));
     await fireEvent.press(screen.getByRole('button', { name: 'Continue' })); await screen.findByText('Plan');
     await act(async () => router.navigate('/profile'));
     await fireEvent.press(await screen.findByRole('button', { name: 'Appearance' }));
-    expect(await screen.findByRole('radio', { name: 'Apricot, Chocolate & Navy' })).toBeChecked();
+    expect(await screen.findByRole('radio', { name: 'Meal Planner' })).toBeChecked();
     expect(screen.queryByText('Choose your look')).toBeNull();
   });
 

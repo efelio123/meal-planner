@@ -9,8 +9,8 @@ Each theme follows the device appearance; there is no separate forced-mode picke
 
 | Choice | Light screen / primary | Dark screen / primary |
 | --- | --- | --- |
+| Meal Planner (default; placeholder name) | `#E2C4A6` / `#2A3244` | `#1c202a` / `#E2C4A6` |
 | Phone theme | `#ffffff` / `#155eef` | `#101114` / `#84adff` |
-| Apricot, Chocolate & Navy | `#E2C4A6` / `#2A3244` | `#1c202a` / `#E2C4A6` |
 | Green | `#E2E9DF` / `#164939` | `#111d18` / `#c6d9b5` |
 
 One semantic registry supplies all screens; palette anchors came from the saved
@@ -55,3 +55,8 @@ before the last shared-auth-button follow-up; 33 focused tests and final cold ru
 cover that follow-up. Types/lint (no warnings), SDK dependency compatibility,
 six-palette contrast and iOS/Android production JS exports pass. No signed build,
 physical device review or new API suite is claimed by these checks.
+
+November 2 chooser polish: review order Meal Planner / Phone theme / Green;
+Meal Planner is selected on a fresh preference. Saved explicit Phone/Green choices
+remain selected. Descriptions unchanged; preview plus symbols should be centered.
+Rename the Meal Planner placeholder when the official app name is selected.

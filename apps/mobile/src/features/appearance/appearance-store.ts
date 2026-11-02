@@ -1,16 +1,16 @@
-import { isThemeId, type ThemeId } from '@/constants/theme';
+import { DEFAULT_THEME_ID, isThemeId, type ThemeId } from '@/constants/theme';
 
 export const APPEARANCE_KEY = 'meal-planner:appearance:v1';
 export const CHOOSER_VERSION = 1;
 export type AppearanceRecord = { version: 1; themeId: ThemeId; chooserSeenVersion: number };
 export type AppearanceSnapshot = AppearanceRecord & { hydrated: boolean; saving: boolean; error: string | null };
 type Storage = { getItem: (key: string) => Promise<string | null>; setItem: (key: string, value: string) => Promise<unknown> };
-const initial: AppearanceRecord = { version: 1, themeId: 'system', chooserSeenVersion: 0 };
+const initial: AppearanceRecord = { version: 1, themeId: DEFAULT_THEME_ID, chooserSeenVersion: 0 };
 export function parseAppearance(value: string | null): AppearanceRecord {
   try {
     const record = JSON.parse(value ?? 'null');
     if (record?.version === 1 && isThemeId(record.themeId) && Number.isInteger(record.chooserSeenVersion) && record.chooserSeenVersion >= 0) return { version: 1, themeId: record.themeId, chooserSeenVersion: record.chooserSeenVersion };
-  } catch { /* Missing/invalid preferences retain the phone theme. */ }
+  } catch { /* Missing/invalid preferences use the main app theme. */ }
   return { ...initial };
 }
 

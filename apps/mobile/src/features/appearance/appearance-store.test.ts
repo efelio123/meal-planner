@@ -5,8 +5,8 @@ function setup(value: string | null = null) {
   const storage = { getItem: jest.fn().mockResolvedValue(value), setItem: jest.fn().mockResolvedValue(undefined) };
   return { storage, store: createAppearanceStore(storage) };
 }
-it.each([null, 'invalid', '{}', record('unknown'), JSON.stringify({ version: 1, themeId: 'green', chooserSeenVersion: -1 })])('defaults invalid/missing preference %s to the phone theme', (value) => {
-  expect(parseAppearance(value)).toEqual({ version: 1, themeId: 'system', chooserSeenVersion: 0 });
+it.each([null, 'invalid', '{}', record('unknown'), JSON.stringify({ version: 1, themeId: 'green', chooserSeenVersion: -1 })])('defaults invalid/missing preference %s to the main app theme', (value) => {
+  expect(parseAppearance(value)).toEqual({ version: 1, themeId: 'apricot', chooserSeenVersion: 0 });
 });
 it('hydrates a saved preference once and survives a fresh store without account or household keys', async () => {
   const { storage, store } = setup(record()); await store.load(); await store.load();
@@ -44,10 +44,10 @@ it('keeps the chooser seen for this session if saving its version fails', async 
   expect(store.getSnapshot().chooserSeenVersion).toBe(CHOOSER_VERSION); expect(storage.setItem).toHaveBeenCalledTimes(1);
   await store.chooseTheme('green'); expect(JSON.parse(storage.setItem.mock.calls.at(-1)![1])).toMatchObject({ themeId: 'green', chooserSeenVersion: 1 });
 });
-it('read failures allow safe phone appearance and an explicit retry', async () => {
-  const { storage, store } = setup(record('apricot')); storage.getItem.mockRejectedValueOnce(new Error('disk'));
-  await store.load(); expect(store.getSnapshot()).toMatchObject({ hydrated: true, themeId: 'system' });
-  await store.retry(); expect(store.getSnapshot()).toMatchObject({ themeId: 'apricot', error: null });
+it('read failures allow the safe main appearance and an explicit retry', async () => {
+  const { storage, store } = setup(record('green')); storage.getItem.mockRejectedValueOnce(new Error('disk'));
+  await store.load(); expect(store.getSnapshot()).toMatchObject({ hydrated: true, themeId: 'apricot' });
+  await store.retry(); expect(store.getSnapshot()).toMatchObject({ themeId: 'green', error: null });
 });
 it('a hung read times out and its late result cannot overwrite a newer selection', async () => {
   jest.useFakeTimers();
@@ -55,7 +55,7 @@ it('a hung read times out and its late result cannot overwrite a newer selection
     const read = deferred<string | null>(); const storage = { getItem: () => read.promise, setItem: jest.fn().mockResolvedValue(undefined) };
     const store = createAppearanceStore(storage, 50); const loading = store.load();
     await jest.advanceTimersByTimeAsync(51); await loading;
-    expect(store.getSnapshot()).toMatchObject({ hydrated: true, themeId: 'system' });
+    expect(store.getSnapshot()).toMatchObject({ hydrated: true, themeId: 'apricot' });
     await store.chooseTheme('green'); read.resolve(record('apricot')); await Promise.resolve();
     expect(store.getSnapshot().themeId).toBe('green');
   } finally { jest.useRealTimers(); }
@@ -65,4 +65,9 @@ it('ignores a retry read overtaken by an explicit selection', async () => {
   const read = deferred<string | null>(); storage.getItem.mockImplementationOnce(() => read.promise); const retry = store.retry();
   await store.chooseTheme('green'); read.resolve(record('apricot')); await retry;
   expect(store.getSnapshot().themeId).toBe('green');
+});
+
+it('preserves an explicitly saved Phone theme instead of replacing it with the new default', async () => {
+  const { store } = setup(record('system')); await store.load();
+  expect(store.getSnapshot()).toMatchObject({ themeId: 'system', hydrated: true, chooserSeenVersion: 1 });
 });
