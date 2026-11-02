@@ -92,7 +92,7 @@ export function MemberPermissionsScreen() {
           return <View key={section} style={styles.section}>
             <PermissionCheckbox label={`All ${section} actions`} text={section} checked={sectionChecked(keys, grants)} disabled={!editable} heading onPress={() => setGrants((currentGrants) => togglePermissionSection(keys, currentGrants))} />
             {actions.map((action, index) => <View key={action.key}>
-              {section === 'Catalog' && (index === 0 || actions[index - 1].group !== action.group) ? <ThemedText style={styles.subheading}>{action.group}</ThemedText> : null}
+              {section === 'Catalog' && (index === 0 || actions[index - 1].group !== action.group) ? <ThemedText accessibilityRole="header" style={[visualStyles.sectionTitle, styles.subheading]}>{action.group}</ThemedText> : null}
               <PermissionCheckbox label={action.label} checked={grants.includes(action.key)} disabled={!editable} onPress={() => setGrants((currentGrants) => currentGrants.includes(action.key) ? currentGrants.filter((key) => key !== action.key) : [...currentGrants, action.key])} />
               {action.key === 'catalog.categories.archive' ? <ThemedText themeColor="textSecondary">Removing a category used by items also requires Edit items.</ThemedText> : null}
             </View>)}
@@ -107,8 +107,8 @@ export function MemberPermissionsScreen() {
 function PermissionCheckbox({ label, text, checked, disabled, heading, onPress }: { label: string; text?: string; checked: boolean | 'mixed'; disabled: boolean; heading?: boolean; onPress: () => void }) {
   const theme = useTheme();
   return <Pressable accessibilityRole="checkbox" accessibilityLabel={label} accessibilityState={{ checked, disabled }} disabled={disabled} onPress={onPress} style={styles.row}>
+    <ThemedText style={[styles.label, heading && visualStyles.sectionTitle, heading && styles.sectionHeading]}>{text ?? label}</ThemedText>
     <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: checked === 'mixed' ? 'minus.square.fill' : checked ? 'checkmark.square.fill' : 'square', android: checked === 'mixed' ? 'indeterminate_check_box' : checked ? 'check_box' : 'check_box_outline_blank', web: checked === 'mixed' ? 'indeterminate_check_box' : checked ? 'check_box' : 'check_box_outline_blank' }} size={24} tintColor={checked ? theme.link : theme.textSecondary} />
-    <ThemedText style={[styles.label, heading && visualStyles.sectionTitle]}>{text ?? label}</ThemedText>
   </Pressable>;
 }
-const styles = StyleSheet.create({ content: { gap: 16 }, section: { gap: 4 }, row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingVertical: 8 }, label: { flex: 1 }, subheading: { fontWeight: '700', marginTop: 12 } });
+const styles = StyleSheet.create({ content: { gap: 16 }, section: { gap: 4 }, row: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 48, paddingVertical: 8 }, label: { flex: 1 }, sectionHeading: { fontSize: 24, lineHeight: 32 }, subheading: { marginTop: 12 } });

@@ -423,3 +423,15 @@ verified disposable database, plus Ruff; all five member-detail mobile tests
 passed. Local API restarted and health verified. No database records or live
 Mac services changed for this correction. Earlier full-suite results are
 historical, not rerun for this focused follow-up.
+
+## Permission layout follow-up — November 2
+
+Felipe requests trailing checkboxes, larger main group titles and subheadings
+at the previous title size. All section/individual checkboxes now align at the
+far right of their full-width tappable rows. Main group titles are 24/32 bold;
+Catalog subheadings reuse the former shared 20/26 bold section-title role. The
+existing tab-stack frame, scroll reachability, wrapping labels, mixed states and
+save behavior are preserved. Physical appearance remains for Felipe's review.
+
+Validation: all eight permission-editor tests and targeted screen lint pass.
+No API/database change or full-suite rerun for this presentation-only follow-up.
