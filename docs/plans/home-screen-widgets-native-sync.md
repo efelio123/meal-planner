@@ -95,7 +95,9 @@ with the free Personal Team. A separate private HTTPS fixture and confirmed/pend
 phone-test UI are prepared. The updated desktop-session build succeeds, and the
 verified probe is installed/launched on the test iPhone with explicit authorization.
 Felipe confirms small/medium/large iPhone widget taps and offline Pending followed
-by successful reconnect/retry. The fixture later reports six unique fictional
-acknowledgements in aggregate. Termination/lock behavior and physical Samsung
-acceptance remain pending. Keep production integration behind
-this gate; these findings do not complete F16.
+by successful reconnect/retry, then successful taps after app termination and
+phone lock/unlock without reopening the probe. Eight unique fictional operations
+are acknowledged in aggregate. The completed temporary fixture is removed and
+family API health verified. Physical Samsung acceptance remains pending; keep
+production integration behind this gate. These findings do not complete F16 or
+guarantee execution while locked/before first unlock or scheduled background retry.

@@ -3,13 +3,13 @@
 Branch: `codex/native-widgets`, following the approved
 `docs/plans/home-screen-widgets-native-sync.md`.
 
-**Result: partial gate passed; production integration remains gated.** Both native
-platforms compile and seven native simulator/emulator tests pass. Baseline iPhone
-app/extension signatures and provisioned shared groups are verified. Felipe
-confirms native iPhone widget taps in small, medium and large sizes and successful
-offline Pending/reconnect/retry behavior. The post-test fixture aggregate is six
-unique fictional acknowledgements. Termination/lock behavior and physical Samsung
-acceptance remain unverified. This does not complete F16.
+**Result: iPhone native execution checks passed; physical Samsung gate pending.**
+Production integration remains gated. Both platforms compile and seven native
+simulator/emulator tests pass. App/extension signatures and shared groups are
+verified. Felipe confirms all three iPhone sizes, offline Pending/reconnect/retry,
+a tap after swiping the main probe app away and a subsequent tap after phone
+lock/unlock without reopening it. The final fixture aggregate is eight unique
+fictional acknowledgements. This does not complete F16.
 
 ## Isolation and recovery
 
@@ -96,16 +96,28 @@ confirmed after acknowledgement, with the probe remaining in the background.
 The next server status read reports six unique fictional acknowledgements in
 aggregate. That count includes the manual test session; per-tap attribution was
 not captured, so it is not evidence of an exact number of offline retries.
-Termination/lock-unlock persistence is a separate pending check.
+Felipe then confirms both additional execution checks: swiping NativeWidgetProbe
+away in the app switcher and tapping the widget succeeds without reopening it;
+locking/unlocking the phone and tapping again also succeeds. A fresh fixture read
+shows eight unique acknowledgements, two more than before these checks. This is
+evidence for those user-driven actions after app termination and lock/unlock,
+not execution while the phone is locked, before its first unlock after reboot,
+or guaranteed scheduled background retry.
+
+The completed temporary fixture was then stopped and its own HTTPS proxy path
+removed. Exact before/after comparison confirms no other Serve configuration
+changed; the family API passes both loopback and private HTTPS health checks.
+The installed diagnostic probe remains on the phone, but its temporary endpoint
+is no longer running. No consumer app, household data or family API was stopped.
 
 ## Still required before production integration
 
-- Separately verify app termination/lock-unlock behavior; ordinary Home Screen
-  tap success does not establish these states.
 - Coordinate the separate Samsung probe installation and actual Glance home-screen
   callback/private networking checks when the device is available.
-- Real native sizes, resizing/tint/larger text and deep links; Tailscale extension
-  networking where relevant. No claim of force-quit recovery or guaranteed retry.
+- Native rendering, resizing/tint/larger text and deep links remain separate
+  layout/routing acceptance. The small probe is not the final Shopping/Plan UI.
+- Do not infer execution while locked, before first unlock after reboot, or
+  guaranteed scheduled retry from successful user-driven widget actions.
 
 Only after the gate succeeds, implement the approved consumer Expo bridge,
 summary/theme/settings, API authorization/versioning/idempotency, protected
