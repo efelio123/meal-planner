@@ -81,7 +81,8 @@ November 1 continuation: the family-trial inventory is reconciled with the
 live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
 B11 stays on unreproduced regression watch. Felipe accepts F10 recipe importing November 1 and calls the current feature complete. Remaining features
 to implement are F12 calendar sync, F14 themes and F16 widgets. F15 member
-permissions is implemented locally and awaiting phone acceptance (below). Felipe accepts F09 ingredient sections and calls it complete after
+permissions is implemented locally, with page appearance accepted and broader
+permission checks still pending (below). Felipe accepts F09 ingredient sections and calls it complete after
 the final November 1 UI adjustments. Felipe approved F09 ingredient-only
 sections and assigned implementation directly to this chat on
 `codex/recipe-ingredient-sections`. The shared recipe editor/detail, native
@@ -129,6 +130,14 @@ exports passed. Broader cross-phone permission/revocation checks and later coord
 rollout remain outstanding. Themes are recommended next, ahead of the larger
 calendar and widget integrations. No merge, push, native installation or deployment
 is included. See the dedicated plan for exact validation boundaries.
+
+November 2 F14 planning: `docs/plans/app-color-themes.md` on
+`codex/app-themes-plan` proposes three shared color presets, Profile → Appearance,
+small app previews and a first-use native chooser. Recommend an installation-local
+preference and light/dark counterparts for both saved colored palettes; the latter
+is an open question sent to Felipe. The exact website palette anchors were read
+from the separate showcase checkout without changing it. No implementation,
+dependency change or deployment is authorized by this planning request.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

@@ -1,0 +1,179 @@
+# App color themes — F14
+
+Status: proposed November 2, 2026; awaiting Felipe's review and approval.
+Planning branch: `codex/app-themes-plan`, from the accepted permission-page work
+at `0a165aa`. Application code, dependencies, configuration and data are unchanged.
+
+## Goal
+
+Offer three reusable color themes in Settings and during first use: the current
+phone/system theme, the website's Apricot/Chocolate/Navy, and the saved green
+alternative. Keep the accepted app layout, typography, icons and behavior.
+
+## Findings and saved design sources
+
+- Mobile already uses semantic color roles in `src/constants/theme.ts` and shared
+  `useTheme()` / `useThemeMode()` hooks. Current light/dark choice follows the phone.
+- Root navigation, tabs, shared controls, keyboards, native sheets and system
+  backgrounds already consume those hooks. The preference must update their
+  shared source without replacing the navigator or discarding drafts.
+- A remaining literal-color audit includes error labels, member-avatar fallback,
+  picker borders, sheet grabbers, confirmation backdrops and swipe-delete colors.
+- The website is in a separate dirty checkout on `codex/product-showcase-demo`:
+  `apps/web/src/site/styles.css` and `docs/plans/product-showcase-and-demo.md`.
+  These were inspected read-only. They are not present on this mobile branch;
+  do not merge the website branch or import its runtime/CSS into the mobile app.
+
+Saved palette anchors (reuse these exact digital values):
+
+| Theme | Saved anchors | Mobile intent |
+| --- | --- | --- |
+| Phone theme | Existing mobile light/dark tokens | Preserve today's appearance and automatic phone changes. |
+| Apricot, Chocolate & Navy | Apricot `#E2C4A6`, Chocolate `#56352D`, Navy `#2A3244` | Warm surfaces, chocolate text, navy actions in light appearance. |
+| Green | Sage `#E2E9DF`, Green `#164939`, Paper `#FFFDF3`, Ink `#284D3F` | Sage/cream surfaces, green actions and readable green ink. |
+
+Website supporting light tokens are also saved: Apricot paper `#f7eddf`, soft
+`#edd7c0`, muted `#75564a`, app paper `#fbf5eb`; Green soft `#d8e2d3`, muted
+`#52624e`. Reuse where readable, deriving additional role-specific colors when
+needed. The Pantone names/codes are recorded in the website plan; these HEX
+values are its accepted digital equivalents, not newly verified physical-color
+matches. No screenshot resampling or new fonts/receipt styling.
+
+## Proposed experience
+
+1. Add **Appearance** to Profile's existing settings navigation, available to
+   every signed-in role regardless of household permissions.
+2. Open a normal native-stack page titled Appearance, using `Screen` with
+   `layout="tab-stack"`, one native header and the shared bounded scrolling body.
+3. Show three full-width selectable cards: Phone theme, Apricot, Chocolate & Navy,
+   and Green. Each has a small illustrative app preview, name, short description
+   and far-right selected indicator. Use accessible single-choice/radio semantics
+   and a checkmark; color alone must not indicate selection.
+4. Tapping a card applies and saves immediately. No extra Save button. Previews
+   represent the actual shared palette roles and current appearance; they are
+   simple non-interactive illustrations, not three duplicated app screens.
+5. On the first eligible app visit on that installation, show **Choose your look**
+   with the same selection component in the accepted full-height native sheet.
+   Phone theme starts selected. Continue closes it; swiping down also continues
+   with the current choice. Explain that it can be changed in Profile → Appearance.
+6. Offer the chooser once to current testers after upgrading, too. Present only
+   after sign-in/profile/household setup reaches an idle app tab root. Never
+   interrupt an editor, deep link, nested sheet, auth recovery or API error flow.
+   Defer until the app is eligible rather than adding a new auth destination.
+
+The first-use sheet uses the shared native-sheet route/context, full-height
+detent, visible grabber, real native root/header/footer frames and one bounded
+scrolling body. Continue stays reachable above navigation and safe areas. Drag
+and explicit dismiss preserve the current theme; they do not save app content.
+
+## Appearance decision for review
+
+Recommended: all three themes follow the phone's light/dark appearance. The
+colored themes get carefully designed dark counterparts: dark navy/chocolate
+surfaces with apricot accents, and deep green surfaces with sage accents.
+Changing the phone appearance updates the selected palette live. This yields
+three choices, each with two appearances; it does not add a second mode picker.
+
+Felipe was asked whether the two colored themes should support dark counterparts
+or stay at their original light appearance. This decision remains open pending
+his reply; the recommendation above is not an approval. The final semantic role
+values and contrast pairings will be recorded during implementation/review.
+
+## Preference lifetime and failure behavior
+
+- Recommend one **device-local installation preference**, independent of the
+  selected household and user role. It survives app restarts, sign-out and
+  household/account switching on that phone. Different phones can choose
+  different looks; account sync and reinstall recovery are outside this slice.
+- Use installed AsyncStorage 2.2.0 for a small versioned record containing only
+  theme identifier and chooser-seen version. No household/recipe data, secrets,
+  API endpoint, database migration or permissions grant is needed.
+- Default missing/invalid values to Phone theme. Read before presenting themed
+  app content where practical, with a safe bounded fallback on storage failure.
+  The OS launch screen remains native/static; do not promise a dynamically themed
+  launch asset. Reuse existing startup handling rather than hanging on a read.
+- Serialize writes so rapid taps cannot persist an older choice over a newer
+  one. Apply optimistically; on a failed latest write, reconcile to the last
+  confirmed choice and show an actionable retry message. Keep navigation usable.
+- Persist the chooser-seen version when it is actually presented, not before an
+  eligible visit. Suppress duplicate presentation in the current session even
+  if that write fails; it may appear on a later launch until storage recovers.
+- Preference loads/writes must not remount the provider tree, reset sessions,
+  refresh household data or alter existing permission/draft guard behavior.
+
+## Implementation design and affected areas
+
+- Introduce a typed theme registry with `system`, `apricot`, `green` identifiers
+  and complete semantic tokens for each supported appearance. Keep common
+  structural styles separate. Preserve the `useTheme()` token-object contract;
+  make `useThemeMode()` report the selected palette's effective light/dark mode.
+- Add a narrowly scoped theme-preference provider/store and shared selectors.
+  Put it above every themed app consumer, including navigation and auth/loading
+  states, without coupling it to household membership or keying roots by theme.
+- Reuse existing semantic keys and add roles only where the audit demonstrates
+  a need, e.g. destructive action/background, scrim, grabber and avatar fallback.
+  Use neutral role names; feature components must not inspect theme identifiers
+  or contain per-theme conditionals. Avoid a new design-system/library dependency.
+- Audit all routes, reusable inputs/buttons, list states, search, dates, badges,
+  selection highlights, permission checkboxes, recipes/sections/import, Plan,
+  Shopping/review, Catalog, Profile, onboarding/auth, error and confirmation UI.
+  Keep destructive actions recognizably red across palettes, with paired readable
+  foregrounds. Preserve translucent native chrome and native interaction behavior.
+- Update root navigation theme, native/web tab colors, stack headers, native-sheet
+  surfaces, StatusBar/SystemUI and keyboard appearance from the same resolution.
+  Keep `userInterfaceStyle: automatic`. No dependency upgrade or native plugin
+  change is proposed. Validate SDK 58 platform APIs before implementation.
+- Place preference/selector UI and tests under `src/features/appearance/`; keep
+  common palette definitions in constants/theme, shared hooks/infrastructure in
+  their existing locations, and Expo route files thin. Do not reorganize auth.
+- Native OS alerts, menus and permission prompts keep platform styling; they
+  must remain legible in the effective mode but cannot promise arbitrary brand
+  tinting. App icons, native launch assets, recipe images and emoji are unchanged.
+
+## Validation and acceptance
+
+Complete intended code/test edits first, then one coordinated validation pass:
+
+- Registry/resolver completeness, invalid preference fallback, system changes,
+  restart persistence, ordered rapid writes and failed reads/writes.
+- Actual navigation/component coverage for choosing a theme, first-use eligibility
+  and dismiss/once behavior, account/household transitions, live changes with
+  retained recipe drafts and native sheets; existing permission gates unchanged.
+- Automated contrast checks for assigned text/background and action pairs: normal
+  text at least 4.5:1; large text and essential UI boundaries/icons at least 3:1
+  where applicable. Check selected/error states and do not rely on color alone.
+- Full mobile normal and cache-cleared suites, TypeScript, lint, Expo compatibility
+  and iOS/Android production JavaScript exports. No API/database tests required
+  for a mobile-only preference unless scope changes; exports are not native builds.
+- Dedicated physical theme review: all tabs and related sheets, short/long lists,
+  larger text, bottom actions, keyboard, selection, destructive swipes, headers,
+  badges, startup/relaunch and open-app phone appearance changes. Review every
+  offered theme/appearance; record iPhone and Android results separately. Android
+  and native geometry cannot be marked passing from JS/component tests alone.
+
+## Delivery and open decisions
+
+Create a dedicated implementation branch from this planning branch after approval,
+preserving F09/F10/F15 commits. Deliver preference/registry, app-wide token audit,
+selection/first-use UI and their tests as focused commits. No live Mac migration,
+server change, native installation, merge, push, paid service or release included.
+
+Confirm the colored palettes' light/dark behavior. Also review the recommended
+installation-local preference and once-per-install chooser behavior. No code is
+authorized by this planning request. The standing agent handoff/direct-assignment
+agreement applies to the later implementation.
+
+## Official documentation reviewed
+
+The repo resolves Expo 58.0.22, React Native 0.88.1, AsyncStorage 2.2.0,
+expo-system-ui 58.0.7 and expo-status-bar 58.0.4, verified in package-lock.json. Existing installed modules suffice; no package changes planned.
+
+- [Expo SDK 58 reference](https://docs.expo.dev/versions/v58.0.0/)
+- [Expo color themes](https://docs.expo.dev/develop/user-interface/color-themes/)
+- [SDK 58 AsyncStorage](https://docs.expo.dev/versions/v58.0.0/sdk/async-storage/)
+- [SDK 58 SystemUI](https://docs.expo.dev/versions/v58.0.0/sdk/system-ui/)
+- [SDK 58 StatusBar](https://docs.expo.dev/versions/v58.0.0/sdk/status-bar/)
+- [WCAG contrast minimum](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html)
+
+Recheck version-matched API guidance during implementation. No version upgrade
+is needed for this plan.
