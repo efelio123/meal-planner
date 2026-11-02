@@ -165,6 +165,18 @@ builds and physical UI checks remain unverified; see
 `docs/qa/meal-calendar-sync.md`. The family Mac API/database and installed apps
 are unchanged. F12 is not released or accepted based on automated tests alone.
 
+November 2 F16 exploration: `docs/plans/home-screen-widgets.md` proposes a native
+feasibility gate before the remaining major widget feature. Current SDK 58 Expo
+Widgets supports iOS/Android, but local widget interaction is not equivalent to
+an authenticated shared Shopping mutation with the app closed. Review signing,
+secure extension state/networking, readable week density and offline checkoffs
+before selecting the implementation. Apple's current capability table lists App
+Groups for free Apple Developer accounts; actual Personal Team extension signing
+remains unverified, so do not assume a paid membership or promise a working build.
+Felipe confirms offline widget checkoffs should show Pending and sync later,
+with an explicit distinction from server-confirmed purchases. Planning only on
+`codex/home-screen-widgets-plan`; no implementation authorized.
+
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for
 future pages. The source audit classifies all 64 page-route files and 11 layout
