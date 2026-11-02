@@ -1,3 +1,4 @@
+import { PermissionGate } from '@/features/household-permissions/permission-gate';
 import { Link, useRouter } from 'expo-router';
 import { useAuth } from '@clerk/expo';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -48,7 +49,7 @@ export function CatalogScreen() {
             <Pressable accessibilityRole="button" onPress={() => router.push('/(app)/(tabs)/catalog/manage' as never)} style={styles.manageAction}>
               <ThemedText themeColor="link" style={styles.manageText}>Manage</ThemedText>
             </Pressable>
-            <CircularAddButton accessibilityLabel="Add catalog item" onPress={() => router.push({ pathname: '/(app)/(tabs)/catalog/add', params: namePrefillParams(search, namePrefillScope(userId, sessionId, householdId)) })} />
+            <PermissionGate action="catalog.items.create"><CircularAddButton accessibilityLabel="Add catalog item" onPress={() => router.push({ pathname: '/(app)/(tabs)/catalog/add', params: namePrefillParams(search, namePrefillScope(userId, sessionId, householdId)) })} /></PermissionGate>
           </>} />
         <ThemedInput accessibilityLabel="Search household items" onChangeText={setSearch} placeholder="Search household items" value={search} />
         <View style={styles.filters}>

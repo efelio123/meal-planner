@@ -1,3 +1,6 @@
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
+import { PermissionNotice } from '@/features/household-permissions/permission-notice';
+import type { PermissionAction } from '@/lib/household-permissions';
 import { type ComponentRef, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { AppState, Modal, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
@@ -14,30 +17,36 @@ import { newCreateRequestId } from './recipe-form-utils';
 import { RecipeReorderList, type RecipeDragLock } from './recipe-ingredient-list';
 import type { RecipeSectionDraft } from './recipe-sections';
 
-export function RecipeSectionNameSheet({ section, isCurrent, onSave }: {
+export function RecipeSectionNameSheet({ requiredPermission, section, isCurrent, onSave }: {
+  requiredPermission: PermissionAction;
   section?: RecipeSectionDraft; isCurrent: () => boolean; onSave: (name: string) => boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const { can, canNow } = useHouseholdAccess();
+  const allowed = can(requiredPermission);
   const theme = useTheme(); const router = useRouter(); const [name, setName] = useState(section?.name ?? '');
   const submitted = useRef(false); const [error, setError] = useState('');
   const clean = name.trim(); const valid = clean.length > 0 && clean.length <= 80 && !/[\u0000-\u001f\u007f-\u009f]/u.test(clean);
   return <ScrollView testID="recipe-section-name-scroll" automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} style={[styles.root, { backgroundColor: theme.elevatedSurface }]} contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 16 }]}>
     <View style={styles.header}><AppBackButton accessibilityLabel="Back to sections" onPress={() => router.back()} /><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>{section ? 'Rename section' : 'Add section'}</ThemedText><Pressable accessibilityRole="button" onPress={() => router.back()} style={visualStyles.sheetAction}><ThemedText themeColor="link">Cancel</ThemedText></Pressable></View>
-    <ThemedText>Section name</ThemedText><ThemedInput accessibilityLabel="Section name" maxLength={80} value={name} onChangeText={setName} placeholder="e.g. Chicken" autoCapitalize="sentences" />
+    <PermissionNotice allowed={allowed} /><ThemedText>Section name</ThemedText><ThemedInput editable={allowed} accessibilityLabel="Section name" maxLength={80} value={name} onChangeText={setName} placeholder="e.g. Chicken" autoCapitalize="sentences" />
     {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
-    <PrimaryButton title={section ? 'Save section' : 'Add section'} disabled={!valid} onPress={() => {
-      if (!valid || submitted.current || !isCurrent()) return;
+    <PrimaryButton title={section ? 'Save section' : 'Add section'} disabled={!allowed || !valid} onPress={() => {
+      if (!canNow(requiredPermission) || !valid || submitted.current || !isCurrent()) return;
       if (!onSave(clean)) { setError('Sections changed. Close this sheet and try again.'); return; }
       submitted.current = true; router.back();
     }} />
   </ScrollView>;
 }
 
-export function RecipeSectionsSheet({ nameSheetRoute, initialSections, isCurrent, onChange }: {
+export function RecipeSectionsSheet({ requiredPermission, nameSheetRoute, initialSections, isCurrent, onChange }: {
+  requiredPermission: PermissionAction;
   nameSheetRoute: string; initialSections: RecipeSectionDraft[]; isCurrent: () => boolean;
   onChange: (sections: RecipeSectionDraft[], removedKey?: string) => boolean;
 }) {
   const insets = useSafeAreaInsets();
+  const { can, canNow } = useHouseholdAccess();
+  const allowed = can(requiredPermission);
   const theme = useTheme(); const router = useRouter(); const flow = useNativeSheetFlow();
   const [sections, setSections] = useState(initialSections); const current = useRef(sections);
   const [removing, setRemoving] = useState<RecipeSectionDraft | null>(null);
@@ -53,7 +62,7 @@ export function RecipeSectionsSheet({ nameSheetRoute, initialSections, isCurrent
   useFocusEffect(useCallback(() => { focused.current = true; return () => { focused.current = false; cancel(); }; }, [cancel]));
   useEffect(() => { const subscription = AppState.addEventListener('change', (state) => { if (state !== 'active') cancel(); }); return () => subscription.remove(); }, [cancel]);
   const publish = (next: RecipeSectionDraft[], removedKey?: string) => {
-    if (!isCurrent() || !onChange(next, removedKey)) return false;
+    if (!canNow(requiredPermission) || !isCurrent() || !onChange(next, removedKey)) return false;
     current.current = next; setSections(next); return true;
   };
   const reorder = (keys: string[]) => {
@@ -65,8 +74,8 @@ export function RecipeSectionsSheet({ nameSheetRoute, initialSections, isCurrent
   };
   const entry = (section?: RecipeSectionDraft) => {
     if (blocked() || !isCurrent() || (!section && current.current.length >= 20)) return;
-    const id = flow.present(<RecipeSectionNameSheet section={section} isCurrent={isCurrent} onSave={(name) => {
-      if (!isCurrent() || (section && !current.current.some((s) => s.key === section.key))) return false;
+    const id = flow.present(<RecipeSectionNameSheet requiredPermission={requiredPermission} section={section} isCurrent={isCurrent} onSave={(name) => {
+      if (!canNow(requiredPermission) || !isCurrent() || (section && !current.current.some((s) => s.key === section.key))) return false;
       if (!section && current.current.length >= 20) return false;
       return publish(section ? current.current.map((s) => s.key === section.key ? { ...s, name } : s) : [...current.current, { key: `section-${newCreateRequestId()}`, name }]);
     }} />, { detents: [0.42, 0.78] });
@@ -78,14 +87,14 @@ export function RecipeSectionsSheet({ nameSheetRoute, initialSections, isCurrent
   return <View collapsable={false} testID="recipe-sections-root" style={[styles.root, { backgroundColor: theme.elevatedSurface }]}>
     <View collapsable={false} testID="recipe-sections-header" style={[styles.header, styles.content]}><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Manage sections</ThemedText><Pressable accessibilityRole="button" disabled={dragging} onPress={() => { if (!blocked()) router.back(); }} style={visualStyles.sheetAction}><ThemedText themeColor="link">Done</ThemedText></Pressable></View>
     <Animated.ScrollView testID="recipe-sections-scroll" style={styles.sectionScroll} ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" contentInsetAdjustmentBehavior="never" automaticallyAdjustContentInsets={false}>
-      <ThemedText themeColor="textSecondary">Hold a handle to reorder sections. Changes save with the recipe.</ThemedText>
-      <RecipeReorderList key={interactionId} items={sections} label={(s) => s.name} sectionRows enabled={isCurrent()} busy={dragging} scrollRef={scrollRef} dragBlocked={lock} interactionId={interactionId}
+      <PermissionNotice allowed={allowed} /><ThemedText themeColor="textSecondary">Hold a handle to reorder sections. Changes save with the recipe.</ThemedText>
+      <RecipeReorderList key={interactionId} items={sections} label={(s) => s.name} sectionRows enabled={allowed && isCurrent()} busy={dragging} scrollRef={scrollRef} dragBlocked={lock} interactionId={interactionId}
         onStart={() => { if (latestInteraction.current !== interactionId) return; if (!focused.current || !isCurrent()) { cancel(); return; } active.current = true; setDragging(true); void dragGrabFeedback(); }}
         onFinish={(keys, complete) => { if (latestInteraction.current !== interactionId) return; const wasActive = active.current; active.current = false; lock.set({ owner: interactionId, blocked: false }); setDragging(false); if (wasActive && complete && focused.current && isCurrent()) reorder(keys); else setEpoch((x) => x + 1); }}
         onEdit={entry} onRemove={(key) => { if (!blocked() && isCurrent()) setRemoving(current.current.find((s) => s.key === key) ?? null); }}
         onMove={(key, direction) => { if (blocked() || !isCurrent()) return null; const index = current.current.findIndex((s) => s.key === key); const target = index + direction; if (index < 0 || target < 0 || target >= current.current.length) return null; const keys = current.current.map((s) => s.key); [keys[index], keys[target]] = [keys[target], keys[index]]; reorder(keys); return target + 1; }} />
     </Animated.ScrollView>
-    <View collapsable={false} testID="recipe-sections-footer" style={[styles.content, styles.footer, { paddingBottom: insets.bottom + 16 }]}><PrimaryButton title="Add section" disabled={dragging || sections.length >= 20} onPress={() => entry()} /></View>
+    <View collapsable={false} testID="recipe-sections-footer" style={[styles.content, styles.footer, { paddingBottom: insets.bottom + 16 }]}><PrimaryButton title="Add section" disabled={!allowed || dragging || sections.length >= 20} onPress={() => entry()} /></View>
     <Modal transparent animationType="fade" visible={removing !== null} onRequestClose={() => setRemoving(null)}><View style={styles.overlay}><View style={[styles.confirm, { backgroundColor: theme.surface }]}>
       <ThemedText accessibilityRole="header" style={styles.confirmTitle}>Remove {removing?.name} section?</ThemedText><ThemedText>Its ingredients will be kept and moved to Other ingredients.</ThemedText>
       <Pressable accessibilityRole="button" style={[styles.confirmAction, { borderColor: theme.error, backgroundColor: theme.errorSurface }]} onPress={() => { if (removing && !blocked() && isCurrent()) publish(current.current.filter((s) => s.key !== removing.key), removing.key); setRemoving(null); }}><ThemedText themeColor="error">Remove section</ThemedText></Pressable>

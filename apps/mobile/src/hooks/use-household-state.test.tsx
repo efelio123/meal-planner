@@ -19,7 +19,7 @@ jest.mock('@/lib/api', () => ({
       this.code = parameters[2];
     }
   },
-  api: { me: jest.fn() },
+  api: { me: jest.fn(), household: jest.fn() },
 }));
 
 const getToken = jest.fn().mockResolvedValue('session-token');
@@ -491,4 +491,40 @@ describe('household selection state', () => {
     expect(result.current.selectedHousehold?.id).toBe('household');
     expect(result.current.signOutError).toBe('We couldn’t sign you out. Please try again.');
   });
+  it('coalesces access refresh and merges role/grants without remounting the app destination', async () => {
+    mockedStorage.getItem.mockResolvedValue('household-a'); mockedMe.mockResolvedValue(meWithBothHouseholds());
+    const pending = deferred<Awaited<ReturnType<typeof api.household>>>(); jest.mocked(api.household).mockReturnValueOnce(pending.promise);
+    const { result } = await renderHook(() => useHouseholdState(), { wrapper: HouseholdStateProvider }); await waitFor(() => expect(result.current.destination).toBe('app'));
+    let first!: Promise<void>; let second!: Promise<void>;
+    await act(async () => { first = result.current.refreshAccess('household-a'); second = result.current.refreshAccess('household-a'); });
+    expect(first).toBe(second); expect(result.current.destination).toBe('app');
+    await act(async () => { pending.resolve({ household: { ...householdA, role: 'member', permissions: ['shopping.edit'], permissions_revision: 2, membership_id: 'same' } }); await first; });
+    expect(result.current.selectedHousehold).toMatchObject({ role: 'member', permissions: ['shopping.edit'], permissions_revision: 2 });
+    expect(result.current.households[0]).toEqual(result.current.selectedHousehold); expect(result.current.destination).toBe('app');
+  });
+  it('ignores late access results after a session change', async () => {
+    mockedStorage.getItem.mockResolvedValue('household-a'); mockedMe.mockResolvedValue(meWithBothHouseholds());
+    const pending = deferred<Awaited<ReturnType<typeof api.household>>>(); jest.mocked(api.household).mockReturnValueOnce(pending.promise);
+    const { result, rerender } = await renderHook(() => useHouseholdState(), { wrapper: HouseholdStateProvider }); await waitFor(() => expect(result.current.destination).toBe('app'));
+    let action!: Promise<void>; await act(async () => { action = result.current.refreshAccess('household-a'); });
+    mockedUseAuth.mockReturnValue({ getToken, isLoaded: true, isSignedIn: false, userId: null, sessionId: null } as unknown as ReturnType<typeof useAuth>);
+    await rerender(undefined); await act(async () => { pending.resolve({ household: { ...householdA, permissions: ['shopping.add'] } }); await action; });
+    expect(result.current.selectedHousehold).toBeNull(); expect(result.current.destination).toBe('signed-out');
+  });
+
+  it('keeps an in-flight household selection valid after an unchanged access response', async () => {
+    mockedStorage.getItem.mockResolvedValue('household-a'); mockedMe.mockResolvedValue(meWithBothHouseholds());
+    jest.mocked(api.household).mockResolvedValue({ household: { ...householdA } });
+    const storage = deferred<void>();
+    const { result } = await renderHook(() => useHouseholdState(), { wrapper: HouseholdStateProvider }); await waitFor(() => expect(result.current.destination).toBe('app'));
+    mockedStorage.setItem.mockReturnValueOnce(storage.promise);
+    let selection!: ReturnType<typeof result.current.select>;
+    await act(async () => { selection = result.current.select('household-b'); });
+    await waitFor(() => expect(mockedStorage.setItem).toHaveBeenCalledWith('meal-planner:selected-household-id', 'household-b'));
+    await act(async () => { await result.current.refreshAccess('household-a'); });
+    await act(async () => { storage.resolve(); await selection; });
+    expect(await selection).toMatchObject({ status: 'selected' });
+    expect(result.current.selectedHousehold?.id).toBe('household-b');
+  });
+
 });

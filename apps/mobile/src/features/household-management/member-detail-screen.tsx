@@ -134,7 +134,8 @@ export function MemberDetailScreen() {
           <ThemedText>{member.role === 'owner' ? 'Owner' : 'Member'}</ThemedText>
           <ThemedText themeColor="textSecondary">Joined {joinedLabel(member.joined_at)}</ThemedText>
           {isOwner && member.email ? <ThemedText>{member.email}</ThemedText> : null}
-          {isOwner && !member.is_self ? <PrimaryButton disabled={busy} onPress={() => { void changeRole(member.role === 'owner' ? 'member' : 'owner'); }} title={member.role === 'owner' ? 'Make member' : 'Make owner'} /> : null}
+          {isOwner ? <PrimaryButton disabled={busy} title="Permissions" onPress={() => router.push({ pathname: '/(app)/(tabs)/profile/my-households/[householdId]/members/[membershipId]/permissions', params: { householdId: target.id, membershipId: member.membership_id } } as never)} /> : null}
+          {isOwner && !member.is_self ? <PrimaryButton disabled={busy} onPress={() => Alert.alert(member.role === 'owner' ? 'Make member?' : 'Make owner?', member.role === 'owner' ? 'They will have Shopping Add, Edit and Check access. You can adjust their permissions afterward.' : 'Owners have full product access and can manage the household, people and permissions.', [{ text: 'Cancel', style: 'cancel' }, { text: member.role === 'owner' ? 'Make member' : 'Make owner', onPress: () => void changeRole(member.role === 'owner' ? 'member' : 'owner') }])} title={member.role === 'owner' ? 'Make member' : 'Make owner'} /> : null}
           {isOwner && !member.is_self ? <PrimaryButton disabled={busy} onPress={remove} title="Remove member" /> : null}
         </> : null}
       </View>

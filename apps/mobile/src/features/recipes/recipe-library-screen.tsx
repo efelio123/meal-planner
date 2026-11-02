@@ -1,3 +1,4 @@
+import { PermissionGate } from '@/features/household-permissions/permission-gate';
 import { useAuth } from '@clerk/expo';
 import { useIsFocused, useRouter } from 'expo-router';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -36,7 +37,7 @@ export function RecipeLibraryScreen() {
   return (
     <Screen layout="tab-root" contentAlignment="top" onRefresh={refresh} refreshing={refreshing} testID="recipe-library">
       <View style={styles.content}>
-        <TabPageHeader title="Recipes" actions={<CircularAddButton accessibilityLabel="Create recipe" onPress={() => router.push('/(app)/(tabs)/recipes/create' as never)} />} />
+        <TabPageHeader title="Recipes" actions={<PermissionGate action="recipes.create"><CircularAddButton accessibilityLabel="Create recipe" onPress={() => router.push('/(app)/(tabs)/recipes/create' as never)} /></PermissionGate>} />
         <View style={[styles.searchField, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}>
           <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={19} testID="recipe-search-icon" tintColor={theme.inputPlaceholder} />
           <ThemedInput accessibilityLabel="Search recipes" onChangeText={setSearch} placeholder="Search recipes" returnKeyType="search" value={search} style={styles.searchInput} />

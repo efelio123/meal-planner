@@ -1,3 +1,4 @@
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
 import { useAuth } from '@clerk/expo';
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -17,6 +18,7 @@ export function CatalogItemDetail() {
   const router = useRouter();
   const navigation = useNavigation();
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
   const { getToken, selectedHousehold } = useHouseholdState();
   const { sessionId, userId } = useAuth();
   const { changeKind, markChanged, revision } = useCatalogContext();
@@ -36,15 +38,15 @@ export function CatalogItemDetail() {
   const [removing, setRemoving] = useState(false);
   const editAction = useCallback(() => (
     <Pressable accessibilityRole="button" accessibilityLabel="Edit item" onPress={() => {
-      if (item) router.push(`/(app)/(tabs)/catalog/item/${item.id}/edit` as never);
+      if (canNow('catalog.items.edit') && item) router.push(`/(app)/(tabs)/catalog/item/${item.id}/edit` as never);
     }} hitSlop={10}>
       <ThemedText themeColor="link" style={styles.headerAction}>Edit</ThemedText>
     </Pressable>
-  ), [item, router]);
+  ), [canNow, item, router]);
   useEffect(() => { latestGetToken.current = getToken; }, [getToken]);
   useLayoutEffect(() => {
-    navigation.setOptions({ title: 'Item details', headerRight: Platform.OS === 'ios' || !item || itemScope !== scope ? undefined : editAction });
-  }, [editAction, item, itemScope, navigation, scope]);
+    navigation.setOptions({ title: 'Item details', headerRight: !can('catalog.items.edit') || Platform.OS === 'ios' || !item || itemScope !== scope ? undefined : editAction });
+  }, [can, editAction, item, itemScope, navigation, scope]);
   const loadItem = useCallback(async () => {
     if (!householdId) return;
     const requestGeneration = ++generation.current;
@@ -89,6 +91,7 @@ export function CatalogItemDetail() {
   }, [changeKind, loadItem, revision]);
 
   const remove = async () => {
+    if (!canNow('catalog.items.archive')) return;
     if (!householdId) return;
     const startedScope = scopeRef.current;
     const startedGeneration = generation.current;
@@ -108,7 +111,7 @@ export function CatalogItemDetail() {
   return (
     <>
     <Stack.Screen options={{ title: 'Item details' }} />
-    {Platform.OS === 'ios' && itemScope === scope && item ? <Stack.Toolbar placement="right">
+    {can('catalog.items.edit') && Platform.OS === 'ios' && itemScope === scope && item ? <Stack.Toolbar placement="right">
       <Stack.Toolbar.Button accessibilityLabel="Edit item" hidesSharedBackground onPress={() => router.push(`/(app)/(tabs)/catalog/item/${item.id}/edit` as never)} tintColor={theme.link} variant="plain">Edit</Stack.Toolbar.Button>
     </Stack.Toolbar> : null}
     <Screen layout="tab-stack" contentAlignment="top">
@@ -136,7 +139,7 @@ export function CatalogItemDetail() {
               <DetailRow label="Default unit" value={item.recipe_measurement_unit_label ?? 'Not set'} last />
             </View>
           </View> : null}
-          <Pressable accessibilityRole="button" onPress={() => setConfirming(true)} style={styles.removeAction}>
+          <Pressable disabled={!can('catalog.items.archive')} accessibilityRole="button" onPress={() => setConfirming(true)} style={styles.removeAction}>
             <ThemedText themeColor="error" style={styles.removeText}>Remove item</ThemedText>
           </Pressable>
         </> : null}

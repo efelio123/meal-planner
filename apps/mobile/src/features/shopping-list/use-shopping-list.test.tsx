@@ -17,6 +17,7 @@ jest.mock('@/lib/api', () => ({
   api: {
     shoppingList: jest.fn(),
     addShoppingListItem: jest.fn(),
+    reAddShoppingListItem: jest.fn(),
     updateShoppingListItem: jest.fn(),
     deleteShoppingListItem: jest.fn(),
     clearShoppingList: jest.fn(),
@@ -83,6 +84,7 @@ describe('useShoppingList', () => {
     mockedApi.updateShoppingListItem.mockImplementation(async (_token, _householdId, itemId, values) => ({
       item: item(itemId, itemId, values.is_checked ?? false),
     }));
+    mockedApi.reAddShoppingListItem.mockImplementation(async (_token, _home, itemId) => ({ item: item(itemId, itemId, false) }));
     mockedApi.deleteShoppingListItem.mockResolvedValue(undefined);
     mockedApi.clearShoppingList.mockResolvedValue({ removed_count: 0 });
     mockedApi.clearPurchasedShoppingItems.mockResolvedValue({ removed_count: 0, removed_item_ids: [] });
@@ -646,16 +648,16 @@ describe('useShoppingList', () => {
     { amount: '0.5', unit_kind: 'household', custom_shopping_unit_id: 'crate', unit_label: 'Crate' },
     { amount: '2.666667', unit_kind: 'recipe', recipe_unit_code: 'tablespoon', recipe_unit_dimension: 'volume', unit_label: 'Tablespoon' },
     { amount: null, unit_kind: null, unit_label: null },
-  ])('re-adds the same purchased row with a state-only PATCH preserving %j', async (details) => {
+  ])('re-adds the same purchased row with a detail-preserving re-add preserving %j', async (details) => {
     const purchased = { ...item('milk', 'Milk', true), catalog_item_id: 'catalog-milk', store_id: 'market', store_name: 'Market', ...details };
     // Canonical details may have changed on another phone since the picker opened.
     const canonical = { ...purchased, is_checked: false, checked_at: null, checked_by_user_id: null, store_name: 'Updated Market' };
     mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [purchased]));
-    mockedApi.updateShoppingListItem.mockResolvedValueOnce({ item: canonical });
+    mockedApi.reAddShoppingListItem.mockResolvedValueOnce({ item: canonical });
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(result.current.items).toHaveLength(1));
     await act(async () => expect(await result.current.addOrReadd('catalog-milk')).toBe('added'));
-    expect(mockedApi.updateShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'milk', { is_checked: false });
+    expect(mockedApi.reAddShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'milk');
     expect(mockedApi.addShoppingListItem).not.toHaveBeenCalled();
     expect(result.current.items).toEqual([canonical]);
     expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1);
@@ -664,11 +666,11 @@ describe('useShoppingList', () => {
   it('explicitly unchecks an already-needed row without toggling or increasing its amount', async () => {
     const needed = { ...item('milk'), catalog_item_id: 'catalog-milk', amount: '2' };
     mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [needed]));
-    mockedApi.updateShoppingListItem.mockResolvedValueOnce({ item: needed });
+    mockedApi.reAddShoppingListItem.mockResolvedValueOnce({ item: needed });
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(result.current.items).toHaveLength(1));
     await act(async () => expect(await result.current.addOrReadd('catalog-milk')).toBe('already-needed'));
-    expect(mockedApi.updateShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'milk', { is_checked: false });
+    expect(mockedApi.reAddShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'milk');
     expect(result.current.items).toEqual([needed]);
   });
 
@@ -679,7 +681,7 @@ describe('useShoppingList', () => {
     await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1));
     await act(async () => expect(await result.current.addOrReadd('catalog-milk')).toBe('added'));
     expect(mockedApi.addShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'catalog-milk', { amount: '1' });
-    expect(mockedApi.updateShoppingListItem).not.toHaveBeenCalled();
+    expect(mockedApi.reAddShoppingListItem).not.toHaveBeenCalled();
     expect(result.current.items).toEqual([created]);
   });
 
@@ -689,13 +691,13 @@ describe('useShoppingList', () => {
     mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', []))
       .mockResolvedValueOnce(listResponse('household-a', [purchased]));
     mockedApi.addShoppingListItem.mockRejectedValueOnce(new ApiError(409, 'Already exists', 'SHOPPING_ITEM_ALREADY_EXISTS'));
-    mockedApi.updateShoppingListItem.mockResolvedValueOnce({ item: canonical });
+    mockedApi.reAddShoppingListItem.mockResolvedValueOnce({ item: canonical });
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1));
     await act(async () => expect(await result.current.addOrReadd('catalog-milk')).toBe('added'));
     expect(mockedApi.addShoppingListItem).toHaveBeenCalledTimes(1);
     expect(mockedApi.shoppingList).toHaveBeenCalledTimes(2);
-    expect(mockedApi.updateShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', purchased.id, { is_checked: false });
+    expect(mockedApi.reAddShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', purchased.id);
     expect(result.current.items).toEqual([canonical]);
   });
 
@@ -703,7 +705,7 @@ describe('useShoppingList', () => {
     const purchased = { ...item('milk', 'Milk', true), catalog_item_id: 'catalog-milk' };
     mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', scenario === 'duplicate-then-removed' ? [] : [purchased]));
     if (scenario === 'duplicate-then-removed') mockedApi.addShoppingListItem.mockRejectedValueOnce(new ApiError(409, 'Already exists', 'SHOPPING_ITEM_ALREADY_EXISTS'));
-    else mockedApi.updateShoppingListItem.mockRejectedValueOnce(scenario === 'removed' ? new ApiError(404, 'Missing') : new Error('private network details'));
+    else mockedApi.reAddShoppingListItem.mockRejectedValueOnce(scenario === 'removed' ? new ApiError(404, 'Missing') : new Error('private network details'));
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(mockedApi.shoppingList).toHaveBeenCalledTimes(1));
     await act(async () => { await expect(result.current.addOrReadd('catalog-milk')).rejects.toThrow(scenario === 'network' ? 'We couldn’t add' : 'changed or was removed'); });
@@ -722,16 +724,16 @@ describe('useShoppingList', () => {
     const bread = item('bread', 'Bread');
     mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [purchased, bread]));
     const pending = deferred<{ item: ShoppingListItem }>();
-    mockedApi.updateShoppingListItem.mockReturnValueOnce(pending.promise);
+    mockedApi.reAddShoppingListItem.mockReturnValueOnce(pending.promise);
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(result.current.items).toHaveLength(2));
     let action!: Promise<unknown>;
     await act(async () => { action = result.current.addOrReadd('catalog-milk'); });
     await act(async () => { await expect(result.current.addOrReadd('catalog-milk')).rejects.toThrow(); });
     await act(async () => result.current.toggle(purchased));
-    expect(mockedApi.updateShoppingListItem).toHaveBeenCalledTimes(1);
+    expect(mockedApi.reAddShoppingListItem).toHaveBeenCalledTimes(1);
     await act(async () => result.current.toggle(bread));
-    expect(mockedApi.updateShoppingListItem).toHaveBeenCalledTimes(2);
+    expect(mockedApi.updateShoppingListItem).toHaveBeenCalledTimes(1);
     await act(async () => { pending.resolve({ item: { ...purchased, is_checked: false } }); await action; });
     expect(result.current.items.find((row) => row.id === 'bread')?.is_checked).toBe(true);
     expect(result.current.pendingItemIds.size).toBe(0);
@@ -756,7 +758,7 @@ describe('useShoppingList', () => {
     const stale = deferred<{ shopping_list: ShoppingList }>();
     mockedApi.shoppingList.mockResolvedValueOnce(listResponse('household-a', [purchased])).mockReturnValueOnce(stale.promise);
     const canonical = { ...purchased, is_checked: false };
-    mockedApi.updateShoppingListItem.mockResolvedValueOnce({ item: canonical });
+    mockedApi.reAddShoppingListItem.mockResolvedValueOnce({ item: canonical });
     const { result } = await renderHook(() => useShoppingList());
     await waitFor(() => expect(result.current.items).toHaveLength(1));
     let refresh!: Promise<void>;
@@ -876,8 +878,10 @@ describe('useShoppingList', () => {
       rows = rows.map((row) => row.id === id ? { ...row, ...values } : row);
       return { item: rows.find((row) => row.id === id)! };
     });
+    mockedApi.reAddShoppingListItem.mockImplementation(async (_token, _home, id) => { rows = rows.map((row) => row.id === id ? { ...row, is_checked: false } : row); return { item: rows.find((row) => row.id === id)! }; });
     await act(async () => { await result.current.state.addOrReadd('catalog-milk'); });
     expect(result.current.badge.count).toBe(2);
+    mockedApi.reAddShoppingListItem.mockImplementation(async (_token, _home, id) => { rows = rows.map((row) => row.id === id ? { ...row, is_checked: false } : row); return { item: rows.find((row) => row.id === id)! }; });
     await act(async () => { await result.current.state.addOrReadd('catalog-milk'); });
     expect(result.current.badge.count).toBe(2);
     await act(async () => { await result.current.state.toggle(rows[0]); });

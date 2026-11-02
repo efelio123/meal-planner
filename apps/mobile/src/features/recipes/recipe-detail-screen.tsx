@@ -1,3 +1,5 @@
+import { PermissionGate } from '@/features/household-permissions/permission-gate';
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
 import { useAuth } from '@clerk/expo';
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -19,6 +21,7 @@ export function RecipeDetailScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
   const { getToken, selectedHousehold } = useHouseholdState();
   const { sessionId, userId } = useAuth();
   const householdId = selectedHousehold?.id ?? null;
@@ -74,20 +77,21 @@ export function RecipeDetailScreen() {
   }, [load, revision]);
 
   const openEdit = useCallback(() => {
-    if (recipe && recipeScope === scope) router.push(`/(app)/(tabs)/recipes/${recipe.id}/edit` as never);
-  }, [recipe, recipeScope, router, scope]);
+    if (canNow('recipes.edit') && recipe && recipeScope === scope) router.push(`/(app)/(tabs)/recipes/${recipe.id}/edit` as never);
+  }, [canNow, recipe, recipeScope, router, scope]);
   useLayoutEffect(() => {
     navigation.setOptions({
       title: 'Recipe',
-      headerRight: Platform.OS !== 'ios' && recipe && recipeScope === scope ? () => (
+      headerRight: can('recipes.edit') && Platform.OS !== 'ios' && recipe && recipeScope === scope ? () => (
         <Pressable accessibilityLabel="Edit recipe" accessibilityRole="button" hitSlop={10} onPress={openEdit}>
           <ThemedText themeColor="link" style={styles.headerAction}>Edit</ThemedText>
         </Pressable>
       ) : undefined,
     });
-  }, [navigation, openEdit, recipe, recipeScope, scope]);
+  }, [can, navigation, openEdit, recipe, recipeScope, scope]);
 
   const archive = async () => {
+    if (!canNow('recipes.archive')) return;
     if (!householdId) return;
     const requestScope = scopeRef.current;
     const requestGeneration = generation.current;
@@ -112,7 +116,7 @@ export function RecipeDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Recipe' }} />
-      {Platform.OS === 'ios' && recipe && recipeScope === scope ? <Stack.Toolbar placement="right">
+      {can('recipes.edit') && Platform.OS === 'ios' && recipe && recipeScope === scope ? <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button accessibilityLabel="Edit recipe" hidesSharedBackground onPress={openEdit} tintColor={theme.link} variant="plain">Edit</Stack.Toolbar.Button>
       </Stack.Toolbar> : null}
       <Screen layout="tab-stack" contentAlignment="top">
@@ -171,9 +175,9 @@ export function RecipeDetailScreen() {
               <ThemedText themeColor="textSecondary">↗  Source</ThemedText>
               <ThemedText themeColor="link" numberOfLines={2}>{activeRecipe.source_url}</ThemedText>
             </Pressable> : null}
-            <Pressable accessibilityRole="button" onPress={() => setConfirmingArchive(true)} style={styles.archiveAction}>
+            <PermissionGate action="recipes.archive"><Pressable accessibilityRole="button" onPress={() => setConfirmingArchive(true)} style={styles.archiveAction}>
               <ThemedText themeColor="error" style={styles.archiveText}>Archive recipe</ThemedText>
-            </Pressable>
+            </Pressable></PermissionGate>
           </> : null}
 
           {error?.scope === scope ? <ThemedText accessibilityRole="alert" themeColor="error">{error.message}</ThemedText> : null}

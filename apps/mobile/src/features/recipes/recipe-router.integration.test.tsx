@@ -1,3 +1,5 @@
+import { notifyHouseholdAccessRefresh } from '@/lib/household-access-events';
+import { permissionActions } from '@/lib/household-permissions';
 // SDK 58 initializes the full route tree asynchronously; cold imports on Windows
 // exceed Jest's unit-test default. This is not an app startup performance check.
 import type { PropsWithChildren } from 'react';
@@ -73,6 +75,7 @@ jest.mock('@/lib/api', () => {
     api: {
       ...actual.api,
       me: jest.fn(), shoppingList: jest.fn(), mealPlan: jest.fn(), householdMembers: jest.fn(), household: jest.fn(),
+      memberPermissions: jest.fn(), setMemberPermissions: jest.fn(), householdMember: jest.fn(),
       recipes: jest.fn(), recipe: jest.fn(), createRecipe: jest.fn(), updateRecipe: jest.fn(),
       archiveRecipe: jest.fn(), restoreRecipe: jest.fn(), catalogItems: jest.fn(), catalogUnits: jest.fn(),
       catalogCategories: jest.fn(), catalogStores: jest.fn(), createCatalogCategory: jest.fn(), createCatalogItem: jest.fn(),
@@ -1205,6 +1208,49 @@ describe('Recipes through the actual Expo Router', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalled());
     expect(mockedApi.updateRecipe.mock.calls[0][3]).toMatchObject({ ingredient_sections: [{ name: 'Dinner' }], ingredients: [{ section_position: 0 }, { section_position: 0 }] });
+  });
+
+  it('edits section-wide permissions through the actual Profile stack and warns before discarding', async () => {
+    const actions = permissionActions.map((key) => ({ key, label: key, group: key.startsWith('shopping.') ? 'Shopping' : key.startsWith('recipes.') ? 'Recipes' : key.startsWith('plan.') ? 'Meal planning' : 'Catalog' }));
+    mockedApi.memberPermissions.mockResolvedValue({ membership_id: 'member-target', role: 'member', permissions: ['shopping.add'], permissions_revision: 1, actions });
+    mockedApi.householdMember.mockResolvedValue({ member: { membership_id: 'member-target', display_name: 'Sam', role: 'member' } as never });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/profile/my-households/household-a/members/member-target/permissions' as never));
+    const shopping = await screen.findByRole('checkbox', { name: 'All Shopping actions' });
+    expect(shopping.props.accessibilityState.checked).toBe('mixed');
+    await fireEvent.press(shopping); expect(screen.getByRole('checkbox', { name: 'shopping.remove' })).toBeChecked();
+    await act(async () => router.back()); await screen.findByText('Discard permission changes?');
+    await fireEvent.press(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(rendered.getPathname()).toContain('/permissions'); expect(mockedApi.setMemberPermissions).not.toHaveBeenCalled();
+    await act(async () => router.back()); await fireEvent.press(await screen.findByRole('button', { name: 'Discard changes' }));
+    expect(rendered.getPathname()).not.toContain('/permissions');
+  });
+
+  it('keeps deep-linked recipe and Catalog forms read-only without member write grants', async () => {
+    const member = { ...household, role: 'member' as const, permissions: [], permissions_revision: 1 };
+    mockedApi.me.mockResolvedValue({ ...signedInMe, households: [member] }); mockedApi.household.mockResolvedValue({ household: member });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/create'));
+    expect((await screen.findByLabelText('Recipe name')).props.editable).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    await act(async () => router.navigate('/catalog/add'));
+    expect((await screen.findByLabelText('Item name')).props.editable).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Add to catalog' })).toBeNull();
+    expect(mockedApi.createRecipe).not.toHaveBeenCalled(); expect(mockedApi.createCatalogItem).not.toHaveBeenCalled();
+  });
+
+  it('preserves an open ingredient draft and disables changes after access is revoked', async () => {
+    const member = { ...household, role: 'member' as const, permissions: [...permissionActions], permissions_revision: 1, membership_id: 'actor-membership' };
+    mockedApi.me.mockResolvedValue({ ...signedInMe, households: [member] }); mockedApi.household.mockResolvedValue({ household: member });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/create')); await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Keep this draft');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' })); await fireEvent.press(await screen.findByText('Milk'));
+    await fireEvent.changeText(await screen.findByLabelText('Ingredient amount'), '3');
+    mockedApi.household.mockResolvedValue({ household: { ...member, permissions: [], permissions_revision: 2 } });
+    await act(async () => { notifyHouseholdAccessRefresh('household-a'); });
+    await waitFor(() => expect(screen.getByLabelText('Ingredient amount').props.editable).toBe(false));
+    expect(screen.getByLabelText('Ingredient amount').props.value).toBe('3'); expect(screen.getByRole('button', { name: 'Add ingredient' })).toBeDisabled();
+    expect(mockedApi.createRecipe).not.toHaveBeenCalled();
   });
 
 });

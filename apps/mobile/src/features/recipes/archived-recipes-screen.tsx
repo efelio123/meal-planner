@@ -1,3 +1,4 @@
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
 import { useAuth } from '@clerk/expo';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -17,6 +18,7 @@ import { useRecipes } from './use-recipes';
 export function ArchivedRecipesScreen() {
   const { householdId } = useLocalSearchParams<{ householdId: string }>();
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess(householdId);
   const { getToken, households } = useHouseholdState();
   const { sessionId, userId } = useAuth();
   const { markChanged } = useRecipeContext();
@@ -36,6 +38,7 @@ export function ArchivedRecipesScreen() {
   }, [scope]);
 
   const restore = async (recipe: Recipe) => {
+    if (!canNow('recipes.restore')) return;
     const requestScope = scopeRef.current;
     const requestGeneration = generation.current;
     setRestoring({ scope: requestScope, recipeId: recipe.id });
@@ -80,7 +83,7 @@ export function ArchivedRecipesScreen() {
                 <ThemedText style={styles.recipeName}>{recipe.name}</ThemedText>
                 <ThemedText themeColor="textSecondary">{recipe.ingredient_count} {recipe.ingredient_count === 1 ? 'ingredient' : 'ingredients'} · Archived {recipe.archived_at ? new Date(recipe.archived_at).toLocaleDateString() : ''}</ThemedText>
               </View>
-              <Pressable accessibilityLabel={`Restore ${recipe.name}`} accessibilityRole="button" accessibilityState={{ disabled: restoring?.scope === scope && restoring.recipeId === recipe.id }} disabled={restoring?.scope === scope && restoring.recipeId === recipe.id} onPress={() => void restore(recipe)} style={styles.restoreAction}>
+              <Pressable accessibilityLabel={`Restore ${recipe.name}`} accessibilityRole="button" accessibilityState={{ disabled: restoring?.scope === scope && restoring.recipeId === recipe.id }} disabled={!can('recipes.restore') || restoring?.scope === scope && restoring.recipeId === recipe.id} onPress={() => void restore(recipe)} style={styles.restoreAction}>
                 <ThemedText themeColor="link" style={styles.restoreText}>{restoring?.scope === scope && restoring.recipeId === recipe.id ? 'Restoring…' : 'Restore'}</ThemedText>
               </Pressable>
             </View>)}

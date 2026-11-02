@@ -194,6 +194,7 @@ jest.mock('@/lib/api', () => ({
     leaveHousehold: jest.fn(),
     deleteHousehold: jest.fn(),
     addShoppingListItem: jest.fn(),
+    reAddShoppingListItem: jest.fn(),
     shoppingListItem: jest.fn(),
     updateShoppingListItem: jest.fn(),
     clearShoppingList: jest.fn(),
@@ -864,7 +865,7 @@ describe('signed-in startup routing', () => {
     const canonical = { ...purchased, is_checked: false, checked_at: null, checked_by_user_id: null };
     jest.mocked(api.catalogItems).mockResolvedValue({ items: [catalogItem({ shopping_unit_code: 'bag', preferred_store_id: 'new-store' })] });
     jest.mocked(api.shoppingList).mockResolvedValue({ shopping_list: { id: 'list-a', household_id: 'household-a', items: [purchased] } });
-    jest.mocked(api.updateShoppingListItem).mockResolvedValue({ item: canonical });
+    jest.mocked(api.reAddShoppingListItem).mockResolvedValue({ item: canonical });
     const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
     await screen.findByRole('button', { name: 'Edit Milk' });
@@ -876,7 +877,7 @@ describe('signed-in startup routing', () => {
     await screen.findByText('Milk added to Shopping');
     expect(rendered.getPathname()).toBe('/shopping/sheet/picker');
     expect(screen.getByLabelText('Search Catalog').props.value).toBe('mil');
-    expect(api.updateShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'shopping-milk', { is_checked: false });
+    expect(api.reAddShoppingListItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'shopping-milk');
     expect(api.addShoppingListItem).not.toHaveBeenCalled();
     await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
     await waitFor(() => expect(rendered.getPathname()).toBe('/shopping'));
@@ -891,7 +892,7 @@ describe('signed-in startup routing', () => {
     jest.mocked(api.shoppingList)
       .mockResolvedValueOnce({ shopping_list: { id: 'list-a', household_id: 'household-a', items: [shoppingRow({ is_checked: true })] } })
       .mockResolvedValue(shoppingListResponse());
-    jest.mocked(api.updateShoppingListItem).mockRejectedValueOnce(new ApiError(404, 'Missing'));
+    jest.mocked(api.reAddShoppingListItem).mockRejectedValueOnce(new ApiError(404, 'Missing'));
     jest.mocked(api.addShoppingListItem).mockResolvedValueOnce({ item: shoppingRow({ id: 'replacement-milk' }) });
     const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
     await rendered;
@@ -903,7 +904,7 @@ describe('signed-in startup routing', () => {
     expect(rendered.getPathname()).toBe('/shopping/sheet/picker');
     await fireEvent.press(screen.getByRole('button', { name: 'Add Milk from Catalog' }));
     await screen.findByText('Milk added to Shopping');
-    expect(api.updateShoppingListItem).toHaveBeenCalledTimes(1);
+    expect(api.reAddShoppingListItem).toHaveBeenCalledTimes(1);
     expect(api.addShoppingListItem).toHaveBeenCalledTimes(1);
     expect(api.shoppingList).toHaveBeenCalledTimes(2);
   });
@@ -1614,7 +1615,10 @@ describe('signed-in startup routing', () => {
     await screen.findByText('Your shared Shopping list is ready for Catalog items.');
     await navigateTo(renderResult, '/profile/my-households/household-a');
     await fireEvent.press(await screen.findByRole('button', { name: /Sam Member, member/u }));
+    const roleAlert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
     await fireEvent.press(await screen.findByRole('button', { name: 'Make owner' }));
+    await act(async () => { roleAlert.mock.calls.at(-1)?.[2]?.at(-1)?.onPress?.(); });
+    roleAlert.mockRestore();
     await waitFor(() => expect(api.setHouseholdMemberRole).toHaveBeenCalledTimes(1));
 
     await act(async () => {

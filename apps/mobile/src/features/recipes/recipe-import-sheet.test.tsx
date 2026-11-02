@@ -6,6 +6,7 @@ import { RecipeImportSheet } from './recipe-import-sheet';
 
 const mockBack = jest.fn(); const mockDismiss = jest.fn(); const mockFlow = { scope: 'session:home' };
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack, dismiss: mockDismiss }), useFocusEffect: (callback: () => void) => jest.requireActual<typeof import('react')>('react').useEffect(callback, [callback]) }));
+jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: () => ({ selectedHousehold: { id: 'home', role: 'owner' } }) }));
 jest.mock('@/features/native-sheets/native-sheet-context', () => ({ useNativeSheetFlow: () => mockFlow }));
 jest.mock('@/lib/api', () => ({ ...jest.requireActual('@/lib/api'), api: { recipes: jest.fn(), recipe: jest.fn(), catalogItems: jest.fn() } }));
 jest.mock('expo-symbols', () => {
@@ -16,7 +17,7 @@ const mocked = jest.mocked(api);
 const row = { id: 'i', catalog_item_id: 'food', catalog_item_name: 'Butter', category_emoji: null, amount: '1/2', unit_code: null, unit_label: null, custom_unit_label: null, note: null, position: 0, section_position: 0 };
 const source: Recipe = { id: 'source', household_id: 'home', name: 'Chicken and mash', cover_kind: 'initials', cover_emoji: null, servings: 4, prep_minutes: null, cook_minutes: null, notes: null, source_url: null, edit_revision: 1, archived_at: null, created_at: '', updated_at: '', ingredient_count: 1, ingredient_section_count: 1, ingredient_sections: [{ id: 's', position: 0, name: 'Mash' }], ingredients: [row], steps: [] };
 const token = jest.fn().mockResolvedValue('token'); const isCurrent = jest.fn(() => true); const apply = jest.fn< string | null, Parameters<ComponentProps<typeof RecipeImportSheet>['onImport']>>(() => null);
-function view() { return <RecipeImportSheet householdId="home" expectedFlowScope="session:home" getToken={token} isCurrent={isCurrent} destinationName={null} onImport={apply} />; }
+function view() { return <RecipeImportSheet requiredPermission="recipes.create" householdId="home" expectedFlowScope="session:home" getToken={token} isCurrent={isCurrent} destinationName={null} onImport={apply} />; }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>((done) => { resolve = done; }); return { promise, resolve }; }
 
 beforeEach(() => {

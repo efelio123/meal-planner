@@ -1,3 +1,4 @@
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
 import { PlanningDayStrip } from './planning-day-strip';
 import { PlanningDateSheet } from './planning-date-sheet';
 import { currentWindow, nearestVisibleDay, rangeLabel } from './planning-dates';
@@ -23,6 +24,7 @@ function entryKey(entry: MealPlanEntry) { return `${entry.id}:${entry.edit_revis
 
 export function MealPlanScreen() {
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
   const router = useRouter();
   const flow = useNativeSheetFlow();
   const mealPlanContext = useMealPlanContext();
@@ -140,6 +142,7 @@ export function MealPlanScreen() {
   const refreshPlan = async () => { closeSwipe(); setActionError(null); await refresh(); };
 
   const addEntry = (day: string, slot: MealSlot) => {
+    if (!canNow('plan.add')) return;
     if (!householdId || !week || currentInteraction.current !== interaction || !screenFocused.current) return;
     closeSwipe();
     const id = flow.present(
@@ -235,10 +238,10 @@ export function MealPlanScreen() {
           return <View key={slot.id} style={styles.mealSection}>
             <ThemedText accessibilityRole="header" style={styles.mealHeading}>{slot.label}</ThemedText>
             {entry ? <MealPlanCard key={`${scope}:${entryKey(entry)}:${swipeResetVersion}`} entry={entry} slotLabel={slot.label}
-              active={openSwipeKey === entryKey(entry)} pending={pendingRemovalIds.has(entry.id)} blocked={blockedRemovalIds.has(entry.id)} swipeEnabled={!loading && !refreshing}
-              onEdit={editEntry} onStart={beginSwipe} onEnd={endSwipe} onReveal={revealSwipe} onClose={closeMealSwipe} onRemove={removeFromSwipe} /> : <Pressable accessibilityRole="button" accessibilityLabel={`Add ${slot.label}`} disabled={loading || Boolean(error)} onPress={() => addEntry(activeDay, slot.id)} style={[styles.emptyMeal, { borderColor: theme.border }]}>
+              active={openSwipeKey === entryKey(entry)} pending={pendingRemovalIds.has(entry.id)} blocked={blockedRemovalIds.has(entry.id)} swipeEnabled={can('plan.remove') && !loading && !refreshing}
+              onEdit={editEntry} onStart={beginSwipe} onEnd={endSwipe} onReveal={revealSwipe} onClose={closeMealSwipe} onRemove={removeFromSwipe} /> : can('plan.add') ? <Pressable accessibilityRole="button" accessibilityLabel={`Add ${slot.label}`} disabled={loading || Boolean(error)} onPress={() => addEntry(activeDay, slot.id)} style={[styles.emptyMeal, { borderColor: theme.border }]}>
               <SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={19} tintColor={theme.link} /><ThemedText themeColor="link">Add {slot.label.toLocaleLowerCase()}</ThemedText>
-            </Pressable>}
+            </Pressable> : <ThemedText themeColor="textSecondary">No meal planned</ThemedText>}
           </View>;
         })}
       </View> : null}

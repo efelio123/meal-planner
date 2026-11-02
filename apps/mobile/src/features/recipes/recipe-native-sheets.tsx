@@ -1,3 +1,7 @@
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
+import { PermissionNotice } from '@/features/household-permissions/permission-notice';
+import type { PermissionAction } from '@/lib/household-permissions';
+import { PermissionGate } from '@/features/household-permissions/permission-gate';
 import type { RecipeSectionDraft } from './recipe-sections';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, StyleSheet, View, type ScrollViewInstance } from 'react-native';
@@ -32,8 +36,9 @@ function ingredientAmountError(value: string) {
   return isValidRecipeAmount(value) ? null : 'Enter a positive number or fraction. Put a range in the note.';
 }
 
-export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCurrent, onSelect, onCreate, onImport }: {
+export function RecipeFoodSheet({ householdId, requiredPermission, expectedFlowScope, getToken, isCurrent, onSelect, onCreate, onImport }: {
   householdId: string;
+  requiredPermission: PermissionAction;
   expectedFlowScope: string;
   getToken: GetToken;
   isCurrent: () => boolean;
@@ -42,6 +47,8 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
   onImport?: () => void;
 }) {
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
+  const allowed = can(requiredPermission);
   const router = useRouter();
   const flow = useNativeSheetFlow();
   const creatingFood = useRef(false);
@@ -80,14 +87,14 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
   return <KeyboardAwareSheet testID="recipe-ingredient-search-sheet" style={{ backgroundColor: theme.elevatedSurface }}>
     <View collapsable={false} testID="recipe-food-header" style={styles.foodHeader}>
       <View style={styles.header}><ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Add ingredient</ThemedText><Pressable accessibilityRole="button" onPress={() => { Keyboard.dismiss(); router.back(); }} style={visualStyles.sheetAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Done</ThemedText></Pressable></View>
-      <ThemedInput accessibilityLabel="Search Food Catalog" onChangeText={(value) => { setQuery(value); results.current?.scrollTo({ y: 0, animated: false }); }} placeholder="Search Food Catalog" returnKeyType="search" value={query} />
+      <PermissionNotice allowed={allowed} /><ThemedInput accessibilityLabel="Search Food Catalog" onChangeText={(value) => { setQuery(value); results.current?.scrollTo({ y: 0, animated: false }); }} placeholder="Search Food Catalog" returnKeyType="search" value={query} />
     </View>
     <ScrollView ref={results} testID="recipe-food-scroll" automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'} keyboardShouldPersistTaps="handled" style={styles.nativeScroll} contentContainerStyle={styles.foodResults}>
       {loading ? <ActivityIndicator accessibilityLabel="Loading Food Catalog" color={theme.activity} /> : null}
       {error ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText><PrimaryButton disabled={loading} onPress={retry} title="Retry" /></View> : null}
       {!error ? <View testID="recipe-food-results">
         <View style={[styles.foodList, { backgroundColor: theme.screen }]}>
-          {filtered.map((food, index) => <Pressable key={food.id} accessibilityRole="button" onPress={() => { if (units) onSelect({ id: food.id, name: food.name, categoryEmoji: null, recipeUnitCode: food.recipe_measurement_unit_code, recipeUnitLabel: food.recipe_measurement_unit_label }, units); }} style={[styles.foodRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+          {filtered.map((food, index) => <Pressable key={food.id} accessibilityRole="button" disabled={!allowed} onPress={() => { if (canNow(requiredPermission) && units) onSelect({ id: food.id, name: food.name, categoryEmoji: null, recipeUnitCode: food.recipe_measurement_unit_code, recipeUnitLabel: food.recipe_measurement_unit_label }, units); }} style={[styles.foodRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
             <ThemedText style={styles.foodName}>{food.name}</ThemedText><ThemedText themeColor="textSecondary">{food.category_name ?? 'Uncategorized'}</ThemedText>
           </Pressable>)}
           {!loading && filtered.length === 0 ? <ThemedText themeColor="textSecondary" style={styles.emptyFood}>{query.trim() ? 'No Food items match your search.' : 'No Food items in this household yet.'}</ThemedText> : null}
@@ -95,27 +102,28 @@ export function RecipeFoodSheet({ householdId, expectedFlowScope, getToken, isCu
       </View> : null}
     </ScrollView>
     <View collapsable={false} testID="recipe-food-footer" style={styles.foodFooter}>
-      <Pressable accessibilityRole="button" onPress={() => {
-        if (creatingFood.current || !isCurrent() || flow.scope !== expectedFlowScope) return;
+      <PermissionGate action="catalog.items.create"><Pressable accessibilityRole="button" onPress={() => {
+        if (creatingFood.current || !canNow(requiredPermission) || !isCurrent() || flow.scope !== expectedFlowScope) return;
         creatingFood.current = true;
         Keyboard.dismiss();
         // The editor replaces this search sheet with its Food form, retaining
         // the editor beneath it without a separate asynchronous dismissal.
         onCreate(query.trim());
-      }} style={[styles.createAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link" style={styles.createLabel}>Create Food item in Catalog</ThemedText><DisclosureChevron variant="action" /></Pressable>
+      }} style={[styles.createAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link" style={styles.createLabel}>Create Food item in Catalog</ThemedText><DisclosureChevron variant="action" /></Pressable></PermissionGate>
       {onImport ? <Pressable accessibilityRole="button" onPress={() => {
-        if (!creatingFood.current && isCurrent() && flow.scope === expectedFlowScope) onImport();
+        if (!creatingFood.current && canNow(requiredPermission) && isCurrent() && flow.scope === expectedFlowScope) onImport();
       }} style={[styles.createAction, { borderTopColor: theme.border }]}><SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'square.and.arrow.down', android: 'download', web: 'download' }} size={24} tintColor={theme.link} /><ThemedText themeColor="link" style={styles.createLabel}>Import from recipe</ThemedText><DisclosureChevron variant="action" /></Pressable> : null}
     </View>
   </KeyboardAwareSheet>;
 }
 
-export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, returnToSearch, householdId, expectedFlowScope, getToken, isCurrent, initialUnits, unitSheetRoute, sectionSheetRoute, sections = [], onSave }: {
+export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, returnToSearch, householdId, requiredPermission, expectedFlowScope, getToken, isCurrent, initialUnits, unitSheetRoute, sectionSheetRoute, sections = [], onSave }: {
   food: RecipeFoodChoice;
   initialDraft: RecipeIngredientDraft;
   existingKey: string | null;
   returnToSearch: boolean;
   householdId: string;
+  requiredPermission: PermissionAction;
   expectedFlowScope: string;
   getToken: GetToken;
   isCurrent: () => boolean;
@@ -126,6 +134,8 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
   onSave: (draft: RecipeIngredientDraft, key: string | null) => boolean | void;
 }) {
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
+  const allowed = can(requiredPermission);
   const router = useRouter();
   const flow = useNativeSheetFlow();
   const [draft, setDraft] = useState(initialDraft);
@@ -137,7 +147,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
   const submitted = useRef(false);
   const amountError = ingredientAmountError(draft.amount);
   const unitChoices = recipeUnitChoices(units?.recipe_measurement_units ?? []);
-  const saveDisabled = Boolean(amountError) || loadingUnits || Boolean(unitError);
+  const saveDisabled = !allowed || Boolean(amountError) || loadingUnits || Boolean(unitError);
 
   useEffect(() => {
     if (initialUnits) return;
@@ -159,7 +169,7 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
     setRetryUnits((current) => current + 1);
   };
   const save = () => {
-    if (saveDisabled || submitted.current) return;
+    if (!canNow(requiredPermission) || saveDisabled || submitted.current) return;
     if (!isCurrent() || flow.scope !== expectedFlowScope) return;
     if (onSave(draft, existingKey) === false) { setSectionError('This ingredient or section changed. Close this sheet and try again.'); return; }
     submitted.current = true;
@@ -173,16 +183,16 @@ export function RecipeIngredientDetailsSheet({ food, initialDraft, existingKey, 
         <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>Ingredient details</ThemedText>
         <Pressable accessibilityRole="button" accessibilityState={{ disabled: saveDisabled }} disabled={saveDisabled} onPress={save} style={visualStyles.sheetAction}><ThemedText themeColor={saveDisabled ? 'textSecondary' : 'link'} style={visualStyles.sheetActionText}>{existingKey === null ? 'Add' : 'Save'}</ThemedText></Pressable>
       </View>
-        <View style={[styles.selectedFoodCard, { backgroundColor: theme.screen }]}><View style={[styles.foodInitial, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{food.name.slice(0, 1).toUpperCase()}</ThemedText></View><View style={styles.foodSummary}><ThemedText style={styles.foodName}>{food.name}</ThemedText><ThemedText themeColor="textSecondary">Food Catalog item</ThemedText></View></View>
+        <PermissionNotice allowed={allowed} /><View style={[styles.selectedFoodCard, { backgroundColor: theme.screen }]}><View style={[styles.foodInitial, { backgroundColor: theme.surfaceSelected }]}><ThemedText>{food.name.slice(0, 1).toUpperCase()}</ThemedText></View><View style={styles.foodSummary}><ThemedText style={styles.foodName}>{food.name}</ThemedText><ThemedText themeColor="textSecondary">Food Catalog item</ThemedText></View></View>
         <View style={styles.splitFields}>
-          <View style={styles.field}><ThemedText themeColor="textSecondary">Amount</ThemedText><ThemedInput accessibilityLabel="Ingredient amount" autoCapitalize="none" autoCorrect={false} keyboardType="default" onChangeText={(amount) => setDraft((current) => ({ ...current, amount }))} placeholder="e.g. 2 or 1/2" value={draft.amount} /></View>
-          <View style={styles.field}><ChoicePicker label="Unit" choices={unitChoices} searchable selectedId={draft.customUnitLabel ? '__custom__' : draft.unitCode || ''} value={draft.customUnitLabel || draft.unitLabel || 'No unit'} emptyChoiceLabel="No unit" disabled={loadingUnits || Boolean(unitError)} onOpen={Keyboard.dismiss} onSelect={(unitCode) => { const choice = units?.recipe_measurement_units.find((unit) => unit.code === unitCode); setDraft((current) => ({ ...current, unitCode, unitLabel: choice?.label ?? '', customUnitLabel: '' })); }} onCustomSelect={(customUnitLabel) => setDraft((current) => ({ ...current, customUnitLabel, unitCode: '', unitLabel: '' }))} sheetRoute={unitSheetRoute} /></View>
+          <View style={styles.field}><ThemedText themeColor="textSecondary">Amount</ThemedText><ThemedInput editable={allowed} accessibilityLabel="Ingredient amount" autoCapitalize="none" autoCorrect={false} keyboardType="default" onChangeText={(amount) => setDraft((current) => ({ ...current, amount }))} placeholder="e.g. 2 or 1/2" value={draft.amount} /></View>
+          <View style={styles.field}><ChoicePicker label="Unit" choices={unitChoices} searchable selectedId={draft.customUnitLabel ? '__custom__' : draft.unitCode || ''} value={draft.customUnitLabel || draft.unitLabel || 'No unit'} emptyChoiceLabel="No unit" disabled={!allowed || loadingUnits || Boolean(unitError)} onOpen={Keyboard.dismiss} onSelect={(unitCode) => { const choice = units?.recipe_measurement_units.find((unit) => unit.code === unitCode); setDraft((current) => ({ ...current, unitCode, unitLabel: choice?.label ?? '', customUnitLabel: '' })); }} onCustomSelect={(customUnitLabel) => setDraft((current) => ({ ...current, customUnitLabel, unitCode: '', unitLabel: '' }))} sheetRoute={unitSheetRoute} /></View>
         </View>
         {loadingUnits ? <ActivityIndicator accessibilityLabel="Loading recipe units" color={theme.activity} /> : null}
         {unitError ? <View style={styles.errorBlock}><ThemedText accessibilityRole="alert" themeColor="error">{unitError}</ThemedText><PrimaryButton disabled={loadingUnits} onPress={retryUnitLoad} title="Retry units" /></View> : null}
-        {sections.length ? <ChoicePicker label="Section" sheetRoute={sectionSheetRoute} choices={sections.map((s) => ({ id: s.key, label: s.name }))} selectedId={draft.sectionKey ?? ''} value={sections.find((s) => s.key === draft.sectionKey)?.name ?? 'No section'} emptyChoiceLabel="No section" onOpen={Keyboard.dismiss} onSelect={(key) => setDraft((current) => ({ ...current, sectionKey: key || null }))} /> : null}
+        {sections.length ? <ChoicePicker disabled={!allowed} label="Section" sheetRoute={sectionSheetRoute} choices={sections.map((s) => ({ id: s.key, label: s.name }))} selectedId={draft.sectionKey ?? ''} value={sections.find((s) => s.key === draft.sectionKey)?.name ?? 'No section'} emptyChoiceLabel="No section" onOpen={Keyboard.dismiss} onSelect={(key) => setDraft((current) => ({ ...current, sectionKey: key || null }))} /> : null}
         {sectionError ? <ThemedText accessibilityRole="alert" themeColor="error">{sectionError}</ThemedText> : null}
-        <View style={styles.field}><ThemedText themeColor="textSecondary">Note (optional)</ThemedText><ThemedInput accessibilityLabel="Ingredient note" onChangeText={(note) => setDraft((current) => ({ ...current, note }))} placeholder="e.g. finely chopped, to taste" value={draft.note} /></View>
+        <View style={styles.field}><ThemedText themeColor="textSecondary">Note (optional)</ThemedText><ThemedInput editable={allowed} accessibilityLabel="Ingredient note" onChangeText={(note) => setDraft((current) => ({ ...current, note }))} placeholder="e.g. finely chopped, to taste" value={draft.note} /></View>
         {amountError ? <ThemedText accessibilityRole="alert" themeColor="error">{amountError}</ThemedText> : null}
         <PrimaryButton disabled={saveDisabled} onPress={save} title={existingKey === null ? 'Add ingredient' : 'Save ingredient'} />
   </ScrollView>;

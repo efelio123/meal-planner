@@ -1,3 +1,6 @@
+import { PermissionGate } from '@/features/household-permissions/permission-gate';
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
+import { PermissionNotice } from '@/features/household-permissions/permission-notice';
 import { useAuth } from '@clerk/expo';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -37,6 +40,9 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
   const router = useRouter();
   const params = useLocalSearchParams<NamePrefillParams & { itemId?: string; originScope?: string; shoppingOriginScope?: string }>();
   const itemId = typeof params.itemId === 'string' ? params.itemId : null;
+  const { can, canNow } = useHouseholdAccess();
+  const permission = itemId ? 'catalog.items.edit' : 'catalog.items.create';
+  const allowed = can(permission);
   const { changeKind, choiceResult, markChanged, revision, setChoiceResult } = useCatalogContext();
   const { setCreatedFood } = useRecipeContext();
   const shoppingContext = useShoppingContextOptional();
@@ -187,6 +193,7 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
   };
 
   const save = async () => {
+    if (!canNow(permission)) return;
     if (itemId && loadedItemScope !== scope) return;
     if (!householdId || !form.name.trim()) { setError('Enter an item name.'); return; }
     setSaving(true);
@@ -247,31 +254,31 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
     <View style={styles.routeRoot}>
     <Stack.Screen options={{ title: itemId ? 'Edit item' : recipeIngredientMode ? 'Create Food item' : 'Add item' }} />
     <Screen layout={layout} contentAlignment="top">
-      <View style={styles.content}>
+      <View style={styles.content}><PermissionNotice allowed={allowed} />
         <ThemedText themeColor="textSecondary">Save an item once for everyone in your household to use in the catalog.</ThemedText>
         {initialLoading ? <ActivityIndicator accessibilityLabel="Loading item" /> : null}
         {itemId && error && loadedItemScope !== scope ? <PrimaryButton disabled={initialLoading} onPress={() => void loadChoices(true)} title="Retry loading item" /> : null}
         <ThemedText style={styles.label}>Item name</ThemedText>
-        <ThemedInput ref={itemNameRef} accessibilityLabel="Item name" onChangeText={(name) => { updateForm((current) => ({ ...current, name })); if (name.trim()) setError((current) => current === 'Enter an item name.' ? null : current); }} placeholder="Item name" value={form.name} />
+        <ThemedInput editable={allowed} ref={itemNameRef} accessibilityLabel="Item name" onChangeText={(name) => { updateForm((current) => ({ ...current, name })); if (name.trim()) setError((current) => current === 'Enter an item name.' ? null : current); }} placeholder="Item name" value={form.name} />
         <ThemedText style={styles.label}>Type</ThemedText>
         {!recipeIngredientMode ? <View style={styles.types}>
           {(['food', 'household'] as const).map((itemType) => (
-            <Pressable key={itemType} accessibilityRole="radio" accessibilityState={{ checked: form.itemType === itemType }} onPress={() => updateForm((current) => ({ ...current, itemType, categoryId: '', recipeDimension: '', recipeUnitCode: '' }))} style={[styles.typeButton, { borderColor: form.itemType === itemType ? theme.primary : theme.border }]}>
+            <Pressable key={itemType} disabled={!allowed} accessibilityRole="radio" accessibilityState={{ checked: form.itemType === itemType }} onPress={() => updateForm((current) => ({ ...current, itemType, categoryId: '', recipeDimension: '', recipeUnitCode: '' }))} style={[styles.typeButton, { borderColor: form.itemType === itemType ? theme.primary : theme.border }]}>
               <ThemedText>{itemType === 'food' ? 'Food' : 'Household'}</ThemedText>
             </Pressable>
           ))}
         </View> : <ThemedText themeColor="textSecondary">Food</ThemedText>}
         {selectionMessage ? <ThemedText themeColor="textSecondary">{selectionMessage}</ThemedText> : null}
-        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Category" choices={categoryChoices} selectedId={form.categoryId} value={selectedCategory} emptyChoiceLabel="No category" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create category" manageLabel="Manage categories" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(categoryId) => { updateForm((current) => ({ ...current, categoryId })); setSelectionMessage(null); }} onCreate={(query) => routeToChoices('category', 'create', query)} onManage={() => routeToChoices('category', 'manage')} />
-        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Typical shopping unit (optional)" choices={shoppingChoices} searchable selectedId={form.shoppingUnitId} value={selectedUnit} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create shopping unit" manageLabel="Manage shopping units" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(shoppingUnitId) => { updateForm((current) => ({ ...current, shoppingUnitId })); setSelectionMessage(null); }} onCreate={(query) => routeToChoices('shopping-unit', 'create', query)} onManage={() => routeToChoices('shopping-unit', 'manage')} />
+        <ChoicePicker disabled={!allowed} sheetRoute={choiceSheetRoute} compact label="Category" choices={categoryChoices} selectedId={form.categoryId} value={selectedCategory} emptyChoiceLabel="No category" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create category" manageLabel="Manage categories" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(categoryId) => { updateForm((current) => ({ ...current, categoryId })); setSelectionMessage(null); }} onCreate={can('catalog.categories.create') ? (query) => routeToChoices('category', 'create', query) : undefined} onManage={() => routeToChoices('category', 'manage')} />
+        <ChoicePicker disabled={!allowed} sheetRoute={choiceSheetRoute} compact label="Typical shopping unit (optional)" choices={shoppingChoices} searchable selectedId={form.shoppingUnitId} value={selectedUnit} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Create shopping unit" manageLabel="Manage shopping units" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(shoppingUnitId) => { updateForm((current) => ({ ...current, shoppingUnitId })); setSelectionMessage(null); }} onCreate={can('catalog.units.create') ? (query) => routeToChoices('shopping-unit', 'create', query) : undefined} onManage={() => routeToChoices('shopping-unit', 'manage')} />
         <ThemedText themeColor="textSecondary">A typical shopping unit only; the catalog does not track quantities on hand.</ThemedText>
-        <ChoicePicker sheetRoute={choiceSheetRoute} compact label="Preferred store (optional)" choices={storeChoices} selectedId={form.storeId} value={selectedStore} emptyChoiceLabel="No preferred store" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={0} createLabel="Create store" manageLabel="Manage stores" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(storeId) => { updateForm((current) => ({ ...current, storeId })); setSelectionMessage(null); }} onCreate={(query) => routeToChoices('store', 'create', query)} onManage={() => routeToChoices('store', 'manage')} />
+        <ChoicePicker disabled={!allowed} sheetRoute={choiceSheetRoute} compact label="Preferred store (optional)" choices={storeChoices} selectedId={form.storeId} value={selectedStore} emptyChoiceLabel="No preferred store" sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={0} createLabel="Create store" manageLabel="Manage stores" onOpen={() => { itemNameRef.current?.blur(); Keyboard.dismiss(); }} onSelect={(storeId) => { updateForm((current) => ({ ...current, storeId })); setSelectionMessage(null); }} onCreate={can('catalog.stores.create') ? (query) => routeToChoices('store', 'create', query) : undefined} onManage={() => routeToChoices('store', 'manage')} />
         {form.itemType === 'food' ? <>
           <MoreDetailsToggle expanded={moreDetails} onPress={() => setMoreDetails((value) => !value)} />
           {moreDetails ? (
             <View style={styles.content}>
                 <ThemedText themeColor="textSecondary">Used when adding this food to a recipe. You can change it for each recipe.</ThemedText>
-                <ChoicePicker sheetRoute={recipeUnitSheetRoute ?? choiceSheetRoute} compact searchable label="Default unit for recipes (optional)" choices={recipeChoices} selectedId={form.recipeUnitCode} value={selectedRecipeUnit} emptyChoiceLabel="No default unit" disabled={initialLoading || !units} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} onSelect={(code) => {
+                <ChoicePicker sheetRoute={recipeUnitSheetRoute ?? choiceSheetRoute} compact searchable label="Default unit for recipes (optional)" choices={recipeChoices} selectedId={form.recipeUnitCode} value={selectedRecipeUnit} emptyChoiceLabel="No default unit" disabled={!allowed || initialLoading || !units} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} onSelect={(code) => {
                   const unit = units?.recipe_measurement_units.find((candidate) => candidate.code === code);
                   if (code && !unit) return;
                   updateForm((current) => ({ ...current, recipeDimension: unit?.dimension ?? '', recipeUnitCode: unit?.code ?? '' }));
@@ -280,7 +287,7 @@ export function CatalogItemForm({ layout, recipeIngredientMode = false, shopping
           ) : null}
         </> : null}
         {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
-        <PrimaryButton disabled={saving || initialLoading || Boolean(itemId && loadedItemScope !== scope)} onPress={() => void save()} title={saving ? 'Saving…' : itemId ? 'Save changes' : recipeIngredientMode ? 'Create & use ingredient' : shoppingOriginMode ? 'Create & add to Shopping' : 'Add to catalog'} />
+        <PermissionGate action={permission}><PrimaryButton disabled={!allowed || saving || initialLoading || Boolean(itemId && loadedItemScope !== scope)} onPress={() => void save()} title={saving ? 'Saving…' : itemId ? 'Save changes' : recipeIngredientMode ? 'Create & use ingredient' : shoppingOriginMode ? 'Create & add to Shopping' : 'Add to catalog'} /></PermissionGate>
       </View>
     </Screen>
     </View>

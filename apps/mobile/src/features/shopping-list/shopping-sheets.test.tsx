@@ -15,7 +15,7 @@ let mockShoppingScope = '["user-1","session-1","household-1"]';
 
 jest.mock('expo-router', () => ({ useRouter: () => ({ back: mockBack, push: mockPush, replace: mockReplace }) }));
 jest.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: mockUserId, sessionId: mockSessionId }) }));
-jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: () => ({ getToken: jest.fn().mockResolvedValue('token'), selectedHousehold: { id: mockHouseholdId } }) }));
+jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: () => ({ getToken: jest.fn().mockResolvedValue('token'), selectedHousehold: { id: mockHouseholdId, role: 'member', permissions: jest.requireActual('@/lib/household-permissions').permissionActions } }) }));
 jest.mock('@/features/shopping-list/shopping-context', () => ({ useShoppingContext: () => ({ scope: mockShoppingScope, markChanged: jest.fn() }) }));
 // Sheet-only tests stub the owner commands; route tests use the actual provider.
 jest.mock('./use-shopping-list', () => ({ useShoppingList: () => ({

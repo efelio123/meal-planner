@@ -1,3 +1,6 @@
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
+import { PermissionNotice } from '@/features/household-permissions/permission-notice';
+import type { PermissionAction } from '@/lib/household-permissions';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { ActivityIndicator, Keyboard, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
@@ -14,11 +17,13 @@ import { RecipeCover } from './recipe-cover';
 import { importedSectionName, type RecipeImportSelection } from './recipe-import';
 
 type Props = {
-  householdId: string; expectedFlowScope: string; getToken: GetToken; isCurrent: () => boolean;
+  requiredPermission: PermissionAction; householdId: string; expectedFlowScope: string; getToken: GetToken; isCurrent: () => boolean;
   excludedRecipeId?: string; destinationName: string | null;
   onImport: (source: Recipe, selection: RecipeImportSelection, activeFoodIds: ReadonlySet<string>) => string | null;
 };
-export function RecipeImportSheet({ householdId, expectedFlowScope, getToken, isCurrent, excludedRecipeId, destinationName, onImport }: Props) {
+export function RecipeImportSheet({ requiredPermission, householdId, expectedFlowScope, getToken, isCurrent, excludedRecipeId, destinationName, onImport }: Props) {
+  const { can, canNow } = useHouseholdAccess();
+  const allowed = can(requiredPermission);
   const theme = useTheme(); const router = useRouter(); const flow = useNativeSheetFlow();
   const [query, setQuery] = useState(''); const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [details, setDetails] = useState<Record<string, Recipe>>({}); const cache = useRef<Record<string, Recipe>>({});
@@ -78,7 +83,7 @@ export function RecipeImportSheet({ householdId, expectedFlowScope, getToken, is
     if (open) void loadDetails(recipe);
   };
   const importSelection = async (recipe: Recipe, selection: RecipeImportSelection) => {
-    if (applying.current || submitted.current || !isCurrent()) return;
+    if (!canNow(requiredPermission) || applying.current || submitted.current || !isCurrent()) return;
     const epoch = generation.current; applying.current = true; setBusyId(recipe.id); setActionError(''); Keyboard.dismiss();
     try {
       const source = await loadDetails(recipe);
@@ -94,7 +99,7 @@ export function RecipeImportSheet({ householdId, expectedFlowScope, getToken, is
       if (alive(epoch)) setActionError(reason instanceof ApiError || reason instanceof Error ? reason.message : 'We could not import these ingredients. Try again.');
     } finally { if (alive(epoch) && !submitted.current) { applying.current = false; setBusyId(null); } }
   };
-  const importButton = (recipe: Recipe, selection: RecipeImportSelection, label: string, count: number) => <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={busyId !== null || refreshing || count === 0} onPress={() => void importSelection(recipe, selection)} style={visualStyles.sheetAction}>
+  const importButton = (recipe: Recipe, selection: RecipeImportSelection, label: string, count: number) => <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={!allowed || busyId !== null || refreshing || count === 0} onPress={() => void importSelection(recipe, selection)} style={visualStyles.sheetAction}>
     <ThemedText themeColor={busyId !== null || refreshing || count === 0 ? 'textSecondary' : 'link'}>Import</ThemedText>
   </Pressable>;
   const filtered = recipes.filter((recipe) => recipe.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
@@ -108,6 +113,7 @@ export function RecipeImportSheet({ householdId, expectedFlowScope, getToken, is
       </View>
       <ThemedText themeColor="textSecondary">{destinationName ? `Import into ${destinationName}` : 'Import as recipe sections'}. Amounts stay as written.</ThemedText>
       <View style={styles.searchRow}><View style={styles.copy}><ThemedInput accessibilityLabel="Search recipes to import" placeholder="Search recipes" value={query} onChangeText={setQuery} returnKeyType="search" /></View><Pressable accessibilityRole="button" accessibilityLabel="Refresh recipes to import" disabled={busyId !== null || refreshing} onPress={() => void loadList(true)} style={styles.iconAction}><SymbolView accessibilityElementsHidden name={{ ios: 'arrow.clockwise', android: 'refresh', web: 'refresh' }} size={20} tintColor={theme.link} /></Pressable></View>
+      <PermissionNotice allowed={allowed} />
       {busyId ? <ActivityIndicator accessibilityLabel="Importing recipe ingredients" color={theme.activity} /> : null}
       {actionError ? <ThemedText accessibilityRole="alert" themeColor="error">{actionError}</ThemedText> : null}
     </View>
