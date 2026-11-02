@@ -159,8 +159,12 @@ personal independent exports with server-enforced manager/configuration and one
 registered syncing phone, adding an additive integration migration. Active-Owner
 eligibility, creator/fallback/transfer and device-takeover recovery are proposed
 for review. SDK 58 Calendar requires native capability/build verification rather
-than relying on Expo Go. No implementation, package/config/schema/live changes
-started; revised-plan approval precedes implementation.
+than relying on Expo Go. Felipe subsequently explores updates triggered from any
+family phone, keeps Apple/iCloud support, then reaffirms the simpler one-phone
+version after discussing server authentication. No iCloud app-specific password
+or provider connection is required for the selected native approach; changes
+from other members reach the calendar when the designated phone opens/refreshes.
+No implementation, package/config/schema/live changes started.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

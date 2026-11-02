@@ -1,6 +1,7 @@
 # Timed meal-calendar sync — F12
 
-Status: exploration/proposed plan, November 2, 2026. No implementation approved.
+Status: revised native one-phone plan, November 2, 2026; implementation not started.
+Felipe confirms the simpler one-phone scope after considering API-driven sync.
 Branch: `codex/calendar-sync-plan`, from accepted themes at `2f00efe`.
 Preserve F09/F10/F15/F14 work. No package/config/schema/native/runtime changes.
 
@@ -340,3 +341,26 @@ now reflected throughout the proposal, including server enforcement and the
 one-active-phone guard for that manager. The active-Owner fallback/transfer rules
 are recommendations to prevent a household being stuck if its creator leaves;
 they have not yet been separately accepted. No implementation started.
+
+## Native one-phone scope reaffirmed — November 2
+
+Felipe asks whether any family member’s change/app-open could update the calendar
+while the designated phone is closed. Research compared coordinated native
+writers with a server-to-iCloud connection; the latter could run independently
+of a phone but would add provider authentication/credential handling. Apple/
+iCloud support must remain in the first version; a Google-only substitution was
+not accepted.
+
+After discussing the additional connection, Felipe chooses the simpler first
+version: **only the designated phone syncs**, with the existing one-manager rules.
+The server-driven/CalDAV/app-specific-password proposal is not selected. No such
+credential is collected/stored by this slice. Use the phone’s native calendar
+permission and accounts already configured in its calendar store.
+
+Changes by any active family member remain in the shared app plan normally, but
+opening a different phone does not update iCloud by itself. The calendar catches
+up when the manager’s linked phone next opens/refreshes Meal Planner. One manager
+controls settings and setup recommends a shared calendar for other members.
+Keep the manager/writer enforcement and native feasibility work described above;
+no cloud provider SDK, provider credential store or Google OAuth integration is
+added. This clarification changes planning only, with no runtime/data changes.
