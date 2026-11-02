@@ -1,8 +1,9 @@
 # App color themes — F14
 
-Status: proposed November 2, 2026; awaiting Felipe's review and approval.
-Planning branch: `codex/app-themes-plan`, from the accepted permission-page work
-at `0a165aa`. Application code, dependencies, configuration and data are unchanged.
+Status: implemented November 2, 2026 on `codex/app-themes`; awaiting phone review.
+Felipe approved direct implementation with light/dark versions of the colored
+palettes, installation-local persistence and the first-use chooser. This branch
+preserves accepted F09/F10/F15 work. No live deployment or native installation.
 
 ## Goal
 
@@ -66,17 +67,15 @@ detent, visible grabber, real native root/header/footer frames and one bounded
 scrolling body. Continue stays reachable above navigation and safe areas. Drag
 and explicit dismiss preserve the current theme; they do not save app content.
 
-## Appearance decision for review
+## Approved appearance behavior
 
-Recommended: all three themes follow the phone's light/dark appearance. The
+Approved: all three themes follow the phone's light/dark appearance. The
 colored themes get carefully designed dark counterparts: dark navy/chocolate
 surfaces with apricot accents, and deep green surfaces with sage accents.
 Changing the phone appearance updates the selected palette live. This yields
 three choices, each with two appearances; it does not add a second mode picker.
 
-Felipe was asked whether the two colored themes should support dark counterparts
-or stay at their original light appearance. This decision remains open pending
-his reply; the recommendation above is not an approval. The final semantic role
+Felipe approves implementing this recommendation with the plan on November 2. The final semantic role
 values and contrast pairings will be recorded during implementation/review.
 
 ## Preference lifetime and failure behavior
@@ -151,17 +150,16 @@ Complete intended code/test edits first, then one coordinated validation pass:
   offered theme/appearance; record iPhone and Android results separately. Android
   and native geometry cannot be marked passing from JS/component tests alone.
 
-## Delivery and open decisions
+## Delivery
 
 Create a dedicated implementation branch from this planning branch after approval,
 preserving F09/F10/F15 commits. Deliver preference/registry, app-wide token audit,
 selection/first-use UI and their tests as focused commits. No live Mac migration,
 server change, native installation, merge, push, paid service or release included.
 
-Confirm the colored palettes' light/dark behavior. Also review the recommended
-installation-local preference and once-per-install chooser behavior. No code is
-authorized by this planning request. The standing agent handoff/direct-assignment
-agreement applies to the later implementation.
+Felipe approved the colored palettes’ light/dark behavior, installation-local
+preference and once-per-install chooser, then explicitly requested implementation
+in this chat. Implementation is on `codex/app-themes`; deployment remains separate.
 
 ## Official documentation reviewed
 
@@ -177,3 +175,60 @@ expo-system-ui 58.0.7 and expo-status-bar 58.0.4, verified in package-lock.json.
 
 Recheck version-matched API guidance during implementation. No version upgrade
 is needed for this plan.
+
+## Implementation details — November 2
+
+The shared registry, installation-local store/provider, Profile Appearance page,
+first-use native chooser and token audit are implemented. The provider sits above
+all themed consumers; no navigator/session/household key depends on theme choice.
+Preferences are hydrated with a two-second read fallback; writes are serialized,
+failed latest selections return to the last confirmed theme, and Retry reconciles
+explicitly. A failed preference read defers the automatic chooser so its default
+cannot overwrite a previously saved but unreadable choice.
+
+The native-sheet registry now exposes whether a sheet is open and permits an
+explicit direct-content frame. Only the Appearance chooser opts into that frame;
+existing shared Catalog/time-zone and recipe routes retain their accepted layout.
+The chooser preserves real header/body/footer frames at full height, marks its
+seen version on mounting, and uses the same accessible choices as Settings.
+
+All app-owned color literals found by the audit now resolve through semantic
+roles. Exceptions are the existing logo/animated/native launch assets. Four older
+auth/onboarding action groups now reuse the existing shared PrimaryButton rather
+than platform buttons that kept an unrelated color or unreadable dark-palette
+foreground. Their labels, callbacks, disabled behavior and ordering are unchanged;
+include those controls in phone review. Native OS alerts/menus keep OS styling.
+
+Warm light-mode secondary text/input placeholders use `#684a3f`, borders use
+`#85664f` and error text uses `#9b2119`: the saved website supporting values did
+not meet the planned contrast on apricot. The three approved anchor colors are
+unchanged. Dark Apricot uses navy surfaces and apricot actions; dark Green uses
+deep-green surfaces and sage actions. Full semantic values are in theme.ts.
+
+## Validation and review handoff — November 2
+
+- Full normal mobile run: 80 suites / 851 passed, no skips. This run precedes the
+  final four auth/onboarding button substitutions. Those have a subsequent
+  33-test focused auth/household-state pass and are included in the final cold run.
+- Final cache-cleared/no-cache mobile run: 80 suites / 851 passed, no skips.
+- Final TypeScript and Expo lint pass with no warnings. SDK dependency
+  compatibility passes; no package or lockfile changes.
+- Production iOS and Android JavaScript exports pass using non-secret placeholder
+  configuration. These validate bundling, not signed native builds or installs.
+- Contrast tests pass across all six palettes for assigned normal text/action/
+  placeholder/error roles (4.5:1) and essential border/trash-icon roles (3:1).
+- Existing router fixtures now explicitly represent an installation that has
+  already seen the chooser; dedicated actual-router cases cover first-use,
+  editor deferral, settings selection and retained recipe work. Store tests cover
+  invalid/read-timeout/failure/ordered-write/retry behavior. No broad permissive
+  production fallback or test-only permission bypass was added.
+- Validation used an isolated runtime whose lockfile matches the worktree, leaving
+  the serving Expo dependencies untouched. The local API health remains OK.
+  No API/database behavior changed; no API suite was rerun for this mobile slice.
+
+Code commits: `e98fe93` (registry/store/provider) and `6b073f4` (appearance UI/
+color audit). Physical review remains unrun by the agent. Use
+`docs/qa/app-color-themes.md`: Profile → Appearance, all three choices, device
+light/dark changes, first-use/native-sheet geometry and auth controls. Existing
+Expo is still serving this checkout; reload if necessary. No Mac trial changes,
+merge, push or native release is included.

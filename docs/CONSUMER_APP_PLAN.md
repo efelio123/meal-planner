@@ -80,7 +80,8 @@ provenance, operational paths and recovery.
 November 1 continuation: the family-trial inventory is reconciled with the
 live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
 B11 stays on unreproduced regression watch. Felipe accepts F10 recipe importing November 1 and calls the current feature complete. Remaining features
-to implement are F12 calendar sync, F14 themes and F16 widgets. F15 member
+to implement are F12 calendar sync and F16 widgets. F14 themes is implemented
+locally, awaiting phone review (below). F15 member
 permissions is implemented locally, with page appearance accepted and broader
 permission checks still pending (below). Felipe accepts F09 ingredient sections and calls it complete after
 the final November 1 UI adjustments. Felipe approved F09 ingredient-only
@@ -131,13 +132,18 @@ rollout remain outstanding. Themes are recommended next, ahead of the larger
 calendar and widget integrations. No merge, push, native installation or deployment
 is included. See the dedicated plan for exact validation boundaries.
 
-November 2 F14 planning: `docs/plans/app-color-themes.md` on
-`codex/app-themes-plan` proposes three shared color presets, Profile → Appearance,
-small app previews and a first-use native chooser. Recommend an installation-local
-preference and light/dark counterparts for both saved colored palettes; the latter
-is an open question sent to Felipe. The exact website palette anchors were read
-from the separate showcase checkout without changing it. No implementation,
-dependency change or deployment is authorized by this planning request.
+November 2 F14 implementation: `docs/plans/app-color-themes.md` is approved
+and implemented directly on `codex/app-themes`, awaiting phone review. Profile →
+Appearance and a once-per-install native chooser offer Phone theme, the saved
+Apricot/Chocolate/Navy palette and Green, all following phone light/dark mode.
+One semantic registry/provider updates the existing app without resetting drafts;
+installation-local persistence survives sign-out/household switching, with guarded
+reads, ordered writes and retry. No account sync, API/schema/dependency change or
+live rollout. Full normal/cold mobile runs pass 851 each; normal precedes the last
+auth-button follow-up, which passes 33 focused tests and the final full cold run.
+Types/lint, compatibility, contrast checks and iOS/Android JS exports pass. Physical
+six-appearance review, native builds and deployment remain separate. Remaining
+unimplemented original major features are F12 calendar integration and F16 widgets.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

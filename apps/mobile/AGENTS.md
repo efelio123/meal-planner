@@ -105,3 +105,17 @@ For this SDK migration, also follow https://docs.expo.dev/router/migrate/sdk-57-
 - After the intended implementation is complete, verify these behaviors on a
   device as well as in route/state tests. Automated tests alone do not prove
   native presentation, drag feel, keyboard placement, or visual fidelity.
+
+## Color theme standard
+
+- Use `useTheme()` semantic roles for app-owned colors and `useThemeMode()` for
+  effective appearance. New screens must work with every registered palette;
+  do not hard-code feature colors or branch screens/components by theme ID.
+- Palette definitions belong in the shared theme registry. Only the Appearance
+  selector/illustrative previews select registry IDs directly. Reuse existing
+  role keys; introduce new semantic roles only for a demonstrated shared need.
+- Keep theme preference independent of household permissions and navigator keys.
+  Color changes must preserve mounted routes, native sheets, searches and drafts.
+  Asset colors and native OS menus/alerts may retain intentional platform styling.
+- Theme review and first-use native-frame checks are documented in
+  `docs/qa/app-color-themes.md`; automation does not prove physical geometry.
