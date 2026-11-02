@@ -103,9 +103,11 @@ checks are still unreported. See
 `docs/plans/recipe-unsaved-changes.md`. The branch is committed and the slice is
 complete; merge/deployment and broader release checks remain separate. This is
 not deployed to the Mac trial. F10 is proposed in `docs/plans/recipe-copying.md`,
-awaiting review: copy existing household ingredients/directions into the current
-draft, append independent sections/occurrences, and retain quantities as written.
-No F10 source implementation or live rollout is authorized yet.
+awaiting review. Felipe revises the flow to Import from the Add ingredient footer,
+below Create Food item in Catalog, with searchable expandable recipes and whole
+or singular-section ingredient selection. Draft additions remain independent and
+unscaled. Directions scope is pending clarification because directions are not
+associated with ingredient sections. No F10 implementation/live rollout is approved.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

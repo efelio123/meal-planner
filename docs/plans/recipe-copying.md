@@ -1,142 +1,168 @@
-# Copy a household recipe into the current recipe — F10
+# Import recipe ingredients from Add ingredient — F10
 
-Status: proposed November 1, 2026; awaiting Felipe's review. Planning only.
+Status: revised proposal November 1, 2026; awaiting review. Planning only.
 Branch: `codex/recipe-copy-plan`, based on accepted recipe work at `917d661`.
-F09 and its editor follow-ups are committed but not merged/deployed; preserve
-that baseline. Implementation follows the approved agent assignment under AGENTS.
+This revision replaces the proposed editor-level Copy button and mandatory
+preview with Felipe's Add ingredient entry point and expandable recipe list.
+Preserve the accepted F09/editor work; it has not been merged or deployed.
 
-## Goal and original request
+## Goal and scope
 
-While creating Chicken and mashed potatoes, copy an existing Mashed potatoes
-recipe's ingredients and directions as an editable starting point. Changes to
-this copy must never change the saved Mashed potatoes recipe. Support the shared
+From a recipe's Add ingredient sheet, import ingredients from a saved household
+recipe or one of its sections. Imported occurrences are independent editable
+recipe-draft entries; the source recipe is never modified. Reuse the shared
 Create/Edit editor in Recipes and recipe creation from Plan.
 
-## Proposed flow
+The original request also included directions. Felipe's revised flow explicitly
+selects ingredients, while current directions have no section association.
+One review question remains: ingredients only for this version (recommended),
+or an optional **Include all recipe directions** choice. Do not silently assume
+that a selected ingredient section identifies a subset of directions.
 
-1. Add **Copy from recipe** alongside the main bottom **Add ingredient** action.
-   Do not crowd the Ingredients heading with another link. The existing section
-   plus buttons still add individual ingredients.
-2. Open a searchable native sheet of active recipes in the current household,
-   reusing the existing recipe cover/list presentation. Exclude the recipe being
-   edited. Loading, empty, retry and refresh states keep the parent draft intact.
-3. Selecting a recipe loads its full contents and opens a preview with its name,
-   source servings (when known), ingredient sections and directions. Show
-   **Amounts will be copied as written**. A flat source gets an editable default
-   section name based on the recipe name, validated at 1–80 characters.
-4. **Copy into recipe** appends the previewed contents to the current draft.
-   Back/Cancel/native dismiss adds nothing. Show a small accessible confirmation
-   such as **Mashed potatoes copied** and return directly to the same editor.
-5. The user can edit, move, reorder or remove the copied rows and directions.
-   Only the normal recipe Save persists anything. Existing unsaved-change
-   warnings protect the combined draft when leaving.
+## Proposed interaction
 
-## Copy rules and review defaults
+1. In the existing Add ingredient sheet's fixed bottom area, keep **Create Food
+   item in Catalog** and place **Import from recipe** directly below it. Both
+   actions remain reachable above the keyboard and long Food results. No extra
+   Import/Copy action appears in the main editor.
+2. Import opens an expanded native **Import ingredients** sheet with an in-content
+   Back/Cancel, recipe-name search and current-household recipe list. Back or
+   dismiss returns to the Food picker with its search intact and both footer
+   actions usable again; a duplicate-tap latch must not strand the picker. Show active recipes
+   only and exclude the recipe currently being edited.
+3. A recipe with sections has the shared expandable chevron. Tapping its heading
+   expands/collapses it; that action never imports. Expanded choices are
+   **All ingredients (N)** followed by its named sections with ingredient counts.
+   Show **Other ingredients** last if unassigned rows exist. Each choice has an
+   explicit **Import** action with a 44-point target and an accessible name such
+   as **Import Mash ingredients from Chicken and Mash**.
+4. A flat recipe has one whole-recipe Import action; no pointless empty expansion.
+   An empty section stays visible with a disabled Import action. Multiple recipes
+   may stay expanded. Expansion is keyed by recipe ID; search does not destroy
+   expansion state or the Food picker's separate search.
+5. Selecting Import validates/loads the selected snapshot and appends only those
+   ingredient occurrences. Do not add a mandatory separate preview/confirmation
+   for this non-destructive draft addition. Show a small accessible confirmation
+   such as **6 ingredients imported from Mash** and return to the same editor,
+   dismissing this flow's import and Food-selection sheets once.
+6. Existing recipe content remains editable and unchanged until the addition.
+   Only normal recipe Save persists the destination. The accepted discard warning
+   protects leaving with imported draft changes. Back/Cancel/error adds nothing.
 
-- **Append, never replace.** Keep the destination's existing ingredients,
-  sections and directions. Imported directions follow existing directions and
-  continue the ordinary numbering; directions remain one editable list.
-- **Flat source:** place all copied ingredients in one new section, defaulting
-  to the source recipe name. Generate a valid shortened default if needed and
-  show it in the preview; renaming it never renames the source recipe.
-- **Sectioned source:** append fresh copies of its sections in their saved order,
-  including empty sections. Keep names as written. Append its unassigned rows
-  after the destination's existing Other ingredients rows; Other ingredients
-  stays visually last. Do not introduce nested sections or merge same-name groups.
-- **Keep duplicate ingredients separate.** Butter in Chicken and Butter in Mash
-  retain their own quantities, units and notes. Existing Shopping consolidation
-  continues to combine occurrences under its current rules.
-- **No automatic scaling.** Copy stored amounts, built-in/custom units, To taste
-  values and ingredient notes faithfully. Destination servings do not change or
-  silently multiply a side dish. Scaling can be designed separately later.
-- **Keep destination metadata.** Do not replace name, cover, servings, timings,
-  source-link field or existing notes with source metadata. When the source has
-  an external source URL, append one readable attribution line to Notes containing
-  its recipe name and URL, preserving existing notes and avoiding duplicate lines.
-  General source recipe Notes are not part of this ingredients/directions copy.
-- **Independent identity.** Generate new local keys for every copied section,
-  ingredient occurrence and direction. Keep only the existing same-household
-  Food Catalog references. No source recipe/child IDs become live links.
-  Quantities, units, notes and directions are independent; editing the shared
-  Food Catalog item itself remains a household-wide change, as it is today.
-- **Atomic application.** Check the entire addition before changing the draft:
-  20 sections, 200 ingredients, 200 directions, section-name and Notes limits.
-  If it cannot fit, explain the limit and retain the preview/draft unchanged.
-  Never truncate copied ingredients, directions or attribution to make it fit.
-- Validate referenced Food against active household Catalog data. If any item
-  is unavailable/archived or data cannot be verified, name the problem and allow
-  retry; do not silently omit or relink ingredients. Existing Save validation
-  remains authoritative if an item changes after copying.
-- Copy the loaded preview snapshot. Later source edits do not update it. Reopen
-  the source selection to get a newer copy. Repeating an intentional copy is
-  allowed; double taps on one confirmation must apply only once.
+## Destination grouping — proposed defaults for review
 
-## Affected areas and implementation approach
+The entry context remains visible (for example **Import into Chicken**).
+- From a named section's plus button, append the selected ingredients to that
+  existing destination section. Importing all ingredients here keeps their
+  source display order but flattens their grouping into the chosen destination;
+  do not create nested sections or change other destination groups.
+- From the main Add ingredient action, importing a singular named source section
+  creates a new section with that source section's name. A whole flat source
+  creates a section based on its recipe name. Derive a valid 1–80-character name
+  and show the destination label before Import; normal Manage sections can rename it.
+- Whole sectioned-recipe import preserves its named sections as new independent
+  groups in source order. Append source unassigned rows to existing Other
+  ingredients, which stays visually last. Selecting the source's Other ingredients
+  choice imports only those rows into the destination's Other ingredients.
+- Same-name sections stay separate identities. Keep duplicate Food ingredients
+  as separate occurrences, with their own amounts, units and notes. Never merge
+  or sum them during import; current Shopping consolidation still applies later.
 
-`src/features/recipes/recipe-editor-screen.tsx` owns the destination draft and
-Recipes/Plan reuse. Add a focused pure merge helper and scoped picker/preview
-components under that feature folder, using `recipe-form-utils.ts`,
-`recipe-sections.ts` and the current draft fingerprint/leave guard. Validate and
-build the complete merged result, then update ingredient/section/step refs and
-state together; do not let intermediate grouping updates drop newly copied rows.
-Copy against the latest destination draft, not a captured old array.
+## Data and safety rules
 
-Existing `api.recipes` returns summaries; `api.recipe` returns full sections,
-ingredients, directions, servings and source URL. Reuse those authorized reads
-and active Catalog reads. Existing create/update requests already support all
-resulting data, with revisions and independent child rows. No new API endpoint,
-schema migration, dependency, paid resource or live deployment is proposed.
-No autosave, external website import, full-recipe Duplicate action, selective
-ingredient/direction import, serving conversion or linked sub-recipes in F10.
+- Copy quantities as written, including To taste, built-in/custom units and
+  ingredient notes. Show source servings when known and clarify that amounts
+  are not automatically scaled. Destination servings do not change.
+- Generate fresh local keys for imported sections and occurrences. Shared Food
+  Catalog references stay shared, so editing Catalog itself remains household-wide;
+  recipe amounts, membership, order, units and notes are independent of the source.
+- Preserve destination name, cover, timings, source-link field and existing
+  metadata. For ingredients-only import, directions and recipe Notes stay unchanged.
+  If directions import is selected in review, offer **Include all recipe directions**
+  explicitly, default off; append the full source step list and a source name/URL
+  attribution line to Notes when a source URL exists, preserving existing notes.
+- Validate the selected addition atomically against 200 ingredients, 20 sections
+  and all applicable field limits. If optional directions are approved, also
+  check 200 steps and Notes length. No partial imports or silent truncation.
+- Verify selected Food references against active Catalog data. An unavailable
+  ingredient blocks that selection with a clear error/retry, without omitting or
+  relinking it. Unavailable rows outside a selected section do not block that
+  section. Existing Save validation catches later Catalog changes.
+- Reuse the loaded source snapshot for what the user selected. Later source
+  changes do not update an imported draft. Refresh reloads source details and
+  invalidates stale selections before another import; never mix partial responses.
+- One Import tap applies once even with repeated taps or a delayed response.
+  Reopening and deliberately importing again is allowed. Ignore requests/results
+  after Back, household/session/editor changes, reload or sheet removal.
 
-Capture household/session/editor generation and sheet identity when opening.
-Ignore late fetches/results after Back, scope changes, reload or editor removal.
-Disable import during drag, save or unresolved-save handling. Repeated taps,
-request retries and delayed responses must not add the same confirmation twice.
-Source load failure never mutates the destination or marks it dirty.
+## Source findings and affected areas
 
-## Native layout and consistency
+`recipe-native-sheets.tsx` already separates the Food header, results scroll and
+fixed footer. Add the Import entry there, passing the existing scoped editor and
+section destination context. Put new selector components, helper functions and
+tests under `src/features/recipes/`; route files remain thin wrappers.
 
-The editor stays in its existing tab-stack Screen frame. Picker and preview are
-short native formSheet flows in both owning Recipes/Plan stacks, configured
-before navigation and rendered directly through the accepted scoped sheet pattern.
-Use medium/expanded detents for the searchable picker and open the longer preview
-expanded. Preserve picker search/selection when returning from preview.
+`recipe-editor-screen.tsx` owns ingredients, sections and directions. Build and
+validate the merged result against its latest draft, then update refs/state
+atomically so intermediate grouping updates cannot drop imported rows. Mark the
+appropriate fields dirty and retain the existing save/revision/unknown-outcome guard.
 
-Reuse the accepted header/body/footer structure: real non-collapsible native
-root/header/footer Views, one bounded scroll owner, measured keyboard handling
-where an editable section name is shown, and reachable Copy actions outside long
-content. Use the existing KeyboardAwareSheet for that fixed-footer preview, with
-no second keyboard-inset owner in its body. Header and bottom Copy actions share
-one validation/submit guard.
-Follow `apps/mobile/AGENTS.md` and `native-sheets-app-wide.md`; no guessed padding,
-extra flex wrapper, custom sheet gesture or native header-only navigation.
-Compare controls with current Food/Ingredient details, sections and recipe rows.
+`api.recipes` currently returns summaries with ingredient counts but no section
+count. Add a small additive **ingredient_section_count** summary field in the
+existing authorized list query and client type, allowing the picker to show which
+recipes expand without eagerly downloading every recipe. Fetch `api.recipe`
+contents lazily on expansion or a flat Import action; reuse those details during
+that picker session. If an older API omits the count, load the selected recipe
+before deciding its shape; do not treat missing data as zero sections.
+
+Existing create/update payloads and the F09 schema already persist the resulting
+independent groups/occurrences. No new table, migration, import endpoint, dependency,
+paid resource or live deployment is proposed. This remains a local draft import,
+not external website import, whole-recipe duplication, serving conversion or a
+live linked sub-recipe. Directions import awaits the explicit review decision.
+
+## Native sheets and layout
+
+Keep the editor's current tab-stack Screen frame. Register the Import route in
+both owning Recipes/Plan stacks before navigation, reuse scoped native formSheet
+entries and render its content directly as the accepted recipe sheets do.
+Open the searchable expandable list at the larger detent, retaining drag dismissal.
+
+Food keeps its non-collapsible root/header/footer as native siblings with one
+bounded scrolling results body. Its footer now contains two ordered actions;
+measure that layout rather than compensating with guessed padding. Retain its
+single KeyboardAwareSheet owner. Import likewise keeps a native header/search
+above one bounded body; disable automatic duplicate keyboard insets. Use shared
+ExpansionChevron, recipe rows/covers, semantic colors and accessible action states.
+Preserve underlying searches, draft content and explicit Back paths through the
+actual navigator, not a custom Modal or drag gesture. See `apps/mobile/AGENTS.md`
+and `native-sheets-app-wide.md`, including the recurring header-overlap rule.
 
 ## Validation after implementation
 
-- Pure helper coverage: flat/sectioned sources, empty sections, unassigned rows,
-  existing destination content, identical names, duplicate Catalog occurrences,
-  new stable keys, quantities/fractions/custom units/To taste/notes, directions,
-  source attribution, repeated copies, and all-or-nothing limit failures.
-- Actual-router cases from Recipes Create/Edit and Plan Create: search, refresh,
-  preview/Back/Cancel/dismiss, correct sheet height/frame, copy once, independent
-  edits, unchanged metadata, normal Save/reload, dirty warning and save conflicts.
-  Cover request failures, archived/unavailable Food, stale scope/response and
-  destination state changes while the flow is open. Verify no write goes to source.
-- After intended edits, run full mobile normal/cold suites, types/lint and native
-  JS exports for the completed feature. Existing results remain historical.
-  No DB behavior change is intended; if an API/data change proves necessary,
-  revise this plan before implementation and include disposable-PG validation.
-- Phone review in the current appearance: both editor origins, short/long lists,
-  large text, initial/expanded detents, keyboard, nested returns and retained
-  drafts. Record Android and other unrun checks separately. The dedicated
-  light/dark and both-phone release pass belongs before a later major rollout.
-- No testing, migrations or writes against the Mac trial DB or source recipe.
+- Pure selection/merge cases: flat and sectioned recipes; whole, singular and
+  Other selection; empty sections; existing destination section versus new groups;
+  duplicate names/Food, independent keys, correct order, To taste/custom units,
+  limits and no partial mutation. Cover directions only after the review decision.
+- Actual-router cases in Recipes Create/Edit and Plan Create: exact footer action
+  order/reachability, independent searches, multi-expansion and chevrons, whole
+  versus section Import, correct return depth, add once, normal Save/reload and
+  leave warning. Cover load/retry/refresh, archived source/Food, stale callbacks,
+  scope changes and preserving the latest destination draft. Assert no source write.
+- API tests on the explicitly verified local disposable PostgreSQL database for
+  summary counts, empty groups, household scope and unchanged older fields. No
+  tests or writes against the live Mac DB. Complete intended edits before checks.
+- Final coordinated pass: full mobile normal/cold suites, types/lint, native JS
+  exports and full disposable-PG API suite for the additive summary response.
+  Report earlier acceptance/results as historical, not coverage of this feature.
+- Phone review: keyboard open/closed with both Food footer actions, short/long
+  and expanded lists, larger text, initial detent, slow/fast dismiss, nested Back
+  and retained draft/search. Report Android or other unrun checks separately;
+  dedicated both-mode/both-phone release checks precede a later major rollout.
 
-## Review decisions
+## Review status
 
-Recommended first-version defaults are append both ingredients and directions,
-create/preserve sections as above, retain duplicate occurrences, and copy amounts
-without scaling. Felipe can revise these before approval. Implementation is not
-authorized by this planning request; source code remains unchanged.
+The footer entry, expandable searchable list and whole/section ingredient choices
+are Felipe's requested revision. Destination grouping above is proposed for
+review. Directions scope is explicitly pending the clarification sent in chat.
+This plan is not implementation approval; application code is unchanged.
