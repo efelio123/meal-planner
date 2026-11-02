@@ -5,9 +5,10 @@ Branch: `codex/native-widgets`, following the approved
 
 **Result: partial gate passed; production integration remains gated.** Both native
 platforms compile and seven native simulator/emulator tests pass. Baseline iPhone
-app/extension signatures and provisioned shared groups are verified; actual
-home-screen actions remain unverified. This does not
-complete F16.
+app/extension signatures and provisioned shared groups are verified. Felipe
+confirms native iPhone widget taps in small, medium and large sizes; four unique
+fictional server acknowledgements are observed. Offline retry, termination/lock
+behavior and physical Samsung acceptance remain unverified. This does not complete F16.
 
 ## Isolation and recovery
 
@@ -80,17 +81,22 @@ profiles authorizing the intended phone and the exact fixture URL were verified.
 Apple devicectl then successfully **installed and launched NativeWidgetProbe on
 Felipe's physical iPhone**, as requested. No app was installed on Loryn's phone;
 the existing Meal Planner app remains untouched. The fixture subsequently reports
-one acknowledged fictional operation; phone-screen confirmation and actual
-home-screen widget interaction still require Felipe's observations.
+one acknowledged fictional operation after launch. Felipe then reports that
+**small, medium and large widgets all confirm their taps**. A fresh fixture status
+read shows **four unique acknowledged operations**, consistent with the initial
+self-check and three widget taps. This is physical WidgetKit/native handler, shared
+credential and private HTTPS execution evidence; it is not a force-quit, lock-state,
+offline-retry, larger-text or final production-layout result.
 
 ## Still required before production integration
 
-- iPhone probe is installed; coordinate the remaining widget checks and a
-  separate Samsung installation when available.
-- Actual WidgetKit/Glance home-screen tap while main app is closed; native process
-  credential sharing, protected data/locked-phone behavior and persisted Pending.
-- Use the prepared private HTTPS fixture on an actual phone; simulator/emulator
-  test success is not a physical-networking result.
+- iPhone: disconnect Tailscale, queue a tap, observe Pending with the confirmed
+  count unchanged; reconnect and Retry pending from the widget without reopening
+  the probe. Confirmation must follow a new server acknowledgement.
+- Separately verify app termination/lock-unlock behavior; ordinary Home Screen
+  tap success does not establish these states.
+- Coordinate the separate Samsung probe installation and actual Glance home-screen
+  callback/private networking checks when the device is available.
 - Real native sizes, resizing/tint/larger text and deep links; Tailscale extension
   networking where relevant. No claim of force-quit recovery or guaranteed retry.
 
