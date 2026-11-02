@@ -113,6 +113,14 @@ future companion feature to plan, including their relationship to section import
 Current singular-section imports remain ingredients-only. Merge and live rollout
 remain separate.
 
+November 1 F15 planning: `docs/plans/household-member-permissions.md` proposes
+per-member action checkboxes with owner-only configuration and service-level
+API enforcement. Confirmed defaults remain Shopping Add and Check/uncheck, plus
+shared-content read access; owners retain full access. The action matrix,
+existing-member migration/reset policy and compound-action rules are proposals
+awaiting review on `codex/member-permissions-plan`. No F15 implementation,
+migration or live rollout is approved yet.
+
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for
 future pages. The source audit classifies all 64 page-route files and 11 layout

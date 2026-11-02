@@ -1,0 +1,299 @@
+# Household member permissions — F15
+
+Status: proposal for Felipe's review, November 1, 2026. Planning only.
+Branch: `codex/member-permissions-plan`, from accepted recipe work at `ab312cb`.
+No application, schema, dependency, configuration or deployment changes are
+approved by this document. Preserve F09/F10; they are accepted and committed,
+but not merged or deployed to the Mac trial.
+
+## Goal and scope
+
+Owners can decide what each member may do in one household. Owners retain full
+access. Members retain access to shared product content; by default they can
+add Shopping items and check/uncheck them. Add an owner-only permission editor
+and enforce the same policy in every household mutation, including nested
+flows and requests from older/stale clients.
+
+Deliver the settings and enforcement together. Scope includes migration/defaults,
+role and membership transitions, app-wide action gating, API errors and permission
+refresh, with no changes to the accepted meal/recipe/Shopping behavior beyond
+access restrictions. No custom roles, view restrictions, content ownership by
+creator, permission templates, calendar integration, widgets or paid services.
+Self-service profile, sign-out, personal date/view preferences, creating/joining
+another household and voluntary leave remain independent of these grants.
+
+## Findings from the current source
+
+- `household_management.lock_household` serializes household mutations and checks
+  active membership; its owner flag protects household administration. Most
+  Catalog, Recipe, Plan and Shopping writes currently accept any active member.
+- `household_members` stores owner/member roles; there are no content permissions.
+  Invitations create a member. Existing last-owner/removal rules must survive.
+- `member-detail-screen.tsx` already gives an owner role and removal controls
+  under Profile / My households. Routes explicitly identify the target household;
+  it may differ from the currently selected household.
+- Shopping PATCH combines check state and amount/unit/store edits. Meal-plan
+  shopping review adds items through another write path. Re-adding a purchased
+  item currently uses an update rather than the new-item endpoint. Each needs an
+  explicit policy; protecting only buttons or POST endpoints leaves gaps.
+- Household state holds role snapshots and guards session/selection races.
+  Permission refresh must preserve the mounted navigator and open drafts.
+
+## Proposed owner experience
+
+Profile → My households → household → person → **Permissions**.
+Only owners see this action. Use a full stack page, titled **Member permissions**,
+showing the person's name and target household. Its frame is `tab-stack` under
+one native header: shared Screen, one bounded scrolling form, no second top
+safe-area owner, and all final rows/actions reachable above navigation.
+
+Group accessible checkbox rows by Shopping, Recipes, Meal planning and Catalog
+(with Items, Categories, Stores and Shopping units). Labels name the action,
+rather than a vague Manage permission. Checked means allowed. All rows have
+consistent checkbox targets, labels and disabled states. Do not introduce a
+native sheet for this long settings list.
+
+Use explicit **Save** and **Reset to defaults**. Reset changes the draft to the
+two default grants; Save persists once. Back with changed checkboxes offers
+Keep editing / Discard changes, following the accepted draft-warning behavior.
+A successful Save shows confirmation and refreshes member details. Errors keep
+the checkbox draft; a conflicting owner edit offers Reload latest rather than
+overwriting it. Do not automatically retry an uncertain write: refetch and
+reconcile the saved revision/list first.
+
+For an owner target, show **Owners have full access** and a read-only all-enabled
+list. Their access cannot be reduced with checkboxes. Changing their role stays
+in the existing role flow, which explains full access on promotion and the
+default reset on demotion before confirming. Household administration appears as an Owner-only
+summary, separate from the editable product-action groups.
+
+## Proposed action matrix
+
+Owners can perform every action. Only the first two rows are enabled for members
+by default. The keys below are stable API identifiers; the app displays labels.
+
+| Group | Checkbox label | Key | Member default |
+| --- | --- | --- | --- |
+| Shopping | Add items | `shopping.add` | On |
+| Shopping | Check and uncheck items | `shopping.check` | On |
+| Shopping | Edit amounts, units and stores | `shopping.edit` | Off |
+| Shopping | Remove individual items | `shopping.remove` | Off |
+| Shopping | Clear purchased items | `shopping.clear_purchased` | Off |
+| Shopping | Clear the entire list | `shopping.clear_all` | Off |
+| Recipes | Create recipes | `recipes.create` | Off |
+| Recipes | Edit recipes | `recipes.edit` | Off |
+| Recipes | Archive recipes | `recipes.archive` | Off |
+| Recipes | Restore archived recipes | `recipes.restore` | Off |
+| Meal planning | Add meals | `plan.add` | Off |
+| Meal planning | Edit or move meals | `plan.edit` | Off |
+| Meal planning | Remove meals | `plan.remove` | Off |
+| Catalog items | Create Food and Household items | `catalog.items.create` | Off |
+| Catalog items | Edit items | `catalog.items.edit` | Off |
+| Catalog items | Archive items | `catalog.items.archive` | Off |
+| Categories | Create categories | `catalog.categories.create` | Off |
+| Categories | Edit categories | `catalog.categories.edit` | Off |
+| Categories | Remove categories | `catalog.categories.archive` | Off |
+| Stores | Create stores | `catalog.stores.create` | Off |
+| Stores | Edit stores | `catalog.stores.edit` | Off |
+| Stores | Remove stores | `catalog.stores.archive` | Off |
+| Shopping units | Create custom shopping units | `catalog.units.create` | Off |
+| Shopping units | Edit custom shopping units | `catalog.units.edit` | Off |
+| Shopping units | Remove custom shopping units | `catalog.units.archive` | Off |
+
+The 25 checkboxes are independent; no automatic permission inheritance. A member
+with none checked can still browse product content. Product grants never confer
+owner status. Household settings, invitations (create/reissue/revoke), role or
+permission changes, member removal and household deletion remain owner-only.
+Keep the last-owner safeguard and current email/invitation privacy boundaries;
+viewing shared product content does not expose owner-only administrative data.
+
+## Exact boundaries and compound actions
+
+- **Add versus edit:** choosing initial amount/unit/store for a new Shopping
+  entry is part of Add. Changing an existing entry's details requires Edit,
+  even if the submitted fields happen to match their current values.
+- **Re-add purchased:** Add includes returning an existing purchased item to
+  To buy with its current amount/unit/store retained. Use a narrow idempotent
+  `POST .../shopping-list/items/{item_id}/re-add` that accepts no detail edits.
+  It requires Add; an already-unchecked row returns unchanged. Route the accepted
+  quick re-add through it. A general PATCH of check state still requires Check.
+  This keeps Add-only members useful without granting arbitrary edits.
+- **PATCH enforcement:** a submitted `is_checked` field requires Check; any
+  amount/unit/store field requires Edit. A mixed request requires both. Check
+  every required grant before any write and reject the whole request if denied.
+- **Shopping needs:** viewing a review and choosing its date range are reads.
+  Adding missing needs, including their initial amount adjustments, requires
+  Shopping Add. Editing an already-listed entry requires Shopping Edit; checking
+  it requires Check. Existing review-token/idempotency rules remain in force.
+- **Clear actions:** each bulk clear has its own grant. Check, Remove or Clear
+  purchased does not implicitly permit Clear all. Swipe deletion uses Remove.
+- **Nested creation:** a person allowed to add Shopping items can select existing
+  Catalog items, units and stores. Create/manage actions use their respective
+  Catalog grants. Recipe creation/editing and ingredient import do not grant
+  Catalog writes. All nested entry paths reuse the same guards and Back behavior.
+- **Recipes:** create/save from Recipes needs Create; existing-recipe Save,
+  ingredients/sections/directions/reordering need Edit. Import follows the
+  destination's Create/Edit permission and never needs source Edit. Read access
+  includes recipe details and the existing archived-recipe view; Restore is
+  separate. Plan's create-recipe flow checks both recipe creation and the planned
+  add operation. If access changes between those separate saves, retain a recipe
+  already saved successfully and clearly report that adding the meal was denied.
+- **Category removal:** the current operation clears category references on
+  active Catalog items. If any are affected, require both Remove categories and
+  Edit items, explaining the dependency beside that action. An unused category
+  needs only Remove categories. Determine affected items under the same lock;
+  retain the existing count-change confirmation guard. Preserve current Store/
+  Unit in-use rules and all destructive confirmations.
+- **Every mutation, including replay:** permission checks precede idempotency
+  replay handling. Revoked access cannot use an old recipe-create or review
+  request ID to bypass current authorization. All records stay household-owned.
+
+## Proposed storage and API contract
+
+Use a small backend permission registry and normalized grant rows, with no new
+permission service, library or JWT claim. The registry defines supported keys,
+labels, groups and member defaults. Unknown/new actions default to denied for
+members; owners remain full-access. Keep client action identifiers typed and
+verify their agreement with the API registry in contract tests.
+
+Add `household_member_permissions(membership_id, action_key)` with a composite
+primary key, foreign key to `household_members`, and validated action keys.
+Household scope is derived from the membership; every query validates the target
+membership's household and active status. Add a positive `permissions_revision`
+to memberships for optimistic concurrency. An empty grant set means no product
+writes, never an implicit reset to defaults.
+
+Seed exactly Add and Check for existing active members in the migration, and
+for newly accepted invitations. Preserve users, recipes, Catalog, Shopping and
+Plan records. Existing members currently have broader content-write access:
+this migration intentionally restricts them to the approved defaults. Inventory
+roles read-only and explain that effect before a later live rollout.
+
+Owners' effective access is computed as all actions. Promoting a member removes
+custom grants; demoting an owner seeds the member defaults. Removal clears grants;
+rejoining starts at defaults without restoring old custom access. Increment the
+revision on role/access/removal transitions, preserving current last-owner and
+membership invariants. Never assign grants to another membership or household.
+
+Add effective permissions and their revision to each current-user Household
+snapshot (`/me`, household lists/detail, create responses). Do not add other
+members' grant sets to broadly readable People responses. Proposed owner endpoints:
+
+- `GET /v1/households/{household_id}/members/{membership_id}/permissions` returns
+  target role, revision, effective grants and grouped action definitions/defaults.
+- `PATCH` on that path accepts the full grant list and required
+  `expected_revision`; success returns the confirmed snapshot. Reject unknown,
+  duplicated or owner-administration keys. An owner target is read-only here.
+  Compare/update under the household lock; a stale revision returns 409
+  `MEMBER_PERMISSIONS_CONFLICT`, with no partial change.
+
+Use a shared service-level `require_permission`/`require_permissions` with the
+existing household lock inside each mutation transaction. Owner edits and member
+writes take that same lock, so the operation that obtains it first completes
+first; later operations observe the updated role/grants. An already committed
+allowed write is not undone by a later revocation. Do not authorize in a separate
+precheck transaction, UI, token, or cached role alone.
+
+For a valid active member lacking a product action, return structured 403
+`HOUSEHOLD_ACTION_FORBIDDEN` with a safe message/action key. Keep current 404
+behavior for inaccessible households, members, or cross-household targets and
+owner-only administration. Resolve target IDs within the caller's household
+before reporting a missing product grant, and check every grant before writes.
+These are access errors, not authentication expiry;
+do not sign the user out. Strict request validation must cover the raw submitted
+fields so clients cannot smuggle additional changes through a permitted action.
+
+## Mobile permissions and refresh
+
+Add shared selectors/hooks with an explicit household ID (or the selected
+household default), using authoritative user/session/household-scoped snapshots.
+Extend current household state narrowly with access refresh/merge; keep role and
+permissions consistent across its household list and selected-household object.
+Do not reorganize authentication or change root startup/navigation contracts.
+
+Refresh access on relevant screen focus, foreground resume, pull-to-refresh and
+a permission denial, plus after confirmed owner/role edits. Coalesce requests and
+ignore stale responses after sign-out, household switch or target change. Missing
+member permissions from an old API do not imply write access. Keep reads usable
+and show an update/retry message. Do not widen known grants on refresh failure.
+No realtime transport/polling service is introduced: another phone's visual
+controls update on refresh/focus/resume or its first denied action; the API always
+checks current rights before writing.
+
+Use the same selectors for toolbar actions, swipe gestures, row buttons, Catalog
+choosers/managers, recipe forms, Plan and Shopping review, and direct route entry.
+Keep all tabs, shared content, search, sorting and read navigation usable. Hide
+unavailable mutation controls; show a clear read-only explanation on a detail or
+blocked deep-linked editing page. A checkbox without Check permission remains a
+visible non-interactive status indicator. A readable Shopping row may still open
+its details, but its Save/Delete/Catalog-edit actions each follow their own grant.
+
+On permission changes, preserve an open draft, make forbidden actions unavailable
+and explain the restriction. Do not reset editor scope or discard content merely
+because the permission revision changed. Existing leave warnings still protect
+unsaved drafts. No autosave or automatic write retry on a later grant. Reconcile
+optimistic checkoffs/deletions after denial and refresh access; independent allowed
+quick checkoffs must retain their existing per-item responsiveness.
+
+## Affected areas and implementation sequence
+
+1. Add the permission registry/helper, migration, defaults and membership lifecycle
+   integration in household management/onboarding. Add owner endpoints and typed
+   API snapshots. Consult current official docs against resolved FastAPI,
+   SQLAlchemy/PostgreSQL and Expo/Router versions before implementation.
+2. Inventory every mutation in `main.py` and its actual service call; apply the
+   policy in `shopping_lists.py`, `catalog.py`, `recipes.py`, `meal_planning.py`
+   and owner-only services. Add narrow re-add and field-aware authorization.
+3. Add the shared mobile access selectors/refresh behavior and the owner page in
+   `src/features/household-permissions/`; add a thin nested Profile route and
+   member-detail link. Reuse app-wide visual/layout components.
+4. Apply guards across Shopping, Catalog, Recipes, Plan, review, nested sheets and
+   archived recipes. Preserve current navigation, drafts and accepted interactions.
+5. Complete intended tests and implementation, then run one coordinated validation
+   pass. Commit focused changes on `codex/member-permissions` from this planning
+   branch after approval. Follow the standing coding-agent/direct-assignment
+   agreement; Felipe has requested planning only for this slice so far.
+
+## Validation and later rollout
+
+- Unit/contract matrix for all 25 actions: owner, default member, explicit grant,
+  denial, empty grants and unknown actions. Check all existing mutation routes
+  have an intentional mapping; test service enforcement as well as HTTP behavior.
+- Verified disposable-PG integration: migration/backfill, defaults on invitation,
+  rejoin/promotion/demotion/removal, last owner, tenant isolation, owner-only
+  editing, stale revisions and concurrent revocation versus writes. Verify denied
+  operations leave data/revisions unchanged. Test Shopping mixed fields, re-add,
+  bulk clears, category side effects, replay IDs and alternate Plan/review paths.
+  Guard downgrade against losing saved permission configuration.
+- Actual-router/UI coverage for owner settings and scoped non-selected households,
+  read-only browsing, deep links, nested creation, recipe import, interrupted
+  drafts, denied optimistic updates and account/household switches. Confirm a
+  member cannot reach a working forbidden mutation via another tab or sheet.
+- Full mobile normal and cache-cleared suites, types/lint, Expo compatibility,
+  iOS/Android JS exports, API Ruff and full disposable-PG suite with no claimed
+  pass for skipped tests. No tests against the Mac trial database.
+- Phone review: owner and member accounts, one grant/revocation between phones,
+  default checkoffs/re-add and recipe/Plan browsing, long permission list with
+  larger text, Back/discard, full content reachability and nested return behavior.
+  Record actual devices/modes checked; a dedicated light/dark pass precedes a
+  major release. Automated checks do not prove native geometry or gesture feel.
+- A later separately approved rollout needs a fresh restore-verified Mac backup,
+  role inventory, migration review, both-phone client upgrade and coordinated
+  API deployment. Older clients remain subject to server enforcement and may see
+  denials for former writes. Avoid rolling back to an API that stops enforcing
+  the configured policy; prefer a permission-compatible fix. This plan does not
+  merge, migrate, deploy, reinstall apps or change staging auto-deploy.
+
+## Decisions for review
+
+These are proposed defaults, not additional confirmed requirements:
+
+1. Use the 25 independent product-action checkboxes above, with administration
+   permanently owner-only. No permission can make a member a delegated owner.
+2. Restrict existing members to Add/Check at migration; new members use the same
+   defaults. Demotion and rejoin reset to defaults rather than revive old grants.
+3. Add includes restoring a purchased row unchanged; general check-state toggles
+   remain separate. Include Shopping-review additions under the same Add grant.
+
+No external credentials, paid resource or package change is needed. Approve or
+revise these choices and the scope before application/schema implementation.
