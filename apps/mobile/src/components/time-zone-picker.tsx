@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
   keyboardArea: { flex: 1 },
   container: { gap: 6 },
   label: { fontSize: 16, fontWeight: '600' },
-  selected: { borderColor: '#9ca3af', borderRadius: 8, borderWidth: 1, gap: 2, padding: 12 },
+  selected: { borderRadius: 8, borderWidth: 1, gap: 2, padding: 12 },
   selectedLabel: { fontSize: 16 },
   identifier: { fontSize: 13 },
   sheet: { flex: 1, gap: 16, padding: 24, paddingTop: 18 },

@@ -1,6 +1,7 @@
 import { createContext, type PropsWithChildren, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 
 export type NativeSheetOptions = {
+  direct?: boolean;
   detents?: number[];
   initialDetent?: number;
   onDismiss?: () => void;
@@ -10,12 +11,14 @@ export type NativeSheetEntry = {
   id: string;
   scope: string;
   content: ReactNode;
+  direct?: boolean;
   detents: number[];
   initialDetent: number;
 };
 
 type NativeSheetContextValue = {
   scope: string;
+  hasOpenSheet: boolean;
   present: (content: ReactNode, options?: NativeSheetOptions) => string;
   get: (id: string) => NativeSheetEntry | null;
   remove: (id: string) => void;
@@ -48,7 +51,7 @@ export function NativeSheetProvider({ children, scope }: PropsWithChildren<{ sco
     callbacks.current[id] = options.onDismiss;
     const nextEntries = {
       ...entriesRef.current,
-      [id]: { id, scope, content, detents, initialDetent: options.initialDetent ?? 0 },
+      [id]: { id, scope, content, direct: options.direct, detents, initialDetent: options.initialDetent ?? 0 },
     };
     entriesRef.current = nextEntries;
     setEntries(nextEntries);
@@ -74,7 +77,8 @@ export function NativeSheetProvider({ children, scope }: PropsWithChildren<{ sco
     callback?.();
   }, []);
 
-  const value = useMemo(() => ({ scope, present, get, remove }), [get, present, remove, scope]);
+  const hasOpenSheet = Object.values(entries).some((entry) => entry.scope === scope);
+  const value = useMemo(() => ({ scope, hasOpenSheet, present, get, remove }), [get, hasOpenSheet, present, remove, scope]);
   return <NativeSheetContext.Provider value={value}>{children}</NativeSheetContext.Provider>;
 }
 

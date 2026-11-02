@@ -104,7 +104,7 @@ describe('Recipes through the actual Expo Router', () => {
     Platform.OS = 'android';
     jest.clearAllMocks();
     mockGetToken.mockResolvedValue('session-token');
-    mockedStorage.getItem.mockResolvedValue('household-a');
+    mockedStorage.getItem.mockImplementation(async (key) => key === 'meal-planner:appearance:v1' ? JSON.stringify({ version: 1, themeId: 'system', chooserSeenVersion: 1 }) : 'household-a');
     mockedStorage.setItem.mockResolvedValue();
     mockedStorage.removeItem.mockResolvedValue();
     mockedApi.me.mockResolvedValue(signedInMe);
@@ -1251,6 +1251,43 @@ describe('Recipes through the actual Expo Router', () => {
     await waitFor(() => expect(screen.getByLabelText('Ingredient amount').props.editable).toBe(false));
     expect(screen.getByLabelText('Ingredient amount').props.value).toBe('3'); expect(screen.getByRole('button', { name: 'Add ingredient' })).toBeDisabled();
     expect(mockedApi.createRecipe).not.toHaveBeenCalled();
+  });
+
+  it('changes appearance through Profile and retains an unsaved recipe in its tab', async () => {
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/create'));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Keep this recipe');
+    await act(async () => router.navigate('/profile'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Appearance' }));
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Green' }));
+    await waitFor(() => expect(mockedStorage.setItem).toHaveBeenCalledWith('meal-planner:appearance:v1', JSON.stringify({ version: 1, themeId: 'green', chooserSeenVersion: 1 })));
+    await act(async () => router.back()); await act(async () => router.back());
+    expect(await screen.findByLabelText('Recipe name')).toHaveProp('value', 'Keep this recipe');
+    expect(mockedApi.createRecipe).not.toHaveBeenCalled();
+  });
+
+  it('offers the first-use native chooser once and preserves the selected theme after dismissal', async () => {
+    mockedStorage.getItem.mockImplementation(async (key) => key === 'meal-planner:appearance:v1' ? null : 'household-a');
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Choose your look');
+    expect(screen.getByTestId('appearance-chooser-header').props.collapsable).toBe(false);
+    await fireEvent.press(screen.getByRole('radio', { name: 'Apricot, Chocolate & Navy' }));
+    await waitFor(() => expect(mockedStorage.setItem).toHaveBeenCalledWith('meal-planner:appearance:v1', JSON.stringify({ version: 1, themeId: 'apricot', chooserSeenVersion: 1 })));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continue' })); await screen.findByText('Plan');
+    await act(async () => router.navigate('/profile'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Appearance' }));
+    expect(await screen.findByRole('radio', { name: 'Apricot, Chocolate & Navy' })).toBeChecked();
+    expect(screen.queryByText('Choose your look')).toBeNull();
+  });
+
+  it('defers the first-use chooser for a deep-linked editor until it returns to a tab root', async () => {
+    mockedStorage.getItem.mockImplementation(async (key) => key === 'meal-planner:appearance:v1' ? null : 'household-a');
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/recipes/create' });
+    await screen.findByLabelText('Recipe name');
+    await act(() => jest.advanceTimersByTimeAsync(400));
+    expect(screen.queryByText('Choose your look')).toBeNull();
+    await act(async () => router.replace('/recipes'));
+    await screen.findByText('Choose your look');
   });
 
 });

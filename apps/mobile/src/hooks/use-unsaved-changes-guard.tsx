@@ -58,7 +58,7 @@ function RecipeLeaveConfirmation({ visible, saving, saveUnknown, onKeep, onDisca
 }) {
   const theme = useTheme();
   return <Modal transparent animationType="fade" visible={visible} onRequestClose={onKeep}>
-    <ScrollView contentContainerStyle={styles.overlay} keyboardShouldPersistTaps="handled" bounces={false}>
+    <ScrollView contentContainerStyle={[styles.overlay, { backgroundColor: theme.scrim }]} keyboardShouldPersistTaps="handled" bounces={false}>
       <View accessibilityViewIsModal style={[styles.card, { backgroundColor: theme.surface }]}>
         <ThemedText accessibilityRole="header" style={styles.title}>{saving ? subject === 'recipe' ? 'Recipe is saving' : 'Permissions are saving' : subject === 'recipe' ? 'Discard recipe changes?' : 'Discard permission changes?'}</ThemedText>
         <ThemedText>{saving ? 'Please wait while we finish checking the save. Your work will stay open.' : saveUnknown
@@ -71,7 +71,7 @@ function RecipeLeaveConfirmation({ visible, saving, saveUnknown, onKeep, onDisca
   </Modal>;
 }
 const styles = StyleSheet.create({
-  overlay: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', padding: 24 },
+  overlay: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   card: { borderRadius: 16, gap: 16, maxWidth: 440, padding: 24, width: '100%' },
   title: { fontSize: 22, fontWeight: '700' },
   discard: { alignItems: 'center', borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 48 },

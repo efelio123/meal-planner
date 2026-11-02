@@ -185,7 +185,7 @@ export function RecipeDetailScreen() {
         </View>
       </Screen>
       <Modal transparent animationType="fade" onRequestClose={() => setConfirmingArchive(false)} visible={confirmingArchive}>
-        <View style={styles.overlay}>
+        <View style={[styles.overlay, { backgroundColor: theme.scrim }]}>
           <View style={[styles.confirm, { backgroundColor: theme.surface }]}>
             <ThemedText accessibilityRole="header" style={styles.confirmTitle}>Archive this recipe?</ThemedText>
             <ThemedText>It will leave the active Recipes library. Any household member can restore it from Household details.</ThemedText>
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   archiveAction: { alignItems: 'center', justifyContent: 'center', minHeight: 50 },
   archiveText: { fontWeight: '600' },
   headerAction: { fontWeight: '600' },
-  overlay: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'center', padding: 24 },
+  overlay: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 24 },
   confirm: { borderRadius: 16, gap: 16, maxWidth: 440, padding: 24, width: '100%' },
   confirmTitle: { fontSize: 22, fontWeight: '700' },
   confirmArchive: { alignItems: 'center', borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 48 },

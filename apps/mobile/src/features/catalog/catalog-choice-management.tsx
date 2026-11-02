@@ -592,7 +592,7 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
       />
 
       <Modal animationType="fade" onRequestClose={() => setDeleteConfirmOpen(false)} transparent visible={deleteConfirmOpen}>
-        <View style={styles.confirmOverlay}>
+        <View style={[styles.confirmOverlay, { backgroundColor: theme.scrim }]}>
             <View style={[styles.confirmCard, { backgroundColor: theme.elevatedSurface, borderColor: theme.surfaceSelected }]}>
             <ThemedText accessibilityRole="header" style={styles.confirmTitle}>Delete category?</ThemedText>
             <ThemedText>{activeItemCount ? `Deleting “${categoryName}” will move ${activeItemCount} active ${activeItemCount === 1 ? 'item' : 'items'} to Uncategorized.` : `Delete “${categoryName}”?`}</ThemedText>
@@ -630,7 +630,7 @@ const styles = StyleSheet.create({
   categorySettingRow: { alignItems: 'center', borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, minHeight: 58, paddingHorizontal: 16 },
   emojiPreview: { flex: 1, textAlign: 'right' },
   deleteAction: { alignItems: 'center', borderRadius: 12, borderWidth: 1, justifyContent: 'center', minHeight: 52 },
-  confirmOverlay: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'center', padding: 24 },
+  confirmOverlay: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 24 },
   confirmCard: { borderRadius: 18, borderWidth: 1, gap: 16, maxWidth: 440, padding: 24, width: '100%' },
   confirmTitle: { fontSize: 22, fontWeight: '700' },
   confirmDeleteButton: { alignItems: 'center', borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 48 },

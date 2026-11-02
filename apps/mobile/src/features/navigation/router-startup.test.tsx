@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // SDK 58 initializes the full route tree asynchronously; cold imports on Windows
 // exceed Jest's unit-test default. This is not an app startup performance check.
 import type { PropsWithChildren } from 'react';
@@ -12,7 +13,7 @@ import { useResetToHouseholdStartup } from '@/features/profile/use-reset-to-hous
 
 jest.setTimeout(30000);
 // Native persistence is outside this routing harness; the preference hook has dedicated storage tests.
-jest.mock('@react-native-async-storage/async-storage', () => ({ getItem: jest.fn().mockResolvedValue(null), setItem: jest.fn().mockResolvedValue(undefined) }));
+jest.mock('@react-native-async-storage/async-storage', () => ({ getItem: jest.fn().mockImplementation(async (key: string) => key === 'meal-planner:appearance:v1' ? JSON.stringify({ version: 1, themeId: 'system', chooserSeenVersion: 1 }) : null), setItem: jest.fn().mockResolvedValue(undefined) }));
 // The native tab's system label is not a rendered text node in Jest. Observe
 // the real tab consumer; native badge wiring is covered by native-tabs-config.
 let mockTabBadge: { accessibilityLabel: string } | null = null;
@@ -307,6 +308,8 @@ describe('signed-in startup routing', () => {
   beforeEach(() => {
     mockTabBadge = null;
     jest.resetAllMocks();
+    jest.mocked(AsyncStorage.getItem).mockImplementation(async (key) => key === 'meal-planner:appearance:v1' ? JSON.stringify({ version: 1, themeId: 'system', chooserSeenVersion: 1 }) : null);
+    jest.mocked(AsyncStorage.setItem).mockResolvedValue();
     mockInitialDestination = 'app';
     mockInitialSignedIn = true;
     mockInitialRole = 'owner';

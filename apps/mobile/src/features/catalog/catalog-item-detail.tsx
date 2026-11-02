@@ -147,7 +147,7 @@ export function CatalogItemDetail() {
         {error && !loading ? <PrimaryButton onPress={() => void loadItem()} title="Retry loading item" /> : null}
       </View>
       <Modal transparent animationType="fade" onRequestClose={() => setConfirming(false)} visible={confirming}>
-        <View style={styles.overlay}>
+        <View style={[styles.overlay, { backgroundColor: theme.scrim }]}>
           <View style={[styles.confirm, { backgroundColor: theme.surface }]}>
             <ThemedText accessibilityRole="header" style={styles.confirmTitle}>Remove item?</ThemedText>
             <ThemedText>This item will no longer appear in your household’s active catalog.</ThemedText>
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
   removeAction: { alignItems: 'center', borderRadius: 12, justifyContent: 'center', minHeight: 50, marginTop: 4 },
   removeText: { fontWeight: '600' },
   headerAction: { fontWeight: '600' },
-  overlay: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'center', padding: 24 },
+  overlay: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 24 },
   confirm: { borderRadius: 16, gap: 16, maxWidth: 440, padding: 24, width: '100%' },
   confirmTitle: { fontSize: 22, fontWeight: '700' },
   confirmRemove: { alignItems: 'center', borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 48 },

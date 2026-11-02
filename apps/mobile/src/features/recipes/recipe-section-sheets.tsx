@@ -95,7 +95,7 @@ export function RecipeSectionsSheet({ requiredPermission, nameSheetRoute, initia
         onMove={(key, direction) => { if (blocked() || !isCurrent()) return null; const index = current.current.findIndex((s) => s.key === key); const target = index + direction; if (index < 0 || target < 0 || target >= current.current.length) return null; const keys = current.current.map((s) => s.key); [keys[index], keys[target]] = [keys[target], keys[index]]; reorder(keys); return target + 1; }} />
     </Animated.ScrollView>
     <View collapsable={false} testID="recipe-sections-footer" style={[styles.content, styles.footer, { paddingBottom: insets.bottom + 16 }]}><PrimaryButton title="Add section" disabled={!allowed || dragging || sections.length >= 20} onPress={() => entry()} /></View>
-    <Modal transparent animationType="fade" visible={removing !== null} onRequestClose={() => setRemoving(null)}><View style={styles.overlay}><View style={[styles.confirm, { backgroundColor: theme.surface }]}>
+    <Modal transparent animationType="fade" visible={removing !== null} onRequestClose={() => setRemoving(null)}><View style={[styles.overlay, { backgroundColor: theme.scrim }]}><View style={[styles.confirm, { backgroundColor: theme.surface }]}>
       <ThemedText accessibilityRole="header" style={styles.confirmTitle}>Remove {removing?.name} section?</ThemedText><ThemedText>Its ingredients will be kept and moved to Other ingredients.</ThemedText>
       <Pressable accessibilityRole="button" style={[styles.confirmAction, { borderColor: theme.error, backgroundColor: theme.errorSurface }]} onPress={() => { if (removing && !blocked() && isCurrent()) publish(current.current.filter((s) => s.key !== removing.key), removing.key); setRemoving(null); }}><ThemedText themeColor="error">Remove section</ThemedText></Pressable>
       <Pressable accessibilityRole="button" style={visualStyles.sheetAction} onPress={() => setRemoving(null)}><ThemedText themeColor="link">Cancel</ThemedText></Pressable>
@@ -106,7 +106,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 }, content: { paddingHorizontal: 22, paddingTop: 20, paddingBottom: 28, gap: 14 },
   sectionScroll: { flex: 1, minHeight: 0 }, footer: { flexShrink: 0 },
   header: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, minHeight: 44 },
-  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', padding: 24 },
+  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   confirm: { borderRadius: 16, gap: 16, maxWidth: 440, padding: 24, width: '100%' }, confirmTitle: { fontSize: 22, fontWeight: '700' },
   confirmAction: { alignItems: 'center', justifyContent: 'center', borderRadius: 10, borderWidth: 1, minHeight: 48 },
 });

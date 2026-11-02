@@ -1,7 +1,7 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect, useRef } from 'react';
+import { useContext, useEffect, useRef } from 'react';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { ClerkProvider, useAuth } from '@clerk/expo';
@@ -19,6 +19,10 @@ import { NativeSheetProvider, useNativeSheetFlow } from '@/features/native-sheet
 import { nativeSheetRouteOptions } from '@/features/native-sheets/native-sheet-route-options';
 import { ShoppingListProvider } from '@/features/shopping-list/shopping-list-provider';
 import { ShoppingProvider } from '@/features/shopping-list/shopping-context';
+
+import { AppearanceProvider } from '@/features/appearance/appearance-provider';
+import { AppearanceContext } from '@/features/appearance/appearance-context';
+import { AppearanceFirstUse } from '@/features/appearance/appearance-first-use';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -51,6 +55,7 @@ function RootStack({ destination, isSignedIn }: { destination: AppDestination; i
 
 function RootNavigator() {
   const theme = useTheme();
+  const appearance = useContext(AppearanceContext);
   const { isLoaded, isSignedIn, sessionId, userId } = useAuth();
   const { destination, selectedHousehold } = useHouseholdState();
   const diagnostics = getStartupDiagnostics();
@@ -74,9 +79,10 @@ function RootNavigator() {
     diagnostics?.record('destination_change', Date.now() - (startupStartedAt.current ?? Date.now()));
   }, [destination, diagnostics]);
 
-  if (!isLoaded || destination === 'loading') return <View style={{ alignItems: 'center', backgroundColor: theme.screen, flex: 1, justifyContent: 'center' }}><ActivityIndicator color={theme.activity} /></View>;
+  if (!appearance?.hydrated || !isLoaded || destination === 'loading') return <View style={{ alignItems: 'center', backgroundColor: theme.screen, flex: 1, justifyContent: 'center' }}><ActivityIndicator color={theme.activity} /></View>;
   return (
     <NativeSheetProvider scope={`${isSignedIn ? 'signed-in' : 'signed-out'}:${userId ?? ''}:${sessionId ?? ''}:${selectedHousehold?.id ?? ''}`}>
+      <AppearanceFirstUse eligible={Boolean(isSignedIn && destination === 'app')} />
       <ShoppingProvider>
       <ShoppingListProvider>
         <RootStack destination={destination} isSignedIn={isSignedIn} />
@@ -86,7 +92,7 @@ function RootNavigator() {
   );
 }
 
-export default function RootLayout() {
+function ThemedRootLayout() {
   const mode = useThemeMode();
   const colors = useTheme();
   const navigationTheme = { ...(mode === 'dark' ? DarkTheme : DefaultTheme), colors: { ...(mode === 'dark' ? DarkTheme : DefaultTheme).colors, background: colors.screen, card: colors.surface, text: colors.text, border: colors.border, primary: colors.primary, notification: colors.error } };
@@ -108,4 +114,8 @@ export default function RootLayout() {
       </ClerkProvider>
     </GestureHandlerRootView>
   );
+}
+
+export default function RootLayout() {
+  return <AppearanceProvider><ThemedRootLayout /></AppearanceProvider>;
 }

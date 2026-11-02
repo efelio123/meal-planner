@@ -25,7 +25,7 @@ import { dateLabel, MEAL_SLOTS } from './meal-plan-utils';
 function Header({ title, onCancel }: { title: string; onCancel: () => void }) {
   const theme = useTheme();
   return <View collapsable={false} style={[styles.header, { borderBottomColor: theme.border }]}>
-    {Platform.OS === 'web' ? <View style={styles.grabber} /> : null}
+    {Platform.OS === 'web' ? <View style={[styles.grabber, { backgroundColor: theme.grabber }]} /> : null}
     <View style={styles.headerRow}>
       <ThemedText accessibilityRole="header" style={visualStyles.sheetTitle}>{title}</ThemedText>
       <Pressable accessibilityRole="button" accessibilityLabel="Cancel" hitSlop={12} onPress={onCancel} style={styles.headerButton}>
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   sheet: { flex: 1, overflow: 'hidden' },
   picker: { flex: 1 },
   header: { borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 20, paddingTop: 8 },
-  grabber: { alignSelf: 'center', backgroundColor: '#8e8e93', borderRadius: 3, height: 5, marginBottom: 10, opacity: 0.55, width: 36 },
+  grabber: { alignSelf: 'center', borderRadius: 3, height: 5, marginBottom: 10, opacity: 0.55, width: 36 },
   headerRow: { alignItems: 'center', flexDirection: 'row', minHeight: 48, justifyContent: 'space-between' },
   headerButton: { alignItems: 'flex-start', justifyContent: 'center', minHeight: 44, minWidth: 64 },
   sheetScroll: { flex: 1, minHeight: 0 },

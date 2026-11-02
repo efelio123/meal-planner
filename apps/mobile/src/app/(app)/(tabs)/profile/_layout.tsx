@@ -14,6 +14,7 @@ export default function ProfileStackLayout() {
       ...profileNativeStackOptions,
     }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="appearance" options={profileDetailHeader('Appearance')} />
       <Stack.Screen name="my-account" options={profileDetailHeader('My account')} />
       <Stack.Screen name="my-households/index" options={profileDetailHeader('My households')} />
       <Stack.Screen name="my-households/create" options={profileDetailHeader('Create household')} />

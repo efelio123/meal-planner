@@ -1,14 +1,14 @@
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { ApiError, api, type GetToken } from '@/lib/api';
 import { Screen } from '@/components/screen';
 import { SignOutAction } from '@/components/sign-out-action';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { useTheme } from '@/hooks/use-theme';
-import { ThemedInput } from '@/components/themed-controls';
+import { PrimaryButton as Button, ThemedInput } from '@/components/themed-controls';
 
 type AcceptInvitation = (getToken: GetToken, code: string) => Promise<void>;
 
@@ -65,5 +65,5 @@ const styles = StyleSheet.create({
   content: { gap: 16 },
   title: { fontSize: 30, fontWeight: '700' },
   body: { fontSize: 16, lineHeight: 22 },
-  error: { color: '#b42318' },
+  error: {},
 });

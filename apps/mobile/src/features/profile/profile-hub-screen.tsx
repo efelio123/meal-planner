@@ -63,6 +63,13 @@ export function ProfileHubScreen() {
               title="My households"
               variant="plain"
             />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+            <ProfileNavigationRow
+              icon={{ ios: 'paintpalette', android: 'palette', web: 'palette' }}
+              onPress={() => router.push('/(app)/(tabs)/profile/appearance' as Href)}
+              title="Appearance"
+              variant="plain"
+            />
           </View>
         </View>
       </View>
