@@ -67,7 +67,7 @@ Use household-local dates and personal week start. Include special meal details.
 ## Validation and delivery
 
 First validate isolated native targets, shared secure storage, app-closed handlers
-and a disposable authenticated write on iPhone/Samsung. No real trial data or phone
+and a disposable authenticated write on iPhone and the PC Android emulator. No real trial data or phone
 installations without coordinated review. Then complete app/API/schema/test edits
 before one coordinated validation pass: projection and outbox races, duplicate/
 rapid/offline/stale taps, re-adds, permission/account changes, expiry, all dates,
@@ -98,6 +98,20 @@ Felipe confirms small/medium/large iPhone widget taps and offline Pending follow
 by successful reconnect/retry, then successful taps after app termination and
 phone lock/unlock without reopening the probe. Eight unique fictional operations
 are acknowledged in aggregate. The completed temporary fixture is removed and
-family API health verified. Physical Samsung acceptance remains pending; keep
-production integration behind this gate. These findings do not complete F16 or
-guarantee execution while locked/before first unlock or scheduled background retry.
+family API health verified. Felipe selects the PC emulator for the Android gate.
+Actual launcher taps, process restart, offline Pending persistence/retry and three
+responsive layouts now pass there; see `docs/qa/android-widget-launcher.md`. The
+agreed execution gate is passed, allowing the already approved consumer integration.
+Samsung hardware/OEM acceptance remains unrun for later testing. These findings do
+not complete F16 or guarantee locked/pre-first-unlock or scheduled background work.
+
+## Android gate target clarification
+
+Felipe directs the remaining Android check to the PC emulator. Validate an actual
+launcher-hosted Glance widget, including authenticated native taps with no Activity
+open, a restart of its background process, offline Pending and retry, and native
+resize behavior. Keep Samsung hardware/OEM and private-HTTPS/Tailscale acceptance
+explicitly unrun for later device testing; do not label emulator results Samsung
+results. Use only the existing fictional probe and owned disposable AVD, retaining
+the consumer app/API/database unchanged. The current native gate uses this emulator
+result; physical Samsung testing remains a later acceptance item.

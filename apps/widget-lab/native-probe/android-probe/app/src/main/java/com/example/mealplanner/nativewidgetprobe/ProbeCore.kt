@@ -18,6 +18,8 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import org.json.JSONObject
 
+data class ProbeState(val pending: Int, val confirmed: Int)
+
 data class ProbeAction(val id: String, val itemID: String, val desired: Boolean, val version: Int)
 
 class ProbeStore(context: Context) : SQLiteOpenHelper(context, "native-widget-probe.sqlite", null, 1) {
@@ -45,7 +47,15 @@ class ProbeStore(context: Context) : SQLiteOpenHelper(context, "native-widget-pr
     fun actions(): List<ProbeAction> = readableDatabase.rawQuery("SELECT id,item,desired,version FROM outbox ORDER BY rowid", null).use { c ->
         buildList { while(c.moveToNext()) add(ProbeAction(c.getString(0),c.getString(1),c.getInt(2)!=0,c.getInt(3))) }
     }
-    fun acknowledge(id: String) = transaction { it.delete("outbox", "id=?", arrayOf(id)) }
+    fun state(): ProbeState = readableDatabase.rawQuery(
+        "SELECT (SELECT count(*) FROM outbox),coalesce((SELECT cast(value AS INTEGER) FROM snapshot WHERE key='confirmed'),0)", null
+    ).use { c -> check(c.moveToFirst()); ProbeState(c.getInt(0),c.getInt(1)) }
+    fun acknowledge(id: String) = transaction { db ->
+        if (db.delete("outbox", "id=?", arrayOf(id)) == 1) {
+            db.execSQL("INSERT OR IGNORE INTO snapshot(key,value) VALUES ('confirmed','0')")
+            db.execSQL("UPDATE snapshot SET value=cast(value AS INTEGER)+1 WHERE key='confirmed'")
+        }
+    }
 }
 
 /** Private encrypted file; the AES key never leaves Android Keystore. No plaintext fallback. */

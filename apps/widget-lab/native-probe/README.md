@@ -73,16 +73,20 @@ Then run `run-android-checks.ps1` with `-Sdk`, `-Python` and `-TemplateConfig` p
 to an existing Android 37.0 x86_64 AVD config. It copies **only configuration** to a
 new, uniquely named AVD; existing AVD contents are never used or changed. It checks
 its emulator identity before installing the fictional probe/test APKs. The
-emulator is hidden, uses port 5582, is shut down afterward, and is retained on disk
-for inspection. Its loopback fixture is stopped afterward. No physical device is
+emulator is hidden, uses port 5582, is normally shut down afterward, and is retained
+on disk for inspection. `-KeepRunningForLauncherReview` leaves only that owned
+emulator/fixture after the tests pass; finish with
+`finish-android-launcher-review.ps1 -Sdk <sdk-path>`. Its loopback fixture is stopped afterward. No physical device is
 selected, and no application Activity needs to launch for the tests.
 
 Three instrumentation tests cover snapshot/outbox isolation, Android Keystore
 AES/GCM credential roundtrip without plaintext file storage, and the same native
 checkoff worker invoked in a separate `:widget` process. A debug-only, non-exported
 same-UID receiver drives that process test. The actual Glance action calls the
-same worker, but launcher widget taps, rendering/resizing and Samsung background
-behavior remain separate physical acceptance checks. No exact background retry
+same worker. The later PC emulator review also passes real launcher taps, process
+restart, offline persistence/retry and native responsive resizing; see
+`docs/qa/android-widget-launcher.md`. Samsung background/OEM behavior and Android
+HTTPS/Tailscale remain later physical acceptance checks. No exact background retry
 or force-stop behavior is established by these tests.
 
 Cleartext networking is enabled **only in the disposable debug app**, for its
@@ -125,3 +129,16 @@ while a coordinated phone test is pending, then stop it. Never use Serve reset.
 Physical checks, including repeat taps after app termination and lock/unlock,
 remain separate recorded observations. Do not infer them from simulator tests,
 profile verification, a successful install or the fact the code has no JS runtime.
+
+
+### Launcher integration rule learned by this probe
+
+Keep the Glance receiver in the normal app process unless a deliberately designed
+multi-process WorkManager setup is provided. The earlier custom :widget receiver
+process lacked WorkManager initialization and stayed loading in the launcher,
+although standalone worker tests passed. The debug-only extra-process receiver
+is a storage capability test, not the actual Glance dispatcher. Native callbacks
+run I/O on Dispatchers.IO, persist Pending first and refresh the Glance count
+projection explicitly. A callback can restart the native app process without
+starting its Activity or relying on a JavaScript listener. Do not confuse Android
+process reclamation with the distinct Settings Force stop behavior.

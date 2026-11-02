@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory=$true)][string]$Sdk,
     [Parameter(Mandatory=$true)][string]$TemplateConfig,
-    [Parameter(Mandatory=$true)][string]$Python
+    [Parameter(Mandatory=$true)][string]$Python,
+    [switch]$KeepRunningForLauncherReview
 )
 $ErrorActionPreference = 'Stop'
 $taskRoot = $PSScriptRoot
@@ -15,6 +16,9 @@ $port = 5582
 $serial = "emulator-$port"
 $fixtureProcess = $null
 $emulatorProcess = $null
+$handoff = $false
+$reviewState = Join-Path $env:TEMP 'widget-native-launcher-review.json'
+if ($KeepRunningForLauncherReview -and (Test-Path -LiteralPath $reviewState)) { throw 'An existing launcher-review state needs inspection before starting another' }
 if (Test-Path $taskAvd) { throw 'Owned emulator already exists; inspect instead of overwriting' }
 if (Get-NetTCPConnection -LocalPort $port,($port+1),43817 -State Listen -ErrorAction SilentlyContinue) { throw 'Disposable gate ports already in use' }
 New-Item -ItemType Directory -Path $taskAvd | Out-Null
@@ -46,9 +50,14 @@ try {
     $result | Set-Content (Join-Path $env:TEMP 'widget-native-android-tests.log')
     $result | Write-Output
     if (($result -join "`n") -notmatch 'OK \(3 tests\)') { throw 'Native gate tests did not all pass' }
+    if ($KeepRunningForLauncherReview) {
+        @{ name=$taskName; serial=$serial; fixturePid=$fixtureProcess.Id; emulatorPid=$emulatorProcess.Id; avd=$taskAvd; probeRoot=$taskRoot; sdk=$Sdk } | ConvertTo-Json | Set-Content -LiteralPath $reviewState
+        $handoff = $true
+        Write-Output "Owned emulator and fictional fixture ready for launcher review. State: $reviewState"
+    }
 } finally {
-    if ($fixtureProcess -and !$fixtureProcess.HasExited) { Stop-Process -Id $fixtureProcess.Id }
-    if ($emulatorProcess -and !$emulatorProcess.HasExited) {
+    if (!$handoff -and $fixtureProcess -and !$fixtureProcess.HasExited) { Stop-Process -Id $fixtureProcess.Id }
+    if (!$handoff -and $emulatorProcess -and !$emulatorProcess.HasExited) {
         $identity = & $adb -s $serial emu avd name 2>$null
         if ($identity[0] -eq $taskName) { & $adb -s $serial emu kill | Out-Null }
         else { Stop-Process -Id $emulatorProcess.Id }

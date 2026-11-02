@@ -34,10 +34,18 @@ class NativeWidgetProbeTests {
         val result = trigger()
         assertTrue(result.startsWith("acknowledged:"))
         assertNotEquals(android.os.Process.myPid().toString(),result.substringAfter(':'))
-        ProbeStore(context).use { assertTrue(it.actions().isEmpty()) }
+        ProbeStore(context).use {
+            assertTrue(it.actions().isEmpty())
+            assertEquals(1,it.state().confirmed)
+            it.acknowledge("already-absent-operation")
+            assertEquals(1,it.state().confirmed)
+        }
         ProbeVault(context).save(UUID.randomUUID().toString())
         assertTrue(trigger().startsWith("pending:"))
-        ProbeStore(context).use { assertEquals(1,it.actions().size) }
+        ProbeStore(context).use {
+            assertEquals(1,it.actions().size)
+            assertEquals(1,it.state().confirmed)
+        }
     }
     private fun trigger(): String {
         ProbeStore(context).use { it.publish("result", "waiting") }

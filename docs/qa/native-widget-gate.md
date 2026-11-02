@@ -3,13 +3,13 @@
 Branch: `codex/native-widgets`, following the approved
 `docs/plans/home-screen-widgets-native-sync.md`.
 
-**Result: iPhone native execution checks passed; physical Samsung gate pending.**
-Production integration remains gated. Both platforms compile and seven native
-simulator/emulator tests pass. App/extension signatures and shared groups are
-verified. Felipe confirms all three iPhone sizes, offline Pending/reconnect/retry,
-a tap after swiping the main probe app away and a subsequent tap after phone
-lock/unlock without reopening it. The final fixture aggregate is eight unique
-fictional acknowledgements. This does not complete F16.
+**Result: native execution gate passed for the agreed targets: physical iPhone
+and PC Android emulator.** Both platforms compile. The iPhone tests cover all
+three sizes, offline Pending/retry, app termination and lock/unlock. The Android
+follow-up covers actual launcher taps, native process restart, offline persistence
+and retry, plus three responsive layouts; see `android-widget-launcher.md`.
+Physical Samsung/OEM acceptance remains unrun for later testing. The consumer
+bridge/API/schema/UI integration is still to implement; this does not complete F16.
 
 ## Isolation and recovery
 
@@ -42,9 +42,10 @@ consumer-app installation, paid resource or membership change occurred.
 | Android instrumentation Keystore encrypted credential | Passed | AES/GCM with non-exportable Android Keystore key; saved file excludes plaintext credential |
 | Android separate `:widget` process native write | Passed | Distinct process ID verified; worker reads encrypted credential, acknowledges success and preserves rejected action |
 
-Latest totals: **4 XCTest + 3 Android instrumentation tests; all passed, none skipped.**
-Both suites reran after the phone-fixture follow-up; the earlier six-test result
-is historical. Python helper syntax also passes.
+Recorded totals: **4 XCTest + 3 Android instrumentation tests; all passed, none skipped.**
+The four iOS tests last ran in the phone-fixture follow-up. The three Android
+tests reran again after the final launcher process fix; iOS source is unchanged
+and its results are historical. Python helper syntax also passes.
 Android ran on a new Android 37.0 x86_64 emulator; its Activity was never launched.
 The debug-only non-exported receiver calls the same worker as the Glance callback;
 this proves the separate native worker, not launcher callback dispatch.
@@ -110,16 +111,27 @@ changed; the family API passes both loopback and private HTTPS health checks.
 The installed diagnostic probe remains on the phone, but its temporary endpoint
 is no longer running. No consumer app, household data or family API was stopped.
 
-## Still required before production integration
+## Android emulator follow-up and remaining acceptance
 
-- Coordinate the separate Samsung probe installation and actual Glance home-screen
-  callback/private networking checks when the device is available.
-- Native rendering, resizing/tint/larger text and deep links remain separate
-  layout/routing acceptance. The small probe is not the final Shopping/Plan UI.
+Felipe directs the Android gate to the PC emulator. The standalone probe now has
+setup/pinning, live confirmed/Pending projection, off-main-thread native callbacks
+and a separate Retry action. Actual launcher testing finds a WorkManager startup
+failure in the custom receiver process; using the normal Glance app process fixes
+it. Final three instrumentation tests rerun successfully. Actual small/medium/large
+launcher taps, callback after process termination, offline Pending surviving a
+second process termination and acknowledged retry all pass. Final Android fixture
+count is six. The owned emulator/fixture are stopped after verification.
+
+- Physical Samsung/OEM, Android HTTPS/Tailscale and force-stop/reboot behavior are
+  unrun. The user-approved emulator target clears this execution gate; it does not
+  establish those physical-device behaviors.
+- Product rendering, resizing/tint/larger text, seven-day Plan density and deep
+  links remain implementation/release acceptance; the small probe is not the final
+  Shopping/Plan UI.
 - Do not infer execution while locked, before first unlock after reboot, or
   guaranteed scheduled retry from successful user-driven widget actions.
 
-Only after the gate succeeds, implement the approved consumer Expo bridge,
+With the agreed execution gate passed, implement the approved consumer Expo bridge,
 summary/theme/settings, API authorization/versioning/idempotency, protected
 production outbox and migrations. No production migration or API mutation has
 been attempted. Consumer/mobile/API suites were **not rerun** for this isolated
