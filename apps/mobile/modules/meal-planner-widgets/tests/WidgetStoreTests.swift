@@ -66,4 +66,65 @@ final class WidgetStoreTests:XCTestCase {
     XCTAssertNil(try store.presentation()["snapshot"])
     XCTAssertThrowsError(try store.enqueue(config["generation"] as! String,"item",1))
   }
+  func shoppingSnapshot(_ original:WidgetJSON,_ count:Int,_ version:Int) -> WidgetJSON {
+    var snapshot=original;snapshot["snapshot_version"]=version
+    snapshot["shopping"]=["unpurchased_count":count,"items":(0..<count).map { ["id":"item-\($0)","name":"Item \($0)","check_version":1] as WidgetJSON }]
+    return snapshot
+  }
+  func testShoppingPagesCoverEveryCachedItemAndClampAtBothEnds() {
+    for size in [3,7] {
+      for count in [0,1,3,7,8,40] {
+        let first=WidgetShoppingPage(items:count,size:size,requested:-1)
+        XCTAssertEqual(first.index,0)
+        var visited:[Int]=[]
+        for requested in 0..<first.count { visited += WidgetShoppingPage(items:count,size:size,requested:requested).range }
+        XCTAssertEqual(visited,Array(0..<count))
+        let last=WidgetShoppingPage(items:count,size:size,requested:Int.max)
+        XCTAssertEqual(last.index,first.count-1)
+        XCTAssertLessThanOrEqual(last.range.count,size)
+      }
+    }
+  }
+  func testShoppingPageSurvivesOfflineAndViewChangesWithIndependentSizes() throws {
+    let(store,config,original)=try setupBinding();let generation=config["generation"] as! String
+    try store.commit(config,shoppingSnapshot(original,15,2),[],false)
+    try store.selectShoppingPage(generation,3,3);try store.selectShoppingPage(generation,1,7)
+    try store.select(generation,"plan",4);try store.fail("offline",config)
+    let reopened=try WidgetStore();let state=try reopened.presentation()
+    XCTAssertEqual(state["shopping_page_3"] as? Int,3)
+    XCTAssertEqual(state["shopping_page_7"] as? Int,1)
+    XCTAssertEqual(state["view"] as? String,"plan")
+    try reopened.selectShoppingPage(generation,4,3)
+    XCTAssertEqual(try store.presentation()["shopping_page_3"] as? Int,4)
+  }
+  func testShoppingPageClampsAfterConfirmedRemovalAndDoesNotReturnWhenListGrows() throws {
+    let(store,config,original)=try setupBinding();let generation=config["generation"] as! String
+    try store.commit(config,shoppingSnapshot(original,8,2),[],false)
+    try store.selectShoppingPage(generation,2,3);try store.selectShoppingPage(generation,1,7)
+    try store.enqueue(generation,"item-7",1)
+    try store.selectShoppingPage(generation,0,3)
+    XCTAssertEqual(try store.pending(config).count,1,"Paging must preserve queued checkoffs")
+    try store.selectShoppingPage(generation,2,3)
+    let action=try store.pending(config)[0]["operation_id"] as! String
+    try store.commit(config,shoppingSnapshot(original,6,3),[action],false)
+    XCTAssertEqual(try store.presentation()["shopping_page_3"] as? Int,1)
+    XCTAssertEqual(try store.presentation()["shopping_page_7"] as? Int,0)
+    try store.commit(config,shoppingSnapshot(original,15,4),[],false)
+    XCTAssertEqual(try store.presentation()["shopping_page_3"] as? Int,1)
+    try store.commit(config,shoppingSnapshot(original,0,5),[],false)
+    XCTAssertEqual(try store.presentation()["shopping_page_3"] as? Int,0)
+    XCTAssertEqual(try store.pending(config).count,0)
+  }
+  func testStaleOrInvalidPageActionsCannotChangeANewHousehold() throws {
+    let(store,config,original)=try setupBinding();let generation=config["generation"] as! String
+    try store.commit(config,shoppingSnapshot(original,15,2),[],false)
+    try store.selectShoppingPage(generation,3,3)
+    try store.selectShoppingPage("old-generation",0,3)
+    try store.selectShoppingPage(generation,0,4)
+    XCTAssertEqual(try store.presentation()["shopping_page_3"] as? Int,3)
+    try store.activate(session+"|another-home")
+    try store.selectShoppingPage(generation,3,3)
+    XCTAssertEqual(try store.presentation()["shopping_page_3"] as? Int,0)
+    XCTAssertNil(try store.presentation()["snapshot"])
+  }
 }

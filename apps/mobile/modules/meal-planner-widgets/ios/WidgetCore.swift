@@ -19,6 +19,20 @@ func widgetDate(_ value: Any?) -> Date? {
   parser.formatOptions = [.withInternetDateTime]; return parser.date(from: text)
 }
 
+/// A bounded, local page over the last authoritative shopping snapshot.
+struct WidgetShoppingPage {
+  let index:Int
+  let count:Int
+  let range:Range<Int>
+  init(items:Int,size:Int,requested:Int) {
+    let size=max(1,size),items=max(0,items)
+    count=max(1,(items+size-1)/size)
+    index=min(max(0,requested),count-1)
+    let start=index*size
+    range=start..<min(items,start+size)
+  }
+}
+
 /// Protected cross-process source of truth. No bearer credential is stored here.
 final class WidgetStore {
   private static let mutex = NSLock()
@@ -157,6 +171,13 @@ final class WidgetStore {
       let prior=widgetJSON(try get(db,"snapshot"))?["snapshot_version"] as? Int ?? 0
       if (snapshot["snapshot_version"] as? Int ?? 0)>=prior {
         try set(db,"snapshot",widgetString(snapshot)); try set(db,"error",changed ? "changed" : "")
+        // A removed last row must not leave a blank page, or reappear on a later refresh.
+        let items=((snapshot["shopping"] as? WidgetJSON)?["items"] as? [WidgetJSON])?.count ?? 0
+        for size in [3,7] {
+          let key="shopping_page_\(size)"
+          let page=WidgetShoppingPage(items:items,size:size,requested:Int(try get(db,key) ?? "0") ?? 0)
+          try set(db,key,String(page.index))
+        }
       }
     }
   }
@@ -167,6 +188,18 @@ final class WidgetStore {
       if let day, (0...6).contains(day) { try set(db,"day",String(day)) }
     }
   }
+  func selectShoppingPage(_ generation:String,_ requested:Int,_ size:Int) throws {
+    try transaction { db in
+      guard [3,7].contains(size),
+            let config=widgetJSON(try get(db,"config")),config["generation"] as? String==generation,
+            getScope(config)==(try get(db,"scope")),
+            let expiry=widgetDate(config["expires_at"]),expiry>Date(),
+            let snapshot=widgetJSON(try get(db,"snapshot")) else { return }
+      let items=((snapshot["shopping"] as? WidgetJSON)?["items"] as? [WidgetJSON])?.count ?? 0
+      let page=WidgetShoppingPage(items:items,size:size,requested:requested)
+      try set(db,"shopping_page_\(size)",String(page.index))
+    }
+  }
   func presentation() throws -> WidgetJSON {
     try transaction { db in
       let config=widgetJSON(try get(db,"config")) ?? [:]
@@ -174,6 +207,7 @@ final class WidgetStore {
       let expired=(widgetDate(config["expires_at"]) ?? .distantPast)<=Date()
       var result:WidgetJSON=["available":true,"enabled":!config.isEmpty,"needs_reconnect":error=="reconnect" || (config["registered"] as? Bool == true && expired),
         "pending_count":try sql(db,"SELECT id FROM outbox").count,"state":error,"view":try get(db,"view") ?? "shopping","day":Int(try get(db,"day") ?? "0") ?? 0,"config":config]
+      for size in [3,7] { result["shopping_page_\(size)"]=Int(try get(db,"shopping_page_\(size)") ?? "0") ?? 0 }
       if !expired && error != "reconnect", let snapshot=widgetJSON(try get(db,"snapshot")) { result["snapshot"]=snapshot }
       return result
     }

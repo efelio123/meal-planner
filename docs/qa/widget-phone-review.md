@@ -115,3 +115,23 @@ over unrelated later changes.
 Guarded helpers and state are private in the Mac review root and Windows
 `%LOCALAPPDATA%/MealPlanner/logs/`. The HTTPS/tunnel remain available while review
 is pending; they are not a new family production deployment or a permanent host.
+
+## Accepted appearance / iPhone pagination follow-up
+
+Felipe reports that the consumer widget looks beautiful and requests access to
+more shopping rows. He approves previous/next arrows and a page indicator after
+reviewing WidgetKit's scrolling limitation. This is appearance feedback, not a
+claim that all consumer widget acceptance scenarios passed.
+
+The follow-up keeps three rows in medium and seven in large, persists pages
+independently by size within the existing household/session scope, clamps after
+confirmed list shrinkage, and preserves Pending checkoffs while browsing offline.
+Pages cover the existing 40-row cached summary. Lists beyond that cap retain
+Open all with their full unpurchased count. Android is unchanged.
+
+Targeted native validation: **10 XCTest cases passed, zero skipped/failures**,
+including four new page boundary/persistence/shrink/scope regressions. The test
+host compiles the actual extension and core; its owned simulator is removed.
+The earlier full API/mobile results remain historical; those suites are not
+rerun for this Swift-only follow-up. Signed consumer rebuild and physical
+pagination/geometry acceptance remain pending at this source checkpoint.

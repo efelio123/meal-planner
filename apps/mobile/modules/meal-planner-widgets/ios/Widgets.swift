@@ -34,6 +34,20 @@ struct MealWidgetView: AppIntent {
     try? WidgetStore().select(generation,mode,day);WidgetCenter.shared.reloadAllTimelines();return .result()
   }
 }
+struct MealWidgetShoppingPage: AppIntent {
+  static var title:LocalizedStringResource="Browse shopping items"
+  static var openAppWhenRun=false
+  @Parameter(title:"Binding") var generation:String
+  @Parameter(title:"Page") var page:Int
+  @Parameter(title:"Items per page") var size:Int
+  init() {}
+  init(_ generation:String,_ page:Int,_ size:Int) { self.generation=generation;self.page=page;self.size=size }
+  func perform() async throws -> some IntentResult {
+    try? WidgetStore().selectShoppingPage(generation,page,size)
+    WidgetCenter.shared.reloadAllTimelines()
+    return .result()
+  }
+}
 struct MealWidgetEntry:TimelineEntry { let date:Date;let state:WidgetJSON }
 struct MealWidgetProvider:TimelineProvider {
   func placeholder(in context:Context)->MealWidgetEntry { MealWidgetEntry(date:Date(),state:[:]) }
@@ -122,9 +136,10 @@ struct MealWidgetContent:View {
   @ViewBuilder private var shoppingView:some View {
     let rows=shopping["items"] as? [WidgetJSON] ?? []
     let limit=family == .systemLarge ? 7:3
+    let page=WidgetShoppingPage(items:rows.count,size:limit,requested:entry.state["shopping_page_\(limit)"] as? Int ?? 0)
     let ids=pendingItems
     if rows.isEmpty { Text("Nothing to buy").font(.headline);Spacer(minLength:0) }
-    ForEach(Array(rows.prefix(limit).enumerated()),id:\.offset) { _,row in
+    ForEach(Array(rows[page.range].enumerated()),id:\.offset) { _,row in
       let id=row["id"] as? String ?? ""
       let waiting=ids.contains(id)
       HStack(spacing:7) {
@@ -142,11 +157,28 @@ struct MealWidgetContent:View {
         if waiting { Text("Pending").font(.caption2).foregroundStyle(color("textSecondary")) }
       }
     }
-    HStack {
+    Spacer(minLength:0)
+    HStack(spacing:6) {
       let count=shopping["unpurchased_count"] as? Int ?? 0
-      Link(count>limit ? "+\(count-limit) more · Open list":"Open list",destination:shoppingURL).font(.caption2)
-      Spacer()
-      if pending>0 { Button(intent:MealWidgetRetry()) { Text("Retry \(pending) pending").font(.caption2) }.buttonStyle(.plain) }
+      Link(count>rows.count ? "Open all \(count)":"Open list",destination:shoppingURL).font(.caption2)
+      Spacer(minLength:0)
+      if pending>0 {
+        Button(intent:MealWidgetRetry()) { Text("Retry \(pending)").font(.caption2) }
+          .buttonStyle(.plain).accessibilityLabel("Retry \(pending) pending checkoffs")
+      }
+      if page.count>1 {
+        Button(intent:MealWidgetShoppingPage(generation,page.index-1,limit)) {
+          Image(systemName:"chevron.left").font(.caption.weight(.semibold)).frame(width:24,height:24)
+        }.buttonStyle(.plain).disabled(page.index==0).opacity(page.index==0 ? 0.35:1)
+          .accessibilityLabel("Previous shopping page")
+        Text("\(page.index+1)/\(page.count)").font(.caption2.monospacedDigit())
+          .foregroundStyle(color("textSecondary"))
+          .accessibilityLabel("Shopping page \(page.index+1) of \(page.count)")
+        Button(intent:MealWidgetShoppingPage(generation,page.index+1,limit)) {
+          Image(systemName:"chevron.right").font(.caption.weight(.semibold)).frame(width:24,height:24)
+        }.buttonStyle(.plain).disabled(page.index==page.count-1).opacity(page.index==page.count-1 ? 0.35:1)
+          .accessibilityLabel("Next shopping page")
+      }
     }.foregroundStyle(color("primary"))
   }
   @ViewBuilder private var planView:some View {

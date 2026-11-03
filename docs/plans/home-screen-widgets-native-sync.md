@@ -139,3 +139,17 @@ original table content and leaving widget connections empty. The Windows API is
 restarted and its health/routes/unauthenticated-access checks pass. Recovery
 artifacts and exact scope are recorded in `docs/qa/widget-integration.md`.
 Mac family deployment and signed consumer phone acceptance remain pending.
+
+## Accepted iPhone shopping pagination follow-up — November 2
+
+Felipe accepts the consumer widget's appearance and approves previous/next arrows
+with a page indicator instead of scrolling, which WidgetKit does not support.
+Keep three rows in medium and seven in large; persist each size's page locally,
+clamp it when authoritative rows disappear, and clear it with the existing
+household/session reset. Paging must preserve Pending operations and work from
+cached data offline. Keep Open list and Retry available. The existing summary is
+bounded to 40 cached items; larger lists explicitly offer Open all with the full
+count. No API/schema/dependency changes or Android interaction changes are needed
+for this iPhone follow-up. Validate native boundary/persistence/shrink/stale-scope
+behavior, compile both app bridge and extension, then review the signed phone
+build in place against the already approved Windows development endpoint.
