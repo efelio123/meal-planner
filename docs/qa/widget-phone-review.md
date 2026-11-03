@@ -1,7 +1,9 @@
 # F16 signed consumer phone review
 
-Status: prepared November 2; waiting for the Mac's Xcode signing-account/profile
-refresh. No consumer phone installation or household widget connection yet.
+Status: signed Release verified, installed in place and launched on Felipe's
+iPhone November 2. Actual consumer widget/phone acceptance and a development
+household widget connection remain pending. Loryn's app and the Mac family
+service remain unchanged.
 Source candidate: `6a942aeb1e95938a5482c9c7d21a18bdf0f1c40e` on
 `codex/native-widgets` (later notes-only commits do not change that build).
 
@@ -49,14 +51,14 @@ previous Debug/Metro/no-script-URL error. Existing family and earlier validation
 native projects are preserved. Both phones were detected attached; only the
 primary phone is targeted for the first review.
 
-## Signing block and required action
+## Signing history and completed remote installation
 
 The one-shot build in the existing Mac desktop session reports **No Accounts**.
 The cached consumer profile lacks the new App Group entitlement, and the widget
 extension has no profile. A successful prior isolated probe profile does not
 supply these consumer bundle/group identities.
 
-Felipe is asked to reauthenticate Xcode → Settings → Accounts if prompted, then
+Felipe is asked to reauthenticate Xcode â†’ Settings â†’ Accounts if prompted, then
 select the review Release scheme and his phone and press Build (Command-B).
 Handle Apple/signing-key prompts locally. Do not send passwords/codes, weaken
 credential storage or reuse a mismatched probe profile. Do not retry unchanged
@@ -67,7 +69,25 @@ App Group metadata and widget extension placement are verified. This unsigned
 artifact cannot be installed as the signed phone test; the profile/signature and
 actual consumer-phone acceptance gates remain pending.
 
-## Gates before installation
+The refreshed consumer app and extension profiles were then detected and checked
+for the intended phone and shared App Group. A new one-shot desktop Release
+build **succeeded**. The private verification helper's certificate extraction
+option was corrected to `--extract-certificates=<prefix>`; both signatures,
+profile/certificate authorization and expiry, target-phone coverage, isolated
+Keychain groups, shared App Group, embedded JavaScript and exact development API
+origin passed verification. The app was installed **in place** on Felipe's phone
+only and launched successfully with `devicectl`; no uninstall/data erase was used.
+The completed one-shot build job was removed. Private signed verification,
+installation, launch and recovery records remain in the isolated Mac review root.
+
+Installation/launch success does not establish correct UI or widget behavior.
+Felipe still needs to connect Tailscale, open Profile → Widgets, enable the
+current development household and perform the physical review below. Windows
+must stay running for the approved temporary development API. The family Mac
+API and private HTTPS 443 health checks remain successful.
+
+## Acceptance gates (first two completed)
+
 
 1. Finish and verify the signed app **and extension**: valid signatures, matching
    shared App Group, correct widget-only Keychain group, preserved app default
@@ -75,7 +95,7 @@ actual consumer-phone acceptance gates remain pending.
    included and unexpired provisioning. Verify embedded JS and exact API origin.
 2. Install in place on Felipe's phone only, launch and verify startup. A build or
    install success is not proof of a working widget or authorized API mutation.
-3. In Profile → Widgets, enable the development household and add small, medium
+3. In Profile â†’ Widgets, enable the development household and add small, medium
    and large widgets. Verify count, Shopping deep link, checkoff acknowledgment,
    Pending/retry after Tailscale disconnection, app-closed taps, both views and all
    seven dates/three slots. Use disposable development changes for this review.
