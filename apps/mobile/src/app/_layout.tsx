@@ -1,3 +1,4 @@
+import { WidgetSessionFence, WidgetSyncProvider } from '@/features/widgets/widget-provider';
 import { CalendarSyncProvider } from '@/features/calendar-sync/calendar-provider';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -87,7 +88,9 @@ function RootNavigator() {
       <CalendarSyncProvider>
       <ShoppingProvider>
       <ShoppingListProvider>
+      <WidgetSyncProvider>
         <RootStack destination={destination} isSignedIn={isSignedIn} />
+      </WidgetSyncProvider>
       </ShoppingListProvider>
       </ShoppingProvider>
       </CalendarSyncProvider>
@@ -110,6 +113,7 @@ function ThemedRootLayout() {
             <ThemeProvider value={navigationTheme}>
               <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
               <AnimatedSplashOverlay />
+              <WidgetSessionFence />
               <RootNavigator />
             </ThemeProvider>
           </HouseholdStateProvider>

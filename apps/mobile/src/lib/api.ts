@@ -10,7 +10,7 @@ export type GetToken = () => Promise<string | null>;
 export type Household = HouseholdAccess & { id: string; name: string; time_zone: string };
 export type Me = { user: { id: string; email: string; display_name: string }; households: Household[] };
 export type ShoppingListItem = {
-  id: string; name: string; is_checked: boolean; checked_at: string | null; checked_by_user_id: string | null;
+  id: string; name: string; is_checked: boolean; check_version?: number; checked_at: string | null; checked_by_user_id: string | null;
   created_by_user_id: string; created_at: string; catalog_item_id?: string | null; catalog_item_type?: CatalogItemType;
   category_id?: string | null; category_name?: string | null; category_emoji?: string | null; updated_at?: string;
   catalog_item_archived?: boolean; catalog_preferred_shopping_unit_code?: string | null;

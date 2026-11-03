@@ -79,8 +79,7 @@ provenance, operational paths and recovery.
 
 November 1 continuation: the family-trial inventory is reconciled with the
 live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
-B11 stays on unreproduced regression watch. Felipe accepts F10 recipe importing November 1 and calls the current feature complete. The remaining original feature
-to implement is F16 widgets; F12 calendar sync is prepared locally with native-device acceptance pending. F14 themes is implemented
+B11 stays on unreproduced regression watch. Felipe accepts F10 recipe importing November 1 and calls the current feature complete. F16 widgets are now implemented locally pending consumer native acceptance; F12 calendar sync is prepared locally with native-device acceptance pending. F14 themes is implemented
 locally and accepted by Felipe November 2 (below). F15 member
 permissions is implemented locally, with page appearance accepted and broader
 permission checks still pending (below). Felipe accepts F09 ingredient sections and calls it complete after
@@ -148,7 +147,7 @@ Types/lint, compatibility, contrast checks and iOS/Android JS exports pass. Late
 default/name/icon follow-up passes 86 targeted tests plus types/lint. Overall slice
 acceptance does not imply every six-appearance or Android case was reported;
 native builds and deployment remain separate. Remaining
-unimplemented original major feature is F16 widgets. F12 calendar integration is implemented locally pending its native gate.
+remaining original major feature awaiting consumer native acceptance is F16 widgets. F12 calendar integration is implemented locally pending its native gate.
 
 November 2 F12: approved for direct implementation on
 `codex/native-calendar-sync`, with the one-manager/one-phone native design in
@@ -189,7 +188,14 @@ on `codex/native-widgets`, beginning with isolated SwiftUI/WidgetKit and Glance
 targets. Both platforms compile and seven native simulator/emulator tests pass
 (protected credential storage, durable Pending and authenticated fictional
 acknowledgement, including a separate Android widget process). A direct Xcode build subsequently succeeds: baseline app/extension signatures and profile authorization for their matching App Group/Keychain groups are verified. A separate private HTTPS fixture and updated confirmed/pending phone probe are prepared; the updated desktop-session build succeeds and the verified separate probe is installed/launched on the test iPhone with explicit authorization. Felipe confirms taps in small, medium and large iPhone widgets and successful offline Pending/reconnect/retry. Felipe also confirms taps after swiping away the main app and after phone lock/unlock without reopening it. The final fixture aggregate is eight unique acknowledgements. The completed temporary fixture/route is removed and family API health verified; physical Samsung acceptance remains pending. These are user-driven execution checks, not a promise of locked/pre-first-unlock or scheduled background execution. See `docs/qa/native-widget-gate.md`.
-Felipe then directs the Android gate to the PC emulator. Actual launcher taps, native process restart, offline Pending surviving process termination and acknowledged retry, plus small/medium/large responsive layouts pass. A launcher-only WorkManager initialization defect is found and fixed; the final three Android native tests pass. The agreed native execution gate is now passed; physical Samsung/OEM and Android HTTPS/Tailscale checks remain unrun for later acceptance. See `docs/qa/android-widget-launcher.md`. Production app/API/schema integration has not started; F16 remains incomplete.
+Felipe then directs the Android gate to the PC emulator. Actual launcher taps, native process restart, offline Pending surviving process termination and acknowledged retry, plus small/medium/large responsive layouts pass. A launcher-only WorkManager initialization defect is found and fixed; the final three Android native tests pass. The agreed native execution gate is now passed; physical Samsung/OEM and Android HTTPS/Tailscale checks remain unrun for later acceptance. See `docs/qa/android-widget-launcher.md`. Consumer integration is now implemented locally: scoped device authority and check versions,
+transactional protected snapshot/outbox storage, real WidgetKit/Glance renderers,
+config generation and Profile Widgets settings. Disposable API validation passes
+265 tests; mobile passes 87 suites/902 tests. Native execution/build details and
+remaining checks are in `docs/qa/widget-integration.md`. Shared development and
+Mac family databases/installations remain unchanged, with persistent migration,
+signed consumer profiles and actual household phone acceptance pending. F16 is
+not released or accepted based on automated validation.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

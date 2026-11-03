@@ -115,3 +115,16 @@ explicitly unrun for later device testing; do not label emulator results Samsung
 results. Use only the existing fictional probe and owned disposable AVD, retaining
 the consumer app/API/database unchanged. The current native gate uses this emulator
 result; physical Samsung testing remains a later acceptance item.
+
+## Consumer integration checkpoint
+
+The API slice is implemented and validated on disposable PostgreSQL; the native
+module, both renderers, scoped config plugin and Profile Widgets integration are
+implemented locally on the approved branch. See `docs/qa/widget-integration.md`
+for the versioned summary/watermark, storage/revocation model, exact validation,
+compatibility findings and remaining signed-phone/rollout acceptance. F16 is not
+released or accepted from automated builds alone. Persistent databases remain
+unchanged. SDK 58 regeneration must explicitly use `--no-clean` to preserve a
+prepared native project; the bridge keeps the app's iOS 16.4 minimum while the
+interactive extension requires iOS 17. Android date API backporting preserves its
+24/25 minimum. No paid resources or consumer SDK upgrades are needed.

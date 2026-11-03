@@ -77,6 +77,13 @@ export function ProfileHubScreen() {
               title="Calendar sync"
               variant="plain"
             />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+            <ProfileNavigationRow
+              icon={{ ios: 'square.grid.2x2', android: 'widgets', web: 'widgets' }}
+              onPress={() => router.push('/(app)/(tabs)/profile/widgets' as Href)}
+              title="Widgets"
+              variant="plain"
+            />
           </View>
         </View>
       </View>
