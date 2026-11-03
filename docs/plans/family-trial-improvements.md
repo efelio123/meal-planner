@@ -8,7 +8,7 @@ current deployment state. B11 remains unreproduced and on watch; no speculative
 Catalog loading repair is proposed. Broader per-origin/device cases remain part
 of the testing week, not newly confirmed bugs.
 
-F16 widget integration is now implemented locally, pending consumer native-device acceptance and rollout. F12 calendar sync is prepared locally, pending native-device acceptance.
+F16 widgets are now connected to the Mac family trial on Felipe's iPhone after his November 2 rollout request; appearance/pagination and both modes are accepted, while broader individual widget cases remain unreported. Test probe/temporary development connection are removed; see `family-widgets-rollout.md` and `../qa/widget-phone-review.md`. F12 calendar sync is prepared locally, pending native-device acceptance.
 F14 themes is implemented locally on `codex/app-themes` and accepted by Felipe
 November 2 as complete for this iteration. F15 configurable member permissions is implemented locally on
 `codex/member-permissions` and awaiting phone acceptance; see its dedicated plan. Felipe accepts F09 ingredient

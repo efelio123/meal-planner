@@ -1,10 +1,10 @@
 # F16 signed consumer phone review
 
-Status: signed Release verified, installed in place and launched on Felipe's
-iPhone November 2. Actual consumer widget/phone acceptance and a development
-household widget connection remain pending. Loryn's app and the Mac family
-service remain unchanged.
-Current installed candidate: `57cd9ece0cb2edab79656cf8b7db815781b1cca1` on
+Status: Felipe's phone and consumer widgets are now connected to the Mac family
+trial API/database on HTTPS 443. Separate probe app and temporary development
+connection are removed. The complete rollout/cleanup record is at the end.
+Current installed candidate: `1b3a970` (same application code as pagination
+`57cd9ec`; later commits are records only) on
 `codex/native-widgets` (iPhone pagination follow-up). The initial review source
 was `6a942aeb1e95938a5482c9c7d21a18bdf0f1c40e`; the isolated build directory
 retains that original name.
@@ -147,3 +147,51 @@ iPhone pagination presentation is accepted. Offline paging, rapid taps, list
 shrinkage and larger-text geometry are covered only to the extent recorded in
 the native tests above; those individual physical scenarios have not been
 reported. Broader consumer widget acceptance remains separate.
+
+## Family trial activation and cleanup — November 2
+
+Felipe explicitly requests removing test widgets, returning his app to the Mac
+family database and using that database for consumer widgets. He reports both
+light/dark modes, app tabs and all three widget sizes look good before rollout.
+See `docs/plans/family-widgets-rollout.md` for the authorized boundary/recovery.
+
+- Exact application/API source `1b3a970` is packaged separately on the Mac; no
+  repository merge, push or cloud deployment is performed.
+- Final full API validation passes **265 tests, zero skips**, Ruff and migration
+  head checks on an owned disposable PostgreSQL instance, removed after testing.
+  Native pagination retains its **10 passing XCTest cases**; the historical
+  mobile/native results above are not described as new full-suite reruns.
+- A consistent rehearsal backup restores with all **19** existing table schemas
+  and full row fingerprints matching. Four additive migrations are rehearsed to
+  `widget_devices`, preserving all original values. The rehearsal DB is removed.
+- After pausing only the API, a fresh final backup is independently restored and
+  verified before live upgrade. All original-column fingerprints match after
+  migration. The original DB container/volume and separate home-server services
+  are preserved. Calendar integration stays disabled; existing active Members
+  receive the approved full-content grants. The new API and HTTPS 443 are healthy,
+  scoped widget routes exist and unauthenticated summary access returns 401.
+- Final backup remains private on the Mac:
+  `~/.config/meal-planner-trial/backups/family-widgets-final-20261103T051750Z/meal-planner-trial.dump`.
+  Its adjacent verification report contains the hash and before/after evidence.
+  Scheduled backups are updated to `widget_devices` and a backup at head passes.
+- The signed family-target app/extension pass profile/certificate/signature,
+  Keychain/App Group and embedded-JavaScript checks. Its JS contains family HTTPS
+  443 and excludes temporary 8443. Felipe's app is installed **in place** and
+  launched after he unlocks the phone. Loryn's app is not replaced.
+- One fresh family widget binding and three successful authenticated summary
+  requests are observed. The old Windows development widget authority is
+  automatically revoked (zero active development credentials). API-origin
+  session fencing clears the old local widget generation; credentials/data are
+  never transplanted between databases. No synthetic family checkoff is sent.
+- Only `com.example.mealplanner.nativewidgetprobe` is uninstalled. Final inventory
+  confirms Meal Planner remains and both separate test bundle IDs are absent.
+  Only the owned HTTPS 8443 proxy and identity-verified reverse SSH tunnel are
+  removed; original family HTTPS 443 and health remain intact. Recovery archives
+  and test-source/reproducibility files are retained.
+
+Private active-release metadata uses the new API-only Compose overlay and records
+source/schema/image/volume/phone provenance. The free consumer widget profile
+expires **November 9 at 9:23 PM Arizona time**; re-sign before then. Loryn retains
+her earlier signing expiry/build. Family checkoffs/concurrency, wider permissions,
+calendar export and physical Samsung acceptance retain their individual unreported
+checks; registration/summary success does not prove that whole matrix.

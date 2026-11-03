@@ -200,6 +200,27 @@ created. Mac family data/installations remain unchanged, with its deployment,
 signed consumer profiles and actual household phone acceptance pending. F16 is
 not released or accepted based on automated validation.
 
+November 2 family widget activation: Felipe accepts the consumer widget look
+and iPhone pagination, reports the app/all widget sizes look good in both modes,
+and explicitly requests restoring the Mac family target and removing test
+widgets. API source `1b3a970` rolls out to the existing Mac database/volume after
+consistent rehearsal and fresh final backups restore-verify every original
+schema/row fingerprint (19 tables). Four additive migrations reach
+`widget_devices`, preserving all original values; scheduled backups are updated.
+Final disposable PostgreSQL validation passes 265 tests with no skips. The signed
+family-target Release installs in place on Felipe's phone and launches; one
+family widget binding and successful authenticated summaries confirm connection.
+The original Windows development authority is revoked, the separate probe app
+and temporary HTTPS 8443/SSH forward are removed, and family HTTPS 443 remains
+healthy. Loryn's earlier app remains installed and compatible; it is not upgraded
+in this request. Current code includes the accepted sections/import/themes and
+permission work; calendar stays opt-in/disabled and its native acceptance remains
+pending. Broader family widget concurrency/offline/Samsung cases retain their
+specific unreported checks. No merge/push/cloud update is performed. See
+`docs/plans/family-widgets-rollout.md` and `docs/qa/widget-phone-review.md`.
+The new widget build's free signing expires November 9 at 9:23 PM Arizona time;
+Loryn retains her older build/expiry.
+
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for
 future pages. The source audit classifies all 64 page-route files and 11 layout

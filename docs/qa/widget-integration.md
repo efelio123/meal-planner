@@ -1,9 +1,13 @@
 # F16 consumer widget integration
 
 Branch: `codex/native-widgets`. Approved plan:
-`docs/plans/home-screen-widgets-native-sync.md`. Status: implementation prepared
-locally; the approved Windows development migration is complete. Real household/phone
-acceptance and Mac deployment remain outstanding.
+`docs/plans/home-screen-widgets-native-sync.md`. Current status November 2: Mac
+family rollout complete by Felipe's explicit request. His app and widgets use
+the preserved family database at `widget_devices`; separate test app and temporary
+Windows connection are removed. Light/dark review passes per Felipe, and family
+registration/authenticated summary reads are observed. Full individual acceptance
+cases remain separate. See `widget-phone-review.md` for current evidence; the
+preparation and remaining-check text below records earlier stages.
 
 ## API and data contract
 
