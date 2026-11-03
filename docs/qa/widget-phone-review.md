@@ -142,5 +142,8 @@ The previous signed review app is preserved privately before replacement.
 The updated app installs in place on Felipe's phone only. Remote launch is denied
 because the phone is locked: Felipe must unlock and open Meal Planner. The
 completed build job is removed and both development 8443/family 443 health pass.
-Physical pagination/geometry acceptance remains pending; installation is not a
-claim of visual or interaction acceptance.
+Felipe reviews the installed update and reports that it looks great; the
+iPhone pagination presentation is accepted. Offline paging, rapid taps, list
+shrinkage and larger-text geometry are covered only to the extent recorded in
+the native tests above; those individual physical scenarios have not been
+reported. Broader consumer widget acceptance remains separate.
