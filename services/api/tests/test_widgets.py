@@ -321,3 +321,13 @@ def test_route_validation_hides_inputs_and_widget_auth_is_separate(data, monkeyp
         asyncio.run(run())
     finally:
         app.dependency_overrides.clear()
+
+
+def test_snapshot_order_is_monotonic_across_renewal(data):
+    d = data
+    reg, payload, header = binding(d)
+    first = widgets.summary(header, d["engine"])["snapshot_version"]
+    widgets.register(d["owner"], d["home"], reg["device_id"], payload, d["engine"])
+    second = widgets.summary(header, d["engine"])["snapshot_version"]
+    third = widgets.summary(header, d["engine"])["snapshot_version"]
+    assert 0 < first < second < third < 9007199254740991

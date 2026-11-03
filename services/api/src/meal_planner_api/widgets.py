@@ -105,7 +105,7 @@ def register(user, home, device_id, payload, engine=None):
         row = (
             c.execute(
                 text("""UPDATE widget_devices SET week_start=:weekday,
-            expires_at=CURRENT_TIMESTAMP+INTERVAL '7 days',updated_at=CURRENT_TIMESTAMP
+            expires_at=clock_timestamp()+INTERVAL '7 days',updated_at=GREATEST(updated_at+INTERVAL '1 microsecond',clock_timestamp())
             WHERE id=:id RETURNING *"""),
                 values,
             )
@@ -152,7 +152,7 @@ def authorize(c, header):
         .mappings()
         .one_or_none()
     )
-    now = c.execute(text("SELECT CURRENT_TIMESTAMP")).scalar_one()
+    now = c.execute(text("SELECT clock_timestamp()")).scalar_one()
     if (
         not row
         or row["revoked_at"]
@@ -273,9 +273,17 @@ def summary(header, engine=None):
                     }
                 )
             days.append({"date": day.isoformat(), "meals": entries})
-        generated = c.execute(text("SELECT CURRENT_TIMESTAMP")).scalar_one()
+        # A per-device monotonic watermark fences out-of-order cross-process responses.
+        snapshot_version = c.execute(
+            text("""UPDATE widget_devices SET
+            updated_at=GREATEST(updated_at+INTERVAL '1 microsecond',clock_timestamp())
+            WHERE id=:id RETURNING (extract(epoch FROM updated_at)*1000000)::bigint"""),
+            {"id": str(device["id"])},
+        ).scalar_one()
+        generated = c.execute(text("SELECT clock_timestamp()")).scalar_one()
         return {
             "schema_version": 1,
+            "snapshot_version": snapshot_version,
             "device_id": str(device["id"]),
             "generation": str(device["generation"]),
             "user_id": user.id,
