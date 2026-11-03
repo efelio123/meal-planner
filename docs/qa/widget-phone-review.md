@@ -4,8 +4,10 @@ Status: signed Release verified, installed in place and launched on Felipe's
 iPhone November 2. Actual consumer widget/phone acceptance and a development
 household widget connection remain pending. Loryn's app and the Mac family
 service remain unchanged.
-Source candidate: `6a942aeb1e95938a5482c9c7d21a18bdf0f1c40e` on
-`codex/native-widgets` (later notes-only commits do not change that build).
+Current installed candidate: `57cd9ece0cb2edab79656cf8b7db815781b1cca1` on
+`codex/native-widgets` (iPhone pagination follow-up). The initial review source
+was `6a942aeb1e95938a5482c9c7d21a18bdf0f1c40e`; the isolated build directory
+retains that original name.
 
 ## Approved test boundary
 
@@ -133,5 +135,12 @@ Targeted native validation: **10 XCTest cases passed, zero skipped/failures**,
 including four new page boundary/persistence/shrink/scope regressions. The test
 host compiles the actual extension and core; its owned simulator is removed.
 The earlier full API/mobile results remain historical; those suites are not
-rerun for this Swift-only follow-up. Signed consumer rebuild and physical
-pagination/geometry acceptance remain pending at this source checkpoint.
+rerun for this Swift-only follow-up. Signed consumer rebuild passes; both app/extension signatures, provisioning,
+Keychain/App Group isolation and embedded development API are verified. The
+committed Swift source hashes match the isolated bridge and extension inputs.
+The previous signed review app is preserved privately before replacement.
+The updated app installs in place on Felipe's phone only. Remote launch is denied
+because the phone is locked: Felipe must unlock and open Meal Planner. The
+completed build job is removed and both development 8443/family 443 health pass.
+Physical pagination/geometry acceptance remains pending; installation is not a
+claim of visual or interaction acceptance.
