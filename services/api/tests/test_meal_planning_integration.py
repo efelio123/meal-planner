@@ -104,7 +104,7 @@ def _cleanup(engine: Engine, households: list[str], users: list[str]) -> None:
 
 def test_meal_plan_migration_has_household_scoped_keys_and_preserves_manual_shopping_rows(meal_plan_engine: Engine) -> None:
     with meal_plan_engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "calendar_sync"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "widget_devices"
         entry_constraints = set(connection.execute(text("""
             SELECT conname FROM pg_constraint WHERE conrelid='household_meal_plan_entries'::regclass
         """)).scalars())

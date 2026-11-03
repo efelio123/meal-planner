@@ -697,3 +697,9 @@ def calendar_authorize(household_id: UUID, payload: CalendarAuthority, user: Ann
 @app.post("/v1/households/{household_id}/calendar-sync/finish", tags=["calendar-sync"])
 def calendar_finish(household_id: UUID, payload: CalendarRunFinish, user: Annotated[CurrentUser, Depends(require_current_user)]):
     return calendar_sync.finish(user, str(household_id), calendar_run_payload(payload))
+
+
+# Widget credentials are accepted only by the narrow widget routes, never normal app mutations.
+from meal_planner_api.widget_routes import router as widget_router
+
+app.include_router(widget_router)

@@ -32,7 +32,7 @@ _ITEM_SELECT = """
         catalog.custom_shopping_unit_id::text AS catalog_preferred_custom_shopping_unit_id,
         catalog.preferred_store_id::text AS catalog_preferred_store_id,
         category.id::text AS category_id, category.name AS category_name, category.emoji AS category_emoji,
-        item.is_checked, item.checked_at, item.checked_by_user_id::text AS checked_by_user_id,
+        item.is_checked, item.check_version, item.checked_at, item.checked_by_user_id::text AS checked_by_user_id,
         item.created_by_user_id::text AS created_by_user_id, item.created_at, item.updated_at,
         item.amount, item.shopping_unit_code, shopping_unit.label AS shopping_unit_label,
         item.custom_shopping_unit_id::text AS custom_shopping_unit_id,
@@ -264,13 +264,7 @@ def update_item(user: CurrentUser, household_id: str, item_id: str, values: dict
         require_permissions(connection, household_id, user.id, *required)
         if "is_checked" in fields:
             checked = values["is_checked"]
-            updated = connection.execute(text("""
-                UPDATE shopping_list_items SET is_checked=:checked,
-                    checked_at=CASE WHEN :checked THEN CURRENT_TIMESTAMP ELSE NULL END,
-                    checked_by_user_id=CASE WHEN :checked THEN CAST(:user_id AS UUID) ELSE NULL END,
-                    updated_at=CURRENT_TIMESTAMP
-                WHERE household_id=:household_id AND id=:item_id RETURNING id::text AS id
-            """), {"checked": checked, "user_id": user.id, "household_id": household_id, "item_id": item_id}).scalar_one_or_none()
+            updated = set_checked(connection, user, household_id, item_id, checked)
             if updated is None:
                 raise _not_found()
         if fields - {"is_checked"}:
@@ -349,6 +343,17 @@ def re_add_item(user: CurrentUser, household_id: str, item_id: str, engine: Engi
         require_permissions(connection, household_id, user.id, "shopping.add", resource=("shopping_list_items", item_id))
         connection.execute(text("""UPDATE shopping_list_items SET is_checked=FALSE, checked_at=NULL,
             checked_by_user_id=NULL, updated_at=CURRENT_TIMESTAMP
-            WHERE household_id=:home AND id=:id AND is_checked IS TRUE"""), {"home": household_id, "id": item_id})
+            WHERE household_id=:home AND id=:id"""), {"home": household_id, "id": item_id})
         row = connection.execute(text(_ITEM_SELECT + " AND item.id=:item_id"), {"household_id": household_id, "user_id": user.id, "item_id": item_id}).mappings().one()
         return _serialize(row)
+
+
+def set_checked(connection, user, household_id, item_id, checked):
+    """Shared mutation; caller holds household/item locks and checks shopping.check."""
+    return connection.execute(text("""UPDATE shopping_list_items SET is_checked=:checked,
+        checked_at=CASE WHEN :checked THEN CURRENT_TIMESTAMP ELSE NULL END,
+        checked_by_user_id=CASE WHEN :checked THEN CAST(:user_id AS UUID) ELSE NULL END,
+        updated_at=CURRENT_TIMESTAMP
+        WHERE household_id=:household_id AND id=:item_id RETURNING id::text"""),
+        {"checked":checked,"user_id":user.id,"household_id":household_id,"item_id":item_id}
+    ).scalar_one_or_none()

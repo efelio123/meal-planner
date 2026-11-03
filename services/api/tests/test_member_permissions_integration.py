@@ -292,10 +292,14 @@ def test_mixed_shopping_fields_atomic_and_readd_requires_only_add(data):
         d["member"], d["home"], row["id"], d["engine"]
     )
     assert not restored["is_checked"] and restored["amount"] == "2"
-    assert (
-        shopping_lists.re_add_item(d["member"], d["home"], row["id"], d["engine"])
-        == restored
-    )
+    again = shopping_lists.re_add_item(d["member"], d["home"], row["id"], d["engine"])
+    # Re-add is a new shopping intent even if already unchecked; old offline taps
+    # must no longer match. Content/authorization semantics remain unchanged.
+    assert again["check_version"] == restored["check_version"] + 1
+    assert again["updated_at"] >= restored["updated_at"]
+    assert {k:v for k,v in again.items() if k not in {"check_version","updated_at"}} == {
+        k:v for k,v in restored.items() if k not in {"check_version","updated_at"}}
+
     with pytest.raises(HTTPException):
         shopping_lists.update_item(
             d["member"],
