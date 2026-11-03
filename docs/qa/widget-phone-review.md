@@ -61,7 +61,11 @@ select the review Release scheme and his phone and press Build (Command-B).
 Handle Apple/signing-key prompts locally. Do not send passwords/codes, weaken
 credential storage or reuse a mismatched probe profile. Do not retry unchanged
 CLI signing as an account repair. The failed one-shot launch job is removed;
-unsigned physical-device Release compilation continues independently.
+unsigned physical-device Release compilation then **succeeds**. Its embedded JS,
+exact private development API origin, scene lifecycle, bundle IDs/build versions,
+App Group metadata and widget extension placement are verified. This unsigned
+artifact cannot be installed as the signed phone test; the profile/signature and
+actual consumer-phone acceptance gates remain pending.
 
 ## Gates before installation
 
