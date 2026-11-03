@@ -1,4 +1,5 @@
-import { Button, StyleSheet, View } from 'react-native';
+import { PrimaryButton as Button } from '@/components/themed-controls';
+import { StyleSheet, View } from 'react-native';
 
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { ThemedText as Text } from '@/components/themed-text';

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
 
 import { MemberDetailScreen } from '@/features/household-management/member-detail-screen';
@@ -44,6 +44,7 @@ const removeMember = jest.mocked(api.removeHouseholdMember);
 describe('household member detail', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     mockSession = { isSignedIn: true, sessionId: 'session-a', userId: 'user-a' };
     mockRole = 'member';
     mockMember = {
@@ -76,9 +77,27 @@ describe('household member detail', () => {
     await render(<MemberDetailScreen />);
     expect(await screen.findByText('secret@example.test')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Make owner' }));
+    await act(async () => { jest.mocked(Alert.alert).mock.calls.at(-1)?.[2]?.at(-1)?.onPress?.(); });
     await waitFor(() => expect(setRole).toHaveBeenCalledWith(mockGetToken, 'home-a', 'membership-b', 'owner'));
     expect(await screen.findByText('Owner')).toBeTruthy();
     expect(householdMembersRevision({ householdId: 'home-a', sessionId: 'session-a', userId: 'user-a' })).toBe(revisionBefore + 1);
+  });
+
+  it('confirms full product access when an owner becomes a member', async () => {
+    mockRole = 'owner';
+    mockMember = { ...mockMember, role: 'owner' };
+    setRole.mockImplementation(async (_token, _home, _member, role) => {
+      mockMember = { ...mockMember, role };
+    });
+    await render(<MemberDetailScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Make member' }));
+    expect(Alert.alert).toHaveBeenLastCalledWith('Make member?',
+      'They will keep full access to Shopping, Recipes, Meal planning and Catalog. Household administration will be owner-only. You can adjust their permissions afterward.',
+      expect.any(Array));
+    expect(setRole).not.toHaveBeenCalled();
+    await act(async () => { jest.mocked(Alert.alert).mock.calls.at(-1)?.[2]?.at(-1)?.onPress?.(); });
+    await waitFor(() => expect(setRole).toHaveBeenCalledWith(mockGetToken, 'home-a', 'membership-b', 'member'));
+    expect(await screen.findByText('Member')).toBeTruthy();
   });
 
   it('shows a safe last-owner conflict', async () => {
@@ -87,6 +106,7 @@ describe('household member detail', () => {
     setRole.mockRejectedValue(new ApiError(409, 'At least one active owner must remain.', 'LAST_OWNER'));
     await render(<MemberDetailScreen />);
     await fireEvent.press(await screen.findByRole('button', { name: 'Make member' }));
+    await act(async () => { jest.mocked(Alert.alert).mock.calls.at(-1)?.[2]?.at(-1)?.onPress?.(); });
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.getByText('At least one active owner must remain.')).toBeTruthy();
   });

@@ -205,7 +205,7 @@ export function useShoppingListState(enabled = true) {
         lockedItemId = existing.id;
         // State-only PATCH preserves the server's current amount, units and
         // store, including edits made since this picker was opened.
-        saved = (await api.updateShoppingListItem(getRequestToken, householdId!, existing.id, { is_checked: false })).item;
+        saved = (await api.reAddShoppingListItem(getRequestToken, householdId!, existing.id)).item;
       }
       assertCurrent();
       if (!saved) throw retryError;

@@ -1,6 +1,6 @@
 # Consumer Meal-Planning App: Product and Delivery Plan
 
-Last updated: November 1, 2026
+Last updated: November 2, 2026
 
 ## Purpose of this document
 
@@ -76,6 +76,150 @@ acceptance and broader private-beta readiness remain outstanding. The free
 signing profile expires November 7 at 7:00 PM Arizona time; rebuild/re-sign before
 then to keep the trial running. See `docs/plans/family-trial-release.md` for
 provenance, operational paths and recovery.
+
+November 1 continuation: the family-trial inventory is reconciled with the
+live release. Confirmed original bug fixes and F01-F08/F11/F13 are shipped;
+B11 stays on unreproduced regression watch. Felipe accepts F10 recipe importing November 1 and calls the current feature complete. F16 widgets are now implemented locally pending consumer native acceptance; F12 calendar sync is prepared locally with native-device acceptance pending. F14 themes is implemented
+locally and accepted by Felipe November 2 (below). F15 member
+permissions is implemented locally, with page appearance accepted and broader
+permission checks still pending (below). Felipe accepts F09 ingredient sections and calls it complete after
+the final November 1 UI adjustments. Felipe approved F09 ingredient-only
+sections and assigned implementation directly to this chat on
+`codex/recipe-ingredient-sections`. The shared recipe editor/detail, native
+section sheets, additive storage migration and compatibility guard are implemented;
+initial validation at `5ce3e85` passed 745 mobile tests normal/cold, 196 API tests,
+types/lint and native JS exports. Subsequent presentation repairs have focused
+validation; Felipe's overall feature acceptance is recorded in
+`docs/plans/recipe-ingredient-sections.md`. F10 recipe importing is implemented separately on `codex/recipe-import`;
+validation and overall acceptance are tracked in `recipe-copying.md`. The live Mac API/database and two-iPhone testing release
+remain unchanged; deploying F09 requires a separately approved rollout.
+
+November 1 recipe-editor follow-up: Felipe approved a discard warning for both
+Create and Edit, including recipes created from Plan. Implemented on
+`codex/recipe-unsaved-changes`: protect unsaved drafts on Back and native
+pop-to-root, offer Keep editing / Discard changes, preserve retained tab/sheet
+flows, and bypass the warning after a confirmed Save. 214 focused tests and
+types/lint pass. Included in the accepted recipe slice; individual native exit
+checks are still unreported. See
+`docs/plans/recipe-unsaved-changes.md`. The branch is committed and the slice is
+complete; merge/deployment and broader release checks remain separate. This is
+not deployed to the Mac trial. F10 was approved and implemented directly in this chat on `codex/recipe-import`;
+see `docs/plans/recipe-copying.md` for validation and review status. Felipe revises the flow to Import from the Add ingredient footer,
+below Create Food item in Catalog, with searchable expandable recipes and whole
+or singular-section ingredient selection. Draft additions remain independent and
+unscaled. Felipe confirms that importing a whole recipe includes all directions;
+importing a singular section adds ingredients only. Directions append to the
+existing step list; section-specific directions are not inferred. Felipe accepts F10 as complete for this iteration. Sectioned directions are a
+future companion feature to plan, including their relationship to section imports.
+Current singular-section imports remain ingredients-only. Merge and live rollout
+remain separate.
+
+November 1 F15 implementation: `docs/plans/household-member-permissions.md`
+is approved and implemented directly in this chat on `codex/member-permissions`,
+with permission-page appearance accepted by Felipe November 2. Owners exclusively administer households and configure
+25 per-member product actions through four section checkboxes (all/none/mixed),
+individual checkboxes and explicit Save. New invitees and existing active Members
+at migration retain full product access; Owner-to-Member demotion also starts
+with every product action enabled, while removing household administration. Server enforcement is transactional across all product mutations;
+mobile guards/refresh preserve open drafts. Local `meal_planner_dev` is backed up
+and migrated to `member_permissions`, with content counts preserved. The live Mac
+release remains unchanged. Full mobile normal/cold runs passed 819 tests each;
+the later unchanged-access-response follow-up passed 142 relevant tests. API full
+disposable-PG suite passed 232 tests; types/lint, compatibility and native JS
+exports passed. Broader cross-phone permission/revocation checks and later coordinated live
+rollout remain outstanding. Themes follow this slice and are recorded below;
+calendar and widget integrations remain larger separate features. No merge, push, native installation or deployment
+is included. See the dedicated plan for exact validation boundaries.
+
+November 2 F14 implementation: `docs/plans/app-color-themes.md` is approved
+and implemented directly on `codex/app-themes`; Felipe accepts the theme slice
+as complete for this iteration after follow-up `6760c3c`. Profile →
+Appearance and a once-per-install native chooser offer Meal Planner (the default
+Apricot/Chocolate/Navy palette), Phone theme and Green in that order, all following
+phone light/dark mode. Meal Planner is a placeholder display name to replace when
+the app has an official name; existing saved theme choices are preserved.
+One semantic registry/provider updates the existing app without resetting drafts;
+installation-local persistence survives sign-out/household switching, with guarded
+reads, ordered writes and retry. No account sync, API/schema/dependency change or
+live rollout. Full normal/cold mobile runs pass 851 each; normal precedes the last
+auth-button follow-up, which passes 33 focused tests and the final full cold run.
+Types/lint, compatibility, contrast checks and iOS/Android JS exports pass. Latest
+default/name/icon follow-up passes 86 targeted tests plus types/lint. Overall slice
+acceptance does not imply every six-appearance or Android case was reported;
+native builds and deployment remain separate. Remaining
+remaining original major feature awaiting consumer native acceptance is F16 widgets. F12 calendar integration is implemented locally pending its native gate.
+
+November 2 F12: approved for direct implementation on
+`codex/native-calendar-sync`, with the one-manager/one-phone native design in
+`docs/plans/meal-calendar-sync.md`. Local code provides Profile setup/status,
+new/existing calendars, editable timed presets, safe reconciliation and cleanup,
+server authority/projection, manager lifecycle and the additive `calendar_sync`
+migration. A source-only export ledger and persistent run fence protect recovery
+and phone takeover; native IDs and calendar-account metadata remain local.
+No iCloud app-specific password, server provider integration, background guarantee
+or paid service is added. Changes by others catch up when the linked phone opens
+or refreshes. Felipe asks to prepare local work while an iPhone is unavailable.
+Native calendar operations/marker persistence/sharing, installed iPhone/Samsung
+builds and physical UI checks remain unverified; see
+`docs/qa/meal-calendar-sync.md`. The family Mac API/database and installed apps
+are unchanged. F12 is not released or accepted based on automated tests alone.
+
+November 2 F16 exploration: `docs/plans/home-screen-widgets.md` proposes a native
+feasibility gate before the remaining major widget feature. Current SDK 58 Expo
+Widgets supports iOS/Android, but local widget interaction is not equivalent to
+an authenticated shared Shopping mutation with the app closed. Review signing,
+secure extension state/networking, readable week density and offline checkoffs
+before selecting the implementation. Apple's current capability table lists App
+Groups for free Apple Developer accounts; actual Personal Team extension signing
+remains unverified, so do not assume a paid membership or promise a working build.
+Felipe confirms offline widget checkoffs should show Pending and sync later,
+with an explicit distinction from server-confirmed purchases. The feasibility slice is then approved and implemented separately on
+`codex/widget-feasibility` in `apps/widget-lab/`, using only fictional data.
+The pinned SDK supports local widgets but its reviewed public tap/storage path
+cannot complete authenticated closed-app Shopping writes or a durable outbox;
+Android also lacks iOS timeline readback/size context. Local type/compatibility,
+JS exports, SDK bundles/runtime contract checks and Android native generation
+pass; phone rendering/signing/networking are unrun. Per the approved gate, stop
+before production integration and review `home-screen-widgets-native-sync.md`.
+No consumer-app dependency/config, API/schema/data or installed-app changes.
+
+Felipe then approved the app-owned native approach on November 2. Work continues
+on `codex/native-widgets`, beginning with isolated SwiftUI/WidgetKit and Glance
+targets. Both platforms compile and seven native simulator/emulator tests pass
+(protected credential storage, durable Pending and authenticated fictional
+acknowledgement, including a separate Android widget process). A direct Xcode build subsequently succeeds: baseline app/extension signatures and profile authorization for their matching App Group/Keychain groups are verified. A separate private HTTPS fixture and updated confirmed/pending phone probe are prepared; the updated desktop-session build succeeds and the verified separate probe is installed/launched on the test iPhone with explicit authorization. Felipe confirms taps in small, medium and large iPhone widgets and successful offline Pending/reconnect/retry. Felipe also confirms taps after swiping away the main app and after phone lock/unlock without reopening it. The final fixture aggregate is eight unique acknowledgements. The completed temporary fixture/route is removed and family API health verified; physical Samsung acceptance remains pending. These are user-driven execution checks, not a promise of locked/pre-first-unlock or scheduled background execution. See `docs/qa/native-widget-gate.md`.
+Felipe then directs the Android gate to the PC emulator. Actual launcher taps, native process restart, offline Pending surviving process termination and acknowledged retry, plus small/medium/large responsive layouts pass. A launcher-only WorkManager initialization defect is found and fixed; the final three Android native tests pass. The agreed native execution gate is now passed; physical Samsung/OEM and Android HTTPS/Tailscale checks remain unrun for later acceptance. See `docs/qa/android-widget-launcher.md`. Consumer integration is now implemented locally: scoped device authority and check versions,
+transactional protected snapshot/outbox storage, real WidgetKit/Glance renderers,
+config generation and Profile Widgets settings. Disposable API validation passes
+265 tests; mobile passes 87 suites/902 tests. Native execution/build details and
+remaining checks are in `docs/qa/widget-integration.md`. Felipe then explicitly approves a restore-verified Windows development update:
+all 22 restored table schemas/full row fingerprints match, the rehearsal passes,
+and `meal_planner_dev` migrates to `widget_devices` with original content preserved.
+The updated Windows API health/routes/auth checks pass; no widget connections are
+created. Mac family data/installations remain unchanged, with its deployment,
+signed consumer profiles and actual household phone acceptance pending. F16 is
+not released or accepted based on automated validation.
+
+November 2 family widget activation: Felipe accepts the consumer widget look
+and iPhone pagination, reports the app/all widget sizes look good in both modes,
+and explicitly requests restoring the Mac family target and removing test
+widgets. API source `1b3a970` rolls out to the existing Mac database/volume after
+consistent rehearsal and fresh final backups restore-verify every original
+schema/row fingerprint (19 tables). Four additive migrations reach
+`widget_devices`, preserving all original values; scheduled backups are updated.
+Final disposable PostgreSQL validation passes 265 tests with no skips. The signed
+family-target Release installs in place on Felipe's phone and launches; one
+family widget binding and successful authenticated summaries confirm connection.
+The original Windows development authority is revoked, the separate probe app
+and temporary HTTPS 8443/SSH forward are removed, and family HTTPS 443 remains
+healthy. Loryn's earlier app remains installed and compatible; it is not upgraded
+in this request. Current code includes the accepted sections/import/themes and
+permission work; calendar stays opt-in/disabled and its native acceptance remains
+pending. Broader family widget concurrency/offline/Samsung cases retain their
+specific unreported checks. No merge/push/cloud update is performed. See
+`docs/plans/family-widgets-rollout.md` and `docs/qa/widget-phone-review.md`.
+The new widget build's free signing expires November 9 at 9:23 PM Arizona time;
+Loryn retains her older build/expiry.
 
 Batch C scope (October 27): Felipe requests bottom-clipping review across the
 whole app rather than only the original three pages, and a standing rule for

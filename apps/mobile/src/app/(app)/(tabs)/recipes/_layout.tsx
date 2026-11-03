@@ -19,9 +19,20 @@ export default function RecipesStackLayout() {
       <Stack.Screen name="index" options={{ headerShown: false }} />
       <Stack.Screen name="create" options={{ title: 'New recipe' }} />
       <Stack.Screen name="sheet/food" options={recipeSheetOptions([0.58, 0.94], theme.elevatedSurface, Platform.OS)} />
-      <Stack.Screen name="sheet/details" options={recipeSheetOptions([0.52, 0.92], theme.elevatedSurface, Platform.OS)} />
+      <Stack.Screen name="sheet/details" options={({ route }) => {
+        const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
+        return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);
+      }} />
       <Stack.Screen name="sheet/unit" options={recipeSheetOptions([0.58, 0.94], theme.elevatedSurface, Platform.OS)} />
       <Stack.Screen name="sheet/choice" options={({ route }) => {
+        const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
+        return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);
+      }} />
+      <Stack.Screen name="sheet/import" options={({ route }) => {
+        const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
+        return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);
+      }} />
+      <Stack.Screen name="sheet/sections" options={({ route }) => {
         const sheetId = (route.params as { sheetId?: string } | undefined)?.sheetId;
         return nativeSheetRouteOptions(sheetId ? get(sheetId) : null, theme.elevatedSurface, Platform.OS);
       }} />

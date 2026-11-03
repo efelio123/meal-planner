@@ -1,3 +1,4 @@
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
 import { ReviewShoppingItemSheet } from './review-shopping-item-sheet';
 import { reconcileShoppingReview } from './review-reconciliation';
 import { PlanningDateSheet } from './planning-date-sheet';
@@ -22,6 +23,7 @@ import { ShoppingAmountSheet } from './shopping-amount-sheet';
 export function ShoppingReviewScreen() {
   const { weekStart = '', weekEnd } = useLocalSearchParams<{ weekStart: string; weekEnd?: string }>();
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
   const router = useRouter();
   const sheetFlow = useNativeSheetFlow();
   const { getToken, selectedHousehold } = useHouseholdState();
@@ -223,6 +225,7 @@ export function ShoppingReviewScreen() {
   };
 
   const confirm = () => {
+    if (!canNow('shopping.add')) return;
     if (!householdId || !review || !selectedNeeds.length || submitting || reviewNeedsRefresh) return;
     void submitSelected();
   };
@@ -260,7 +263,7 @@ export function ShoppingReviewScreen() {
 
   return <Screen layout="tab-stack" contentAlignment="top" onRefresh={load} refreshing={loading} footer={review && needs.length > 0 ? <View style={[styles.footer, { backgroundColor: theme.screen, borderTopColor: theme.border }]}>
     <ThemedText themeColor="textSecondary" style={styles.footerNote}>Nothing is added until you confirm.</ThemedText>
-    <PrimaryButton disabled={!selected.length || submitting || loading || reviewNeedsRefresh || Boolean(error) || Boolean(invalidRange)} onPress={confirm} title={submitting ? 'Adding…' : `Add ${selected.length} selected to Shopping`} />
+    <PrimaryButton disabled={!can('shopping.add') || !selected.length || submitting || loading || reviewNeedsRefresh || Boolean(error) || Boolean(invalidRange)} onPress={confirm} title={submitting ? 'Adding…' : `Add ${selected.length} selected to Shopping`} />
   </View> : undefined}>
     <Stack.Screen options={{ title: 'Shopping needs', headerBackButtonDisplayMode: 'minimal' }} />
     <View style={styles.content}>
@@ -289,12 +292,12 @@ export function ShoppingReviewScreen() {
           <View style={[styles.needList, { backgroundColor: theme.surface }]}>{needs.filter((need) => need.existing_matches.length > 0).map((need, index) => <View key={`existing-${need.need_key}`} style={[styles.existingRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
             <View style={styles.needInfo}><ThemedText style={styles.needName}>{need.name}</ThemedText><ThemedText themeColor="textSecondary" numberOfLines={2}>{[need.sources[0] ? `${need.sources[0].recipe_name} · ${dateLabel(need.sources[0].planned_for, { month: 'short', day: 'numeric', year: 'numeric' })}` : null, 'Already on Shopping'].filter(Boolean).join(' · ')}</ThemedText></View>
             <ThemedText style={styles.amount}>{formatAmount(need.amount, need.unit_label)}</ThemedText>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${need.name} on Shopping`} disabled={submitting || loading || editingShoppingItem} style={visualStyles.sheetAction} onPress={() => editShoppingMatch(need)}><ThemedText themeColor="link">Edit</ThemedText></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${need.name} on Shopping`} disabled={submitting || loading || editingShoppingItem} style={visualStyles.sheetAction} onPress={() => editShoppingMatch(need)}><ThemedText themeColor="link">{can('shopping.edit') ? 'Edit' : 'View'}</ThemedText></Pressable>
           </View>)}</View>
         </> : null}
         {notice ? <ThemedText accessibilityRole="alert" themeColor="textSecondary">{notice}</ThemedText> : null}
         {error && review && reviewNeedsRefresh ? <PrimaryButton disabled={submitting || loading} onPress={() => void load()} title="Refresh review" /> : null}
-        {error && !reviewNeedsRefresh ? <PrimaryButton disabled={submitting || loading} onPress={confirm} title="Retry add safely" /> : null}
+        {error && !reviewNeedsRefresh ? <PrimaryButton disabled={!can('shopping.add') || submitting || loading} onPress={confirm} title="Retry add safely" /> : null}
       </> : null}
       {Platform.OS === 'web' ? <PrimaryButton onPress={() => void load()} title="Refresh review" /> : null}
     </View>

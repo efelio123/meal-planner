@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Alert, Image, StyleSheet, View } from 'react-native';
 
+import { useTheme } from '@/hooks/use-theme';
 import { PrimaryButton } from '@/components/themed-controls';
 import { Screen } from '@/components/screen';
 import { ThemedText } from '@/components/themed-text';
@@ -16,6 +17,7 @@ function joinedLabel(value: string) {
 }
 
 export function MemberDetailScreen() {
+  const theme = useTheme();
   const { householdId, membershipId } = useLocalSearchParams<{ householdId: string; membershipId: string }>();
   const { isSignedIn, sessionId, userId } = useAuth();
   const { getToken, households, isSigningOut, refresh, selectedHousehold } = useHouseholdState();
@@ -129,12 +131,13 @@ export function MemberDetailScreen() {
         {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
         {error ? <PrimaryButton onPress={() => { void load(); }} title="Retry" /> : null}
         {member ? <>
-          {member.avatar_url ? <Image accessibilityLabel={`${member.display_name} profile photo`} source={{ uri: member.avatar_url }} style={styles.avatar} /> : <View accessibilityLabel={`${member.display_name} initials`} style={styles.avatarFallback}><ThemedText style={styles.initials}>{member.display_name.slice(0, 1).toUpperCase()}</ThemedText></View>}
+          {member.avatar_url ? <Image accessibilityLabel={`${member.display_name} profile photo`} source={{ uri: member.avatar_url }} style={styles.avatar} /> : <View accessibilityLabel={`${member.display_name} initials`} style={[styles.avatarFallback, { backgroundColor: theme.avatarBackground }]}><ThemedText style={[styles.initials, { color: theme.avatarText }]}>{member.display_name.slice(0, 1).toUpperCase()}</ThemedText></View>}
           <ThemedText accessibilityRole="header" type="subtitle">{member.display_name}</ThemedText>
           <ThemedText>{member.role === 'owner' ? 'Owner' : 'Member'}</ThemedText>
           <ThemedText themeColor="textSecondary">Joined {joinedLabel(member.joined_at)}</ThemedText>
           {isOwner && member.email ? <ThemedText>{member.email}</ThemedText> : null}
-          {isOwner && !member.is_self ? <PrimaryButton disabled={busy} onPress={() => { void changeRole(member.role === 'owner' ? 'member' : 'owner'); }} title={member.role === 'owner' ? 'Make member' : 'Make owner'} /> : null}
+          {isOwner ? <PrimaryButton disabled={busy} title="Permissions" onPress={() => router.push({ pathname: '/(app)/(tabs)/profile/my-households/[householdId]/members/[membershipId]/permissions', params: { householdId: target.id, membershipId: member.membership_id } } as never)} /> : null}
+          {isOwner && !member.is_self ? <PrimaryButton disabled={busy} onPress={() => Alert.alert(member.role === 'owner' ? 'Make member?' : 'Make owner?', member.role === 'owner' ? 'They will keep full access to Shopping, Recipes, Meal planning and Catalog. Household administration will be owner-only. You can adjust their permissions afterward.' : 'Owners have full product access and can manage the household, people and permissions.', [{ text: 'Cancel', style: 'cancel' }, { text: member.role === 'owner' ? 'Make member' : 'Make owner', onPress: () => void changeRole(member.role === 'owner' ? 'member' : 'owner') }])} title={member.role === 'owner' ? 'Make member' : 'Make owner'} /> : null}
           {isOwner && !member.is_self ? <PrimaryButton disabled={busy} onPress={remove} title="Remove member" /> : null}
         </> : null}
       </View>
@@ -142,4 +145,4 @@ export function MemberDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({ content: { alignItems: 'flex-start', gap: 16 }, avatar: { borderRadius: 40, height: 80, width: 80 }, avatarFallback: { alignItems: 'center', borderRadius: 40, height: 80, justifyContent: 'center', width: 80, backgroundColor: '#d0d5dd' }, initials: { fontSize: 28, fontWeight: '700' } });
+const styles = StyleSheet.create({ content: { alignItems: 'flex-start', gap: 16 }, avatar: { borderRadius: 40, height: 80, width: 80 }, avatarFallback: { alignItems: 'center', borderRadius: 40, height: 80, justifyContent: 'center', width: 80 }, initials: { fontSize: 28, fontWeight: '700' } });

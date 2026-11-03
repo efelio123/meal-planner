@@ -14,12 +14,16 @@ export default function ProfileStackLayout() {
       ...profileNativeStackOptions,
     }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
+      <Stack.Screen name="widgets" options={profileDetailHeader('Widgets')} />
+      <Stack.Screen name="calendar-sync" options={profileDetailHeader('Calendar sync')} />
+      <Stack.Screen name="appearance" options={profileDetailHeader('Appearance')} />
       <Stack.Screen name="my-account" options={profileDetailHeader('My account')} />
       <Stack.Screen name="my-households/index" options={profileDetailHeader('My households')} />
       <Stack.Screen name="my-households/create" options={profileDetailHeader('Create household')} />
       <Stack.Screen name="my-households/[householdId]/index" options={profileDetailHeader('Household details')} />
       <Stack.Screen name="my-households/[householdId]/edit" options={profileDetailHeader('Edit household')} />
       <Stack.Screen name="my-households/[householdId]/members/[membershipId]" options={profileDetailHeader('Member details')} />
+      <Stack.Screen name="my-households/[householdId]/members/[membershipId]/permissions" options={profileDetailHeader('Member permissions')} />
       <Stack.Screen name="my-households/[householdId]/invitations" options={profileDetailHeader('Invitations')} />
       <Stack.Screen name="my-households/[householdId]/archived-recipes" options={profileDetailHeader('Archived recipes')} />
     </Stack>

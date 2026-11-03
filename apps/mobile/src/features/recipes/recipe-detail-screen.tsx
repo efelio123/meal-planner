@@ -1,3 +1,5 @@
+import { PermissionGate } from '@/features/household-permissions/permission-gate';
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
 import { useAuth } from '@clerk/expo';
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -19,6 +21,7 @@ export function RecipeDetailScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
   const { getToken, selectedHousehold } = useHouseholdState();
   const { sessionId, userId } = useAuth();
   const householdId = selectedHousehold?.id ?? null;
@@ -74,20 +77,21 @@ export function RecipeDetailScreen() {
   }, [load, revision]);
 
   const openEdit = useCallback(() => {
-    if (recipe && recipeScope === scope) router.push(`/(app)/(tabs)/recipes/${recipe.id}/edit` as never);
-  }, [recipe, recipeScope, router, scope]);
+    if (canNow('recipes.edit') && recipe && recipeScope === scope) router.push(`/(app)/(tabs)/recipes/${recipe.id}/edit` as never);
+  }, [canNow, recipe, recipeScope, router, scope]);
   useLayoutEffect(() => {
     navigation.setOptions({
       title: 'Recipe',
-      headerRight: Platform.OS !== 'ios' && recipe && recipeScope === scope ? () => (
+      headerRight: can('recipes.edit') && Platform.OS !== 'ios' && recipe && recipeScope === scope ? () => (
         <Pressable accessibilityLabel="Edit recipe" accessibilityRole="button" hitSlop={10} onPress={openEdit}>
           <ThemedText themeColor="link" style={styles.headerAction}>Edit</ThemedText>
         </Pressable>
       ) : undefined,
     });
-  }, [navigation, openEdit, recipe, recipeScope, scope]);
+  }, [can, navigation, openEdit, recipe, recipeScope, scope]);
 
   const archive = async () => {
+    if (!canNow('recipes.archive')) return;
     if (!householdId) return;
     const requestScope = scopeRef.current;
     const requestGeneration = generation.current;
@@ -112,7 +116,7 @@ export function RecipeDetailScreen() {
   return (
     <>
       <Stack.Screen options={{ title: 'Recipe' }} />
-      {Platform.OS === 'ios' && recipe && recipeScope === scope ? <Stack.Toolbar placement="right">
+      {can('recipes.edit') && Platform.OS === 'ios' && recipe && recipeScope === scope ? <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button accessibilityLabel="Edit recipe" hidesSharedBackground onPress={openEdit} tintColor={theme.link} variant="plain">Edit</Stack.Toolbar.Button>
       </Stack.Toolbar> : null}
       <Screen layout="tab-stack" contentAlignment="top">
@@ -138,17 +142,21 @@ export function RecipeDetailScreen() {
 
             <View style={styles.section}>
               <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>Ingredients</ThemedText>
-              <View style={[styles.ingredientCard, { backgroundColor: theme.surface }]}>
-                {(activeRecipe.ingredients ?? []).map((ingredient, index) => (
-                  <View key={ingredient.id} style={[styles.ingredientRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
-                    <ThemedText themeColor="textSecondary" style={styles.measure}>{ingredientMeasure(ingredient)}</ThemedText>
-                    <View style={styles.ingredientCopy}>
-                      <ThemedText style={styles.ingredientName}>{ingredient.catalog_item_name}</ThemedText>
-                      {ingredient.note ? <ThemedText themeColor="textSecondary">Note: {ingredient.note}</ThemedText> : null}
-                    </View>
+              {[...(activeRecipe.ingredient_sections ?? []), { position: null, name: activeRecipe.ingredient_sections?.length ? 'Other ingredients' : '' }].map((section) => {
+                const rows = (activeRecipe.ingredients ?? []).filter((item) => (item.section_position ?? null) === section.position);
+                if (!rows.length && section.position === null && activeRecipe.ingredient_sections?.length) return null;
+                return <View key={section.position ?? 'unassigned'} style={{ gap: 10 }}>
+                  {section.name ? <ThemedText accessibilityRole="header" style={visualStyles.sectionTitle}>{section.name}</ThemedText> : null}
+                  <View style={[styles.ingredientCard, { backgroundColor: theme.surface }]}>
+                    {rows.map((ingredient, index) => <View key={ingredient.id} style={[styles.ingredientRow, index > 0 && { borderTopColor: theme.border, borderTopWidth: StyleSheet.hairlineWidth }]}>
+                      <ThemedText themeColor="textSecondary" style={styles.measure}>{ingredientMeasure(ingredient)}</ThemedText>
+                      <View style={styles.ingredientCopy}><ThemedText style={styles.ingredientName}>{ingredient.catalog_item_name}</ThemedText>
+                        {ingredient.note ? <ThemedText themeColor="textSecondary">Note: {ingredient.note}</ThemedText> : null}</View>
+                    </View>)}
+                    {!rows.length ? <ThemedText themeColor="textSecondary" style={styles.ingredientRow}>No ingredients in this section.</ThemedText> : null}
                   </View>
-                ))}
-              </View>
+                </View>;
+              })}
             </View>
 
             {(activeRecipe.steps?.length ?? 0) > 0 ? <View style={styles.section}>
@@ -167,9 +175,9 @@ export function RecipeDetailScreen() {
               <ThemedText themeColor="textSecondary">↗  Source</ThemedText>
               <ThemedText themeColor="link" numberOfLines={2}>{activeRecipe.source_url}</ThemedText>
             </Pressable> : null}
-            <Pressable accessibilityRole="button" onPress={() => setConfirmingArchive(true)} style={styles.archiveAction}>
+            <PermissionGate action="recipes.archive"><Pressable accessibilityRole="button" onPress={() => setConfirmingArchive(true)} style={styles.archiveAction}>
               <ThemedText themeColor="error" style={styles.archiveText}>Archive recipe</ThemedText>
-            </Pressable>
+            </Pressable></PermissionGate>
           </> : null}
 
           {error?.scope === scope ? <ThemedText accessibilityRole="alert" themeColor="error">{error.message}</ThemedText> : null}
@@ -177,7 +185,7 @@ export function RecipeDetailScreen() {
         </View>
       </Screen>
       <Modal transparent animationType="fade" onRequestClose={() => setConfirmingArchive(false)} visible={confirmingArchive}>
-        <View style={styles.overlay}>
+        <View style={[styles.overlay, { backgroundColor: theme.scrim }]}>
           <View style={[styles.confirm, { backgroundColor: theme.surface }]}>
             <ThemedText accessibilityRole="header" style={styles.confirmTitle}>Archive this recipe?</ThemedText>
             <ThemedText>It will leave the active Recipes library. Any household member can restore it from Household details.</ThemedText>
@@ -221,7 +229,7 @@ const styles = StyleSheet.create({
   archiveAction: { alignItems: 'center', justifyContent: 'center', minHeight: 50 },
   archiveText: { fontWeight: '600' },
   headerAction: { fontWeight: '600' },
-  overlay: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'center', padding: 24 },
+  overlay: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 24 },
   confirm: { borderRadius: 16, gap: 16, maxWidth: 440, padding: 24, width: '100%' },
   confirmTitle: { fontSize: 22, fontWeight: '700' },
   confirmArchive: { alignItems: 'center', borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 48 },

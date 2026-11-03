@@ -8,6 +8,7 @@ from sqlalchemy import Engine, text
 from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.database import get_engine
 from meal_planner_api.household_management import lock_household
+from meal_planner_api.permissions import require_permissions
 
 ITEM_TYPES = {"food", "household"}
 RECIPE_DIMENSIONS = {"volume", "mass", "count"}
@@ -387,6 +388,7 @@ def create_item(user: CurrentUser, household_id: str, values: dict, engine: Engi
     item = {**values, "name": name, "normalized_name": normalized_name}
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.items.create")
         _assert_item_name_available(connection, household_id, normalized_name)
         _check_reference(connection, household_id, item)
         created_id = connection.execute(text("""
@@ -411,6 +413,7 @@ def update_item(user: CurrentUser, household_id: str, item_id: str, values: dict
         raise _invalid("Provide at least one field to update.")
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.items.edit", resource=("catalog_items", item_id))
         current = connection.execute(text("""
             SELECT id::text AS id, item_type, category_id::text AS category_id, name,
                 normalized_name,
@@ -461,6 +464,7 @@ def update_item(user: CurrentUser, household_id: str, item_id: str, values: dict
 def archive_item(user: CurrentUser, household_id: str, item_id: str, engine: Engine | None = None) -> None:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.items.archive", resource=("catalog_items", item_id))
         archived = connection.execute(text("""
             UPDATE catalog_items SET archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
             WHERE household_id = :household_id AND id = :item_id AND archived_at IS NULL
@@ -503,6 +507,7 @@ def create_category(
     clean_emoji = _clean_emoji(emoji)
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.categories.create")
         _assert_name_available(connection, "catalog_categories", household_id, normalized, item_type=item_type)
         row = connection.execute(text("""
             INSERT INTO catalog_categories (household_id, item_type, name, normalized_name, emoji)
@@ -525,6 +530,7 @@ def update_category(
     clean_emoji = _clean_emoji(emoji) if emoji_provided else None
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.categories.edit", resource=("catalog_categories", category_id))
         current = connection.execute(text("""
             SELECT item_type FROM catalog_categories WHERE household_id = :household_id
               AND id = :id AND archived_at IS NULL FOR UPDATE
@@ -556,6 +562,7 @@ def archive_category(
 ) -> None:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.categories.archive", resource=("catalog_categories", category_id))
         exists = connection.execute(text("""
             SELECT 1 FROM catalog_categories WHERE household_id = :household_id
               AND id = :id AND archived_at IS NULL FOR UPDATE
@@ -566,6 +573,8 @@ def archive_category(
             SELECT count(*)::int FROM catalog_items WHERE household_id = :household_id
               AND category_id = :id AND archived_at IS NULL
         """), {"household_id": household_id, "id": category_id}).scalar_one()
+        if active_item_count:
+            require_permissions(connection, household_id, user.id, "catalog.items.edit")
         if active_item_count != expected_active_item_count:
             raise _conflict("CATALOG_CATEGORY_COUNT_CHANGED", "The number of active items changed. Refresh the category and confirm again.")
         connection.execute(text("""
@@ -582,6 +591,7 @@ def create_store(user: CurrentUser, household_id: str, name: str, engine: Engine
     clean, normalized = _clean_name(name, max_length=120, label="Store name")
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.stores.create")
         _assert_name_available(connection, "catalog_stores", household_id, normalized)
         row = connection.execute(text("""
             INSERT INTO catalog_stores (household_id, name, normalized_name)
@@ -595,6 +605,7 @@ def update_store(user: CurrentUser, household_id: str, store_id: str, name: str,
     clean, normalized = _clean_name(name, max_length=120, label="Store name")
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.stores.edit", resource=("catalog_stores", store_id))
         exists = connection.execute(text("""
             SELECT 1 FROM catalog_stores WHERE household_id = :household_id AND id = :id
               AND archived_at IS NULL FOR UPDATE
@@ -614,6 +625,7 @@ def update_store(user: CurrentUser, household_id: str, store_id: str, name: str,
 def archive_store(user: CurrentUser, household_id: str, store_id: str, engine: Engine | None = None) -> None:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.stores.archive", resource=("catalog_stores", store_id))
         exists = connection.execute(text("""
             SELECT 1 FROM catalog_stores WHERE household_id = :household_id AND id = :id
               AND archived_at IS NULL FOR UPDATE
@@ -636,6 +648,7 @@ def create_custom_unit(user: CurrentUser, household_id: str, name: str, engine: 
     clean, normalized = _clean_name(name, max_length=40, label="Shopping unit")
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.units.create")
         builtin = connection.execute(text("SELECT 1 FROM catalog_shopping_units WHERE lower(label) = :name"), {"name": normalized}).scalar_one_or_none()
         if builtin is not None:
             raise _conflict("CATALOG_CHOICE_ALREADY_EXISTS", "A built-in shopping unit already has that name.")
@@ -652,6 +665,7 @@ def update_custom_unit(user: CurrentUser, household_id: str, unit_id: str, name:
     clean, normalized = _clean_name(name, max_length=40, label="Shopping unit")
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.units.edit", resource=("household_shopping_units", unit_id))
         exists = connection.execute(text("""
             SELECT 1 FROM household_shopping_units WHERE household_id = :household_id
               AND id = :id AND archived_at IS NULL FOR UPDATE
@@ -674,6 +688,7 @@ def update_custom_unit(user: CurrentUser, household_id: str, unit_id: str, name:
 def archive_custom_unit(user: CurrentUser, household_id: str, unit_id: str, engine: Engine | None = None) -> None:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "catalog.units.archive", resource=("household_shopping_units", unit_id))
         exists = connection.execute(text("""
             SELECT 1 FROM household_shopping_units WHERE household_id = :household_id
               AND id = :id AND archived_at IS NULL FOR UPDATE

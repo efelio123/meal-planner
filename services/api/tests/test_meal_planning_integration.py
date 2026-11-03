@@ -1,3 +1,5 @@
+from permission_fixtures import seed_full_member
+
 """Disposable-PostgreSQL coverage for household meal plans and shopping review."""
 
 import os
@@ -90,6 +92,7 @@ def _cleanup(engine: Engine, households: list[str], users: list[str]) -> None:
             connection.execute(text("DELETE FROM household_meal_plan_entries WHERE household_id=:id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_recipe_steps WHERE household_id=:id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_recipe_ingredients WHERE household_id=:id"), {"id": household_id})
+            connection.execute(text("DELETE FROM household_recipe_sections WHERE household_id=:id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_recipes WHERE household_id=:id"), {"id": household_id})
             connection.execute(text("DELETE FROM catalog_items WHERE household_id=:id"), {"id": household_id})
             connection.execute(text("DELETE FROM household_members WHERE household_id=:id"), {"id": household_id})
@@ -101,7 +104,7 @@ def _cleanup(engine: Engine, households: list[str], users: list[str]) -> None:
 
 def test_meal_plan_migration_has_household_scoped_keys_and_preserves_manual_shopping_rows(meal_plan_engine: Engine) -> None:
     with meal_plan_engine.connect() as connection:
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "meal_plan_special_entries"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "widget_devices"
         entry_constraints = set(connection.execute(text("""
             SELECT conname FROM pg_constraint WHERE conrelid='household_meal_plan_entries'::regclass
         """)).scalars())
@@ -131,6 +134,7 @@ async def test_plan_entries_are_household_scoped_unique_and_revision_checked(mea
         household = _household(connection, owner, "Meal plan household")
         other = _household(connection, outsider, "Other household")
         connection.execute(text("INSERT INTO household_members (household_id,user_id,role) VALUES (:household,:user,'member')"), {"household": household, "user": member})
+        seed_full_member(connection, household, member)
         connection.execute(text("INSERT INTO household_members (household_id,user_id,role,removed_at) VALUES (:household,:user,'member',CURRENT_TIMESTAMP)"), {"household": household, "user": removed})
         item = _food(connection, household, "Beans")
         recipe = _recipe(connection, household, owner, [(item, "1", "cup", None)])
@@ -260,6 +264,7 @@ async def test_shopping_review_aggregates_exact_units_keeps_unknown_separate_and
         outsider = _user(connection, "review-outsider")
         household = _household(connection, owner, "Review household")
         connection.execute(text("INSERT INTO household_members (household_id,user_id,role) VALUES (:household,:member,'member')"), {"household": household, "member": member})
+        seed_full_member(connection, household, member)
         beans = _food(connection, household, "Beans")
         rice = _food(connection, household, "Rice")
         first_recipe = _recipe(connection, household, owner, [(beans, "1", "cup", None), (rice, None, None, None)])
@@ -721,6 +726,7 @@ async def test_special_entries_keep_revision_ownership_and_shopping_semantics(me
         outsider = _user(connection, "special-outsider")
         household = _household(connection, owner, "Special meals")
         connection.execute(text("INSERT INTO household_members (household_id,user_id,role) VALUES (:home,:user,'member')"), {"home": household, "user": member})
+        seed_full_member(connection, household, member)
         food = _food(connection, household, "Beans")
         recipe = _recipe(connection, household, owner, [(food, "2", "cup", None)])
     app.dependency_overrides.clear()

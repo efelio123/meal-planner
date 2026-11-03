@@ -63,6 +63,27 @@ export function ProfileHubScreen() {
               title="My households"
               variant="plain"
             />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+            <ProfileNavigationRow
+              icon={{ ios: 'paintpalette', android: 'palette', web: 'palette' }}
+              onPress={() => router.push('/(app)/(tabs)/profile/appearance' as Href)}
+              title="Appearance"
+              variant="plain"
+            />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+            <ProfileNavigationRow
+              icon={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
+              onPress={() => router.push('/(app)/(tabs)/profile/calendar-sync' as Href)}
+              title="Calendar sync"
+              variant="plain"
+            />
+            <View style={[styles.divider, { backgroundColor: theme.border }]} />
+            <ProfileNavigationRow
+              icon={{ ios: 'square.grid.2x2', android: 'widgets', web: 'widgets' }}
+              onPress={() => router.push('/(app)/(tabs)/profile/widgets' as Href)}
+              title="Widgets"
+              variant="plain"
+            />
           </View>
         </View>
       </View>

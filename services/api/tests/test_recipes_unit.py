@@ -74,3 +74,22 @@ def test_recipe_update_requires_revision_and_keeps_partial_fields_partial() -> N
         RecipeUpdateRequest(name="Updated")
     update = RecipeUpdateRequest(expected_revision=2, notes=None)
     assert update.model_fields_set == {"expected_revision", "notes"}
+
+
+@pytest.mark.parametrize("value", [-1, 20, True, 1.5, "1"])
+def test_section_positions_are_bounded_strict_integers(value):
+    from uuid import uuid4
+    with pytest.raises(ValidationError):
+        RecipeIngredientRequest(catalog_item_id=uuid4(), section_position=value)
+
+
+def test_section_names_and_count_are_validated_without_affecting_legacy_requests():
+    from uuid import uuid4
+
+    from meal_planner_api.recipes import _prepare_sections
+    assert _prepare_sections([{"name": " Sauce "}]) == [{"position": 0, "name": "Sauce"}]
+    for values in [[{"name": " "}], [{"name": "x" * 81}], [{"name": "x\ny"}], [{"name": "x"}] * 21]:
+        with pytest.raises(HTTPException):
+            _prepare_sections(values)
+    with pytest.raises(ValidationError):
+        RecipeCreateRequest(create_request_id="test", name="Recipe", ingredient_sections=[{"name": "x"}] * 21, ingredients=[{"catalog_item_id": uuid4()}])

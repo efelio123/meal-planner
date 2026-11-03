@@ -17,6 +17,7 @@ from meal_planner_api.household_management import (
     expire_stale_invitation,
     lock_household,
 )
+from meal_planner_api.permissions import seed_grants, with_access
 from meal_planner_api.startup_diagnostics import elapsed_ms, log_timing, request_id_for
 
 
@@ -151,10 +152,12 @@ def require_current_user(
 
 
 def _active_memberships(connection, user_id: str) -> list[dict]:
-    return connection.execute(text("""SELECT h.id::text, h.name, h.time_zone, hm.role
+    rows = connection.execute(text("""SELECT h.id::text, h.name, h.time_zone, hm.role
         FROM household_members hm JOIN households h ON h.id = hm.household_id
         WHERE hm.user_id = :user_id AND hm.removed_at IS NULL AND h.deleted_at IS NULL
         ORDER BY h.created_at"""), {"user_id": user_id}).mappings().all()
+
+    return [with_access(connection, user_id, row) for row in rows]
 
 
 def list_households(
@@ -228,7 +231,7 @@ def create_household(user: CurrentUser, name: str, time_zone: str, engine: Engin
         connection.execute(text("""INSERT INTO shopping_lists (household_id)
             VALUES (:household_id) ON CONFLICT (household_id) DO NOTHING"""), {"household_id": household["id"]})
         _seed_household_catalog_categories(connection, household["id"])
-        return {**household, "role": "owner"}
+        return with_access(connection, user.id, {**household, "role": "owner"})
 
 
 def create_invitation(user: CurrentUser, household_id: str, email: str, engine: Engine | None = None) -> dict:
@@ -282,7 +285,8 @@ def accept_invitation(user: CurrentUser, code: str, engine: Engine | None = None
                 connection.execute(text("UPDATE household_invitations SET status = 'revoked', revoked_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id"), {"id": invitation["id"]})
                 already_member = True
             else:
-                connection.execute(text("INSERT INTO household_members (household_id, user_id, role) VALUES (:household_id, :user_id, 'member')"), {"household_id": invitation["household_id"], "user_id": user.id})
+                membership_id = connection.execute(text("INSERT INTO household_members (household_id, user_id, role) VALUES (:household_id, :user_id, 'member') RETURNING id::text"), {"household_id": invitation["household_id"], "user_id": user.id}).scalar_one()
+                seed_grants(connection, membership_id)
                 connection.execute(text("UPDATE household_invitations SET status = 'accepted', accepted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id"), {"id": invitation["id"]})
     if expired:
         raise HTTPException(status_code=status.HTTP_410_GONE, detail="Invitation expired")

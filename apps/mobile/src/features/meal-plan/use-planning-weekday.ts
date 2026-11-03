@@ -1,3 +1,4 @@
+import { notifyWidgetRefresh, subscribeWidgetRefresh } from '@/lib/widget-refresh-events';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 
@@ -9,6 +10,11 @@ export function usePlanningWeekday(userId: string | null | undefined) {
   const owner = useRef(userId);
   const generation = useRef(0);
   useLayoutEffect(() => { owner.current = userId; generation.current += 1; }, [userId]);
+  useLayoutEffect(() => subscribeWidgetRefresh((id, weekday) => {
+    if (id !== userId || owner.current !== id) return;
+    generation.current += 1;
+    setStored({ userId: id, weekday, error: null });
+  }), [userId]);
   useEffect(() => {
     const version = generation.current;
     if (!userId) return;
@@ -26,8 +32,8 @@ export function usePlanningWeekday(userId: string | null | undefined) {
   }, [userId]);
   const save = useCallback((weekday: number) => {
     if (!userId || owner.current !== userId) return;
-    const version = ++generation.current;
-    setStored({ userId, weekday, error: null });
+    notifyWidgetRefresh(userId, weekday);
+    const version = generation.current;
     const write = preferenceWrites.catch(() => undefined).then(() => AsyncStorage.setItem(planningWeekdayKey(userId), String(weekday)));
     preferenceWrites = write.catch(() => undefined);
     void write.catch(() => {

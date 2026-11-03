@@ -263,12 +263,12 @@ def test_shopping_list_schema_constraints_indexes_and_foreign_keys(database_conn
 
     trigger_count = database_connection.execute(
         text(
-            """SELECT count(*) FROM pg_trigger AS t
+            """SELECT t.tgname FROM pg_trigger AS t
             JOIN pg_class relation ON relation.oid = t.tgrelid
             JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
             WHERE namespace.nspname = 'public'
               AND relation.relname IN ('shopping_lists', 'shopping_list_items')
               AND NOT t.tgisinternal"""
         )
-    ).scalar_one()
-    assert trigger_count == 0
+    ).scalars().all()
+    assert trigger_count == ["shopping_check_version"]

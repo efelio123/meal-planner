@@ -1,3 +1,4 @@
+import { nativeCalendar } from '@/features/calendar-sync/native-adapter';
 import { calendarDay } from './planning-dates';
 // SDK 58 initializes the full route tree asynchronously; cold imports on Windows
 // exceed Jest's unit-test default. This is not an app startup performance check.
@@ -1111,6 +1112,46 @@ describe('meal planning through the Expo Router', () => {
     await fireEvent.press(editor.getByRole('button', { name: 'Cancel' }));
     await act(async () => { pending.resolve({ item: { id: 'shopping-milk', name: 'Milk', catalog_item_id: food.id, is_checked: true, checked_at: null, checked_by_user_id: null, created_by_user_id: user.id, created_at: '' } }); await pending.promise; });
     expect(rendered.getPathname()).toBe('/plan/shopping-review');
+  });
+
+  it('opens Calendar sync in the actual Profile stack, shows the Expo Go gate and returns with Back', async () => {
+    mockedStorage.getItem.mockImplementation(async (key) => key.startsWith('calendar-v1.') ? null : household.id);
+    const calendar = jest.spyOn(api, 'calendarStatus').mockResolvedValue({ manager_membership_id: 'manager', manager_name: 'Household Owner', is_manager: false, enabled: false, revision: 1, binding_id: '11111111-1111-4111-8111-111111111111', writer_linked: false, recovery_required: false, writer_label: null, writer_id: null, run_pending: false, last_success_at: null, time_zone: household.time_zone, breakfast_time: '08:00', lunch_time: '12:00', dinner_time: '18:00', duration_minutes: 60 });
+    const members = jest.spyOn(api, 'householdMembers').mockResolvedValue({ members: [] });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await waitForLoadedPlan();
+    await act(async () => { router.push('/(app)/(tabs)/profile'); });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Calendar sync' }));
+    await screen.findByText('Calendar manager: Household Owner');
+    expect(rendered.getPathname()).toBe('/profile/calendar-sync');
+    expect(screen.getByText(/unavailable in Expo Go and on the web/u)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Set up calendar sync' })).toBeNull();
+    await act(async () => { router.back(); });
+    await screen.findByRole('button', { name: 'Calendar sync' });
+    expect(rendered.getPathname()).toBe('/profile'); calendar.mockRestore(); members.mockRestore();
+  });
+
+  it('keeps calendar setup and times in native sheets, and Cancel creates no calendar or event', async () => {
+    mockedStorage.getItem.mockImplementation(async (key) => key.startsWith('calendar-v1.') ? null : household.id);
+    const available = jest.spyOn(nativeCalendar, 'available').mockReturnValue(true);
+    const permission = jest.spyOn(nativeCalendar, 'permission').mockResolvedValue();
+    const destinations = jest.spyOn(nativeCalendar, 'destinations').mockResolvedValue([{ id: 'shared', title: 'Family', source: 'Google', local: false }]);
+    const create = jest.spyOn(nativeCalendar, 'createDestination');
+    const calendar = jest.spyOn(api, 'calendarStatus').mockResolvedValue({ manager_membership_id: 'manager', manager_name: 'Household Owner', is_manager: true, enabled: false, revision: 1, binding_id: '11111111-1111-4111-8111-111111111111', writer_linked: false, recovery_required: false, writer_label: null, writer_id: null, run_pending: false, last_success_at: null, time_zone: household.time_zone, breakfast_time: '08:00', lunch_time: '12:00', dinner_time: '18:00', duration_minutes: 60 });
+    const members = jest.spyOn(api, 'householdMembers').mockResolvedValue({ members: [] });
+    try {
+      const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await waitForLoadedPlan();
+      await act(async () => { router.push('/(app)/(tabs)/profile/calendar-sync'); });
+      await fireEvent.press(await screen.findByRole('button', { name: 'Set up calendar sync' }));
+      await screen.findByText('Choose a destination'); expect(permission).toHaveBeenCalledWith(true);
+      await fireEvent.press(screen.getByRole('button', { name: /Breakfast time:/u }));
+      const input = await screen.findByLabelText('Breakfast time'); await fireEvent.changeText(input, '7:15 AM');
+      await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+      await screen.findByRole('button', { name: /Breakfast time:.*7:15/u });
+      expect(rendered.getPathname()).toBe('/profile/calendar-sync');
+      await fireEvent.press(screen.getByRole('button', { name: 'Cancel setup' }));
+      expect(create).not.toHaveBeenCalled(); expect(screen.queryByText('Choose a destination')).toBeNull();
+    } finally { available.mockRestore(); permission.mockRestore(); destinations.mockRestore(); create.mockRestore(); calendar.mockRestore(); members.mockRestore(); }
   });
 
 });

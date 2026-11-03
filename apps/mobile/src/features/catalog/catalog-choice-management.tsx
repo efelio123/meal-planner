@@ -1,3 +1,7 @@
+import { PermissionGate } from '@/features/household-permissions/permission-gate';
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
+import { PermissionNotice } from '@/features/household-permissions/permission-notice';
+import { choicePermission } from '@/lib/household-permissions';
 import { useAuth } from '@clerk/expo';
 import { Link, Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
@@ -40,6 +44,7 @@ export function CatalogChoiceManagement({ layout, routeBase = 'catalog' }: { lay
   const navigation = useNavigation();
   const { getToken, selectedHousehold } = useHouseholdState();
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
   const { sessionId, userId } = useAuth();
   const { revision } = useCatalogContext();
   const householdId = selectedHousehold?.id ?? null;
@@ -91,21 +96,21 @@ export function CatalogChoiceManagement({ layout, routeBase = 'catalog' }: { lay
     params.shoppingTarget === 'details' && params.shoppingCatalogItemId ? `shoppingCatalogItemId=${encodeURIComponent(params.shoppingCatalogItemId)}` : null,
   ].filter(Boolean).join('&');
   const routeToCreate = useCallback(() => {
-    if (!kind) return;
+    if (!kind || !canNow(choicePermission(kind, 'create'))) return;
     router.push({ pathname: `/(app)/(tabs)/${base}/${kind}/create`, params: {
       ...(itemType ? { itemType } : {}),
       ...(params.shoppingTarget === 'details' ? { shoppingTarget: 'details', shoppingCatalogItemId: params.shoppingCatalogItemId } : {}),
       ...namePrefillParams(kind === 'shopping-unit' ? '' : search, namePrefillScope(userId, sessionId, householdId)),
     } } as never);
-  }, [base, householdId, itemType, kind, params.shoppingCatalogItemId, params.shoppingTarget, router, search, sessionId, userId]);
+  }, [canNow, base, householdId, itemType, kind, params.shoppingCatalogItemId, params.shoppingTarget, router, search, sessionId, userId]);
   const createAction = useCallback(() => (
     <Pressable accessibilityLabel={`Create ${kind === 'shopping-unit' ? 'shopping unit' : kind ?? 'choice'}`} accessibilityRole="button" onPress={routeToCreate} style={styles.headerAction}>
       <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'plus', android: 'add', web: 'add' }} size={22} tintColor={theme.link} />
     </Pressable>
   ), [kind, routeToCreate, theme.link]);
   useLayoutEffect(() => {
-    navigation.setOptions({ title, headerRight: kind ? createAction : undefined });
-  }, [createAction, kind, navigation, title]);
+    navigation.setOptions({ title, headerRight: kind && can(choicePermission(kind, 'create')) ? createAction : undefined });
+  }, [can, createAction, kind, navigation, title]);
   const groupedChoices = kind === 'category'
     ? (['food', 'household'] as const).map((type) => ({
       type,
@@ -170,6 +175,9 @@ function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps)
   const { getToken, selectedHousehold } = useHouseholdState();
   const navigation = useNavigation();
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
+  const permission = choicePermission(kind, editing ? 'edit' : 'create');
+  const allowed = can(permission);
   const { markChanged, setChoiceResult } = useCatalogContext();
   const shoppingContext = useShoppingContextOptional();
   const householdId = selectedHousehold?.id ?? null;
@@ -245,6 +253,7 @@ function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps)
   }, [editing, loadExistingChoice]);
 
   const save = async () => {
+    if (!canNow(permission)) return;
     if (editing && loadedChoiceScope !== scope) return;
     if (!householdId || !kind || !name.trim()) { setError('Enter a name.'); return; }
     if (kind === 'category' && !categoryType) { setError('Choose Food or Household for this category.'); return; }
@@ -276,6 +285,7 @@ function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps)
   };
 
   const remove = async () => {
+    if (!canNow(choicePermission(kind, 'archive'))) return;
     if (!householdId || !kind || !choiceId) return;
     setSaving(true); setError(null);
     const startedScope = scopeRef.current;
@@ -297,7 +307,7 @@ function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps)
   useLayoutEffect(() => { navigation.setOptions({ title: pageTitle }); }, [navigation, pageTitle]);
   return (
     <View style={styles.routeRoot}>
-      <Screen layout={layout} contentAlignment="top"><View style={styles.content}>
+      <Screen layout={layout} contentAlignment="top"><View style={styles.content}><PermissionNotice allowed={allowed} />
       <ThemedText themeColor="textSecondary">{editing ? kind === 'store' ? 'Update this shared household store.' : kind === 'shopping-unit' ? 'Update this household shopping-unit label.' : 'Update this shared household category.' : kind === 'category' ? 'Organize reusable catalog items by type.' : params.shoppingTarget === 'details' ? `Save this ${title} for the household. This item’s Catalog default will not change.` : `Add a household ${title} for catalog items.`}</ThemedText>
       {editing && householdId && kind && choiceId && loading ? <ActivityIndicator accessibilityLabel={`Loading ${title}`} /> : null}
       {editing && error && !loading && loadedChoiceScope !== scope ? <PrimaryButton onPress={() => void loadExistingChoice()} title={`Retry loading ${title}`} /> : null}
@@ -305,7 +315,7 @@ function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps)
         <ThemedText style={styles.label}>Type</ThemedText>
         <View style={styles.categoryTypes}>
           {(['food', 'household'] as const).map((value) => (
-            <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: categoryType === value }} disabled={editing} onPress={() => setCategoryType(value)} style={[styles.categoryType, { backgroundColor: categoryType === value ? theme.surfaceSelected : theme.surface, borderColor: categoryType === value ? theme.primary : theme.border, opacity: editing ? 0.75 : 1 }]}>
+            <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: categoryType === value }} disabled={!allowed || editing} onPress={() => setCategoryType(value)} style={[styles.categoryType, { backgroundColor: categoryType === value ? theme.surfaceSelected : theme.surface, borderColor: categoryType === value ? theme.primary : theme.border, opacity: editing ? 0.75 : 1 }]}>
               <ThemedText>{value === 'food' ? 'Food' : 'Household'}</ThemedText>
             </Pressable>
           ))}
@@ -313,10 +323,10 @@ function CatalogChoiceFormInternal({ layout, editing = false }: ChoiceFormProps)
         {editing && loadedCategoryType ? <ThemedText themeColor="textSecondary">This category belongs to {loadedCategoryType === 'food' ? 'Food' : 'Household'}.</ThemedText> : null}
       </> : null}
       <ThemedText style={styles.label}>{title[0].toLocaleUpperCase() + title.slice(1)} name</ThemedText>
-      <ThemedInput accessibilityLabel={`${title} name`} onChangeText={setName} placeholder={`${title[0].toLocaleUpperCase() + title.slice(1)} name`} value={name} />
+      <ThemedInput editable={allowed} accessibilityLabel={`${title} name`} onChangeText={setName} placeholder={`${title[0].toLocaleUpperCase() + title.slice(1)} name`} value={name} />
       {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
-      <PrimaryButton disabled={!kind || saving || loading || (editing && loadedChoiceScope !== scope) || (kind === 'category' && !categoryType)} onPress={() => void save()} title={saving ? 'Saving…' : editing ? 'Save changes' : 'Create'} />
-      {editing ? <Pressable accessibilityRole="button" disabled={saving} onPress={() => void remove()} style={[styles.deleteAction, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}><ThemedText themeColor="error">Remove {title}</ThemedText></Pressable> : null}
+      <PermissionGate action={permission}><PrimaryButton disabled={!allowed || !kind || saving || loading || (editing && loadedChoiceScope !== scope) || (kind === 'category' && !categoryType)} onPress={() => void save()} title={saving ? 'Saving…' : editing ? 'Save changes' : 'Create'} /></PermissionGate>
+      {editing ? <Pressable accessibilityRole="button" disabled={saving || !can(choicePermission(kind, 'archive'))} onPress={() => void remove()} style={[styles.deleteAction, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}><ThemedText themeColor="error">Remove {title}</ThemedText></Pressable> : null}
       </View></Screen>
     </View>
   );
@@ -331,6 +341,9 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
   const navigation = useNavigation();
   const router = useRouter();
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
+  const permission = editing ? 'catalog.categories.edit' : 'catalog.categories.create';
+  const allowed = can(permission);
   const { markChanged, setChoiceResult } = useCatalogContext();
   const householdId = selectedHousehold?.id ?? null;
   const scope = `${userId ?? ''}:${sessionId ?? ''}:${householdId ?? ''}:${choiceId ?? ''}:${itemType ?? ''}`;
@@ -414,6 +427,7 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
   }, [editing, loadExistingCategory]);
 
   const save = useCallback(async () => {
+    if (!canNow(permission)) return;
     if (emojiSheetVisible) {
       const validationError = categoryEmojiValidationError(emojiDraft);
       if (validationError) setEmojiDraftError(validationError);
@@ -456,7 +470,7 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
     } finally {
       if (mounted.current && scopeRef.current === requestScope) setSaving(false);
     }
-  }, [categoryName, categoryType, choiceId, editing, emoji, emojiDraft, emojiSheetVisible, householdId, layout, loadedScope, markChanged, params.returnToChoicePicker, router, scope, setChoiceResult]);
+  }, [canNow, permission, categoryName, categoryType, choiceId, editing, emoji, emojiDraft, emojiSheetVisible, householdId, layout, loadedScope, markChanged, params.returnToChoicePicker, router, scope, setChoiceResult]);
 
   const openEmojiSheet = () => {
     Keyboard.dismiss();
@@ -483,12 +497,13 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
 
   const categoryLoaded = !editing || loadedScope === scope;
   const saveHeaderAction = useCallback(() => (
-    <Pressable accessibilityRole="button" accessibilityLabel="Save category" accessibilityState={{ disabled: loadedScope !== scope || saving || loading || emojiSheetVisible }} disabled={loadedScope !== scope || saving || loading || emojiSheetVisible} onPress={() => void save()} style={styles.headerAction}>
+    <Pressable accessibilityRole="button" accessibilityLabel="Save category" accessibilityState={{ disabled: loadedScope !== scope || saving || loading || emojiSheetVisible }} disabled={!allowed || loadedScope !== scope || saving || loading || emojiSheetVisible} onPress={() => void save()} style={styles.headerAction}>
       <ThemedText themeColor="link">Save</ThemedText>
     </Pressable>
-  ), [emojiSheetVisible, loadedScope, loading, save, saving, scope]);
+  ), [allowed, emojiSheetVisible, loadedScope, loading, save, saving, scope]);
 
   const remove = async () => {
+    if (!canNow('catalog.categories.archive') || (activeItemCount > 0 && !canNow('catalog.items.edit'))) return;
     if (!householdId || !choiceId || loadedScope !== scope) return;
     setSaving(true);
     setError(null);
@@ -515,18 +530,18 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
   };
 
   useLayoutEffect(() => {
-    navigation.setOptions({ title, headerRight: Platform.OS === 'ios' || !editing || !categoryLoaded ? undefined : saveHeaderAction });
-  }, [categoryLoaded, editing, navigation, saveHeaderAction, title]);
+    navigation.setOptions({ title, headerRight: !allowed || Platform.OS === 'ios' || !editing || !categoryLoaded ? undefined : saveHeaderAction });
+  }, [allowed, categoryLoaded, editing, navigation, saveHeaderAction, title]);
 
   return (
     <>
     <Stack.Screen options={{ title }} />
-    {Platform.OS === 'ios' && editing && categoryLoaded ? <Stack.Toolbar placement="right">
-      <Stack.Toolbar.Button accessibilityLabel="Save category" disabled={saving || loading || emojiSheetVisible} hidesSharedBackground onPress={() => void save()} tintColor={theme.link} variant="plain">Save</Stack.Toolbar.Button>
+    {allowed && Platform.OS === 'ios' && editing && categoryLoaded ? <Stack.Toolbar placement="right">
+      <Stack.Toolbar.Button accessibilityLabel="Save category" disabled={!allowed || saving || loading || emojiSheetVisible} hidesSharedBackground onPress={() => void save()} tintColor={theme.link} variant="plain">Save</Stack.Toolbar.Button>
     </Stack.Toolbar> : null}
     <View style={styles.routeRoot}>
       <Screen layout={layout} contentAlignment="top">
-        <View style={styles.content}>
+        <View style={styles.content}><PermissionNotice allowed={allowed} />
           <ThemedText themeColor="textSecondary">{editing ? 'Update this shared household category.' : 'Create a category shared with everyone in your household.'}</ThemedText>
           {editing && loading ? <ActivityIndicator accessibilityLabel="Loading category" /> : null}
           {editing && error && !categoryLoaded ? <PrimaryButton disabled={loading} onPress={() => void loadExistingCategory()} title="Retry loading category" /> : null}
@@ -534,14 +549,14 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
             <View style={[visualStyles.groupedSurface, styles.categoryFormCard, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
               <View style={styles.compactFormRow}>
                 <ThemedText themeColor="textSecondary">Name</ThemedText>
-                <ThemedInput accessibilityLabel="category name" onChangeText={setCategoryName} placeholder="Category name" value={categoryName} style={styles.inlineInput} />
+                <ThemedInput editable={allowed} accessibilityLabel="category name" onChangeText={setCategoryName} placeholder="Category name" value={categoryName} style={styles.inlineInput} />
               </View>
               <View style={[styles.typeRow, !editing && styles.createTypeRow, { borderTopColor: theme.border }]}>
                 <ThemedText themeColor="textSecondary">Type</ThemedText>
                 {editing ? <View testID="category-type-value" style={styles.categoryTrailingValue}><ThemedText>{categoryType === 'food' ? 'Food' : 'Household'}</ThemedText></View> : (
                   <View testID="category-type-controls" style={styles.categoryTypes}>
                     {(['food', 'household'] as const).map((value) => (
-                      <Pressable key={value} accessibilityRole="radio" accessibilityState={{ checked: categoryType === value }} onPress={() => setCategoryType(value)} style={[styles.categoryType, { backgroundColor: categoryType === value ? theme.surfaceSelected : theme.surface, borderColor: categoryType === value ? theme.primary : theme.border }]}>
+                      <Pressable key={value} accessibilityRole="radio" disabled={!allowed} accessibilityState={{ checked: categoryType === value }} onPress={() => setCategoryType(value)} style={[styles.categoryType, { backgroundColor: categoryType === value ? theme.surfaceSelected : theme.surface, borderColor: categoryType === value ? theme.primary : theme.border }]}>
                         <ThemedText>{value === 'food' ? 'Food' : 'Household'}</ThemedText>
                       </Pressable>
                     ))}
@@ -549,7 +564,7 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
                 )}
               </View>
             </View>
-            <Pressable accessibilityLabel={`Emoji: ${emoji ?? 'Not set'}`} accessibilityRole="button" onPress={openEmojiSheet} style={[styles.categorySettingRow, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
+            <Pressable accessibilityLabel={`Emoji: ${emoji ?? 'Not set'}`} accessibilityRole="button" disabled={!allowed} onPress={openEmojiSheet} style={[styles.categorySettingRow, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}>
               <ThemedText>Emoji</ThemedText><EmojiText style={styles.emojiPreview}>{emoji ?? '—'}</EmojiText><DisclosureChevron />
             </Pressable>
             {editing ? <>
@@ -557,12 +572,12 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
                 <ThemedText style={styles.categoryCountLabel}>Items in this category</ThemedText><ThemedText testID="category-item-count" style={styles.categoryTrailingText} themeColor="textSecondary">{activeItemCount} {activeItemCount === 1 ? 'item' : 'items'}</ThemedText>
               </View>
               <ThemedText themeColor="textSecondary">{activeItemCount ? 'Deleting this category moves its active items to Uncategorized.' : 'No active items use this category.'}</ThemedText>
-              <Pressable accessibilityRole="button" disabled={saving} onPress={() => setDeleteConfirmOpen(true)} style={[styles.deleteAction, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}><ThemedText themeColor="error">Delete category</ThemedText></Pressable>
+              <Pressable accessibilityRole="button" disabled={saving || !can('catalog.categories.archive') || (activeItemCount > 0 && !can('catalog.items.edit'))} onPress={() => setDeleteConfirmOpen(true)} style={[styles.deleteAction, { backgroundColor: theme.surface, borderColor: theme.surfaceSelected }]}><ThemedText themeColor="error">Delete category</ThemedText></Pressable>
             </> : null}
           </> : null}
           {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
-          {!editing ? <PrimaryButton accessibilityLabel="Create" disabled={saving || loading || !categoryType || emojiSheetVisible} onPress={() => void save()} title={saving ? 'Creating…' : 'Create category'} /> : null}
-          {editing && error && categoryLoaded ? <PrimaryButton disabled={saving || loading} onPress={() => void loadExistingCategory()} title="Retry refresh category" /> : null}
+          {!editing ? <PermissionGate action={permission}><PrimaryButton accessibilityLabel="Create" disabled={!allowed || saving || loading || !categoryType || emojiSheetVisible} onPress={() => void save()} title={saving ? 'Creating…' : 'Create category'} /></PermissionGate> : null}
+          {editing && error && categoryLoaded ? <PrimaryButton disabled={!allowed || saving || loading} onPress={() => void loadExistingCategory()} title="Retry refresh category" /> : null}
         </View>
       </Screen>
 
@@ -577,12 +592,12 @@ function CatalogCategoryForm({ layout, editing = false }: ChoiceFormProps) {
       />
 
       <Modal animationType="fade" onRequestClose={() => setDeleteConfirmOpen(false)} transparent visible={deleteConfirmOpen}>
-        <View style={styles.confirmOverlay}>
+        <View style={[styles.confirmOverlay, { backgroundColor: theme.scrim }]}>
             <View style={[styles.confirmCard, { backgroundColor: theme.elevatedSurface, borderColor: theme.surfaceSelected }]}>
             <ThemedText accessibilityRole="header" style={styles.confirmTitle}>Delete category?</ThemedText>
             <ThemedText>{activeItemCount ? `Deleting “${categoryName}” will move ${activeItemCount} active ${activeItemCount === 1 ? 'item' : 'items'} to Uncategorized.` : `Delete “${categoryName}”?`}</ThemedText>
             {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
-            <Pressable accessibilityRole="button" accessibilityState={{ disabled: saving }} disabled={saving} onPress={() => void remove()} style={[styles.confirmDeleteButton, { backgroundColor: theme.errorSurface, borderColor: theme.error }]}><ThemedText themeColor="error">{saving ? 'Deleting…' : 'Delete category'}</ThemedText></Pressable>
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: saving }} disabled={saving || !can('catalog.categories.archive') || (activeItemCount > 0 && !can('catalog.items.edit'))} onPress={() => void remove()} style={[styles.confirmDeleteButton, { backgroundColor: theme.errorSurface, borderColor: theme.error }]}><ThemedText themeColor="error">{saving ? 'Deleting…' : 'Delete category'}</ThemedText></Pressable>
             <Pressable accessibilityRole="button" disabled={saving} onPress={() => setDeleteConfirmOpen(false)} style={styles.cancelDeleteButton}><ThemedText themeColor="link">Cancel</ThemedText></Pressable>
           </View>
         </View>
@@ -615,7 +630,7 @@ const styles = StyleSheet.create({
   categorySettingRow: { alignItems: 'center', borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, flexDirection: 'row', gap: 12, minHeight: 58, paddingHorizontal: 16 },
   emojiPreview: { flex: 1, textAlign: 'right' },
   deleteAction: { alignItems: 'center', borderRadius: 12, borderWidth: 1, justifyContent: 'center', minHeight: 52 },
-  confirmOverlay: { alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.45)', flex: 1, justifyContent: 'center', padding: 24 },
+  confirmOverlay: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 24 },
   confirmCard: { borderRadius: 18, borderWidth: 1, gap: 16, maxWidth: 440, padding: 24, width: '100%' },
   confirmTitle: { fontSize: 22, fontWeight: '700' },
   confirmDeleteButton: { alignItems: 'center', borderRadius: 10, borderWidth: 1, justifyContent: 'center', minHeight: 48 },

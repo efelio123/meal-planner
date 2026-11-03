@@ -2,6 +2,7 @@ import { render } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { CatalogScreen } from './catalog-screen';
 
+jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: () => ({ selectedHousehold: { id: 'home', role: 'owner' } }) }));
 let mockMode: 'light' | 'dark' = 'light';
 let mockCatalog: Record<string, unknown>;
 

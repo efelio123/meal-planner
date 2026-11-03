@@ -4,6 +4,7 @@ import { formatRecipeAmount } from './recipe-presentation';
 export type RecipeIngredientDraft = {
   /** Identity of this occurrence in the local editor, never sent to the API. */
   key: string;
+  sectionKey?: string | null;
   catalogItemId: string;
   catalogItemName: string;
   categoryEmoji: string | null;

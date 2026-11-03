@@ -209,7 +209,11 @@ function useHouseholdStateValue() {
     );
     if (!keepSignedInNavigator && !keepProfileCompletionRoute) changeDestination('loading');
     try {
-      const nextMe = await api.me(() => latestGetToken.current(), undefined, diagnostics);
+      let nextMe = await api.me(() => latestGetToken.current(), undefined, diagnostics);
+      nextMe = { ...nextMe, households: nextMe.households.map((home) => {
+        const cached = meRef.current?.households.find((item) => item.id === home.id);
+        return cached?.membership_id && cached.membership_id === home.membership_id && (cached.permissions_revision ?? 0) > (home.permissions_revision ?? 0) ? { ...home, role: cached.role, permissions: cached.permissions, permissions_revision: cached.permissions_revision } : home;
+      }) };
       if (!isCurrentRefresh()) return null;
       validatedSessionIdentity.current = capturedIdentity;
       commitMe(nextMe);
@@ -259,6 +263,30 @@ function useHouseholdStateValue() {
     }
   }, [changeDestination, clearStoredHouseholdId, commitMe, commitSelectedHousehold, diagnostics, isSignedIn, readStoredHouseholdId, reconcileStoredHouseholdId, sessionIdentity]);
 
+  const accessRequests = useRef(new Map<string, Promise<void>>());
+  const refreshAccess = useCallback((householdId: string): Promise<void> => {
+    const identity = sessionIdentityRef.current;
+    const requestKey = `${identity}:${householdId}`;
+    const existing = accessRequests.current.get(requestKey); if (existing) return existing;
+    if (!sessionIsSignedIn.current || signOutStarted.current || !meRef.current?.households.some((home) => home.id === householdId)) return Promise.resolve();
+    const membership = membershipRevision.current;
+    const work = api.household(() => latestGetToken.current(), householdId).then(({ household }) => {
+      if (household.id !== householdId || identity !== sessionIdentityRef.current || membership !== membershipRevision.current || signOutStarted.current || !sessionIsSignedIn.current) return;
+      const current = meRef.current; const previous = current?.households.find((home) => home.id === householdId);
+      if (!current || !previous) return;
+      if (previous.membership_id && previous.membership_id === household.membership_id && (previous.permissions_revision ?? 0) > (household.permissions_revision ?? 0)) return;
+      if (previous.name === household.name && previous.time_zone === household.time_zone
+        && previous.role === household.role && previous.membership_id === household.membership_id
+        && previous.permissions_revision === household.permissions_revision
+        && JSON.stringify([...(previous.permissions ?? [])].sort()) === JSON.stringify([...(household.permissions ?? [])].sort())) return;
+      commitMe({ ...current, households: current.households.map((home) => home.id === householdId ? household : home) });
+      setSelectedHousehold((home) => home?.id === householdId ? household : home);
+    }).catch((reason: unknown) => {
+      if (identity === sessionIdentityRef.current && membership === membershipRevision.current && reason instanceof ApiError && reason.status === 404) void refresh();
+    }).finally(() => { accessRequests.current.delete(requestKey); });
+    accessRequests.current.set(requestKey, work); return work;
+  }, [commitMe, refresh]);
+
   const signOut = useCallback(async () => {
     signOutStarted.current = true;
     selectionGeneration.current += 1;
@@ -300,6 +328,7 @@ function useHouseholdStateValue() {
   return {
     destination: identityTransitioning ? (isSignedIn ? 'loading' : 'signed-out') : destination,
     getToken,
+    refreshAccess,
     households: identityTransitioning ? [] : me?.households ?? [],
     isSigningOut,
     isSwitchingHousehold: identityTransitioning ? false : isSwitchingHousehold,

@@ -1,12 +1,12 @@
 import { useSignIn, useSignUp } from '@clerk/expo';
 import { type Href, Link, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Button, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Screen } from '@/components/screen';
 import { useTheme } from '@/hooks/use-theme';
 import { ThemedText as Text } from '@/components/themed-text';
-import { ThemedInput } from '@/components/themed-controls';
+import { PrimaryButton as Button, ThemedInput } from '@/components/themed-controls';
 import { validateDisplayName } from '@/features/identity/display-name';
 
 type Mode = 'sign-in' | 'sign-up';
@@ -153,5 +153,5 @@ const styles = StyleSheet.create({
   content: { gap: 16 },
   title: { fontSize: 30, fontWeight: '700' },
   description: { fontSize: 16, lineHeight: 22 },
-  error: { color: '#b42318', fontSize: 15 },
+  error: { fontSize: 15 },
 });

@@ -47,7 +47,7 @@ export function NativeSheetScreen({ direct = false }: { direct?: boolean }) {
   // Recipes content owns its native root: a single ScrollView for details,
   // or distinct header/results/footer siblings for a keyboard-aware picker.
   // Keep the container for the existing shared Catalog/time-zone route.
-  if (direct) return entry.content;
+  if (direct || entry.direct) return entry.content;
 
   return <View testID="native-sheet-content" style={[styles.content, { backgroundColor: theme.elevatedSurface }]}>
     {entry.content}

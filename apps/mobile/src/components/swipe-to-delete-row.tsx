@@ -7,7 +7,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } fr
 import { scheduleOnRN } from 'react-native-worklets';
 import { SWIPE_REVEAL_WIDTH, swipeDeleteRelease } from './swipe-to-delete-logic';
 
-const TRASH_RED = '#ff3b3b';
+import { useTheme } from '@/hooks/use-theme';
 const ACTION_SIZE = 56;
 const SNAP = { mass: 1, damping: 28, stiffness: 300 };
 
@@ -29,6 +29,7 @@ type Props = {
 };
 
 export function SwipeToDeleteRow({ active, children, enabled, rowId, removeAccessibilityLabel, testID, separatorTestID, containerStyle, onClose, onDragEnd, onDragStart, onRemove, onReveal, separatorColor }: Props) {
+  const theme = useTheme();
   const offset = useSharedValue(0);
   const startOffset = useSharedValue(0);
   const endedAfterActivation = useSharedValue(false);
@@ -92,9 +93,9 @@ export function SwipeToDeleteRow({ active, children, enabled, rowId, removeAcces
   return <GestureDetector gesture={pan}>
     <Animated.View testID={testID ?? `swipe-${rowId}`} collapsable={false} onLayout={(event) => { rowWidth.value = event.nativeEvent.layout.width; }} style={[styles.container, containerStyle]}>
       <View pointerEvents={active ? 'auto' : 'none'} accessibilityElementsHidden={!active} importantForAccessibility={active ? 'auto' : 'no-hide-descendants'} style={styles.actionTrack}>
-        <Animated.View style={[styles.actionPill, actionStyle]}>
+        <Animated.View style={[styles.actionPill, { backgroundColor: theme.destructive }, actionStyle]}>
           <Pressable accessibilityRole="button" accessibilityLabel={removeAccessibilityLabel} accessibilityState={{ disabled: !enabled }} disabled={!enabled} onPress={removeOnce} style={styles.actionButton}>
-            <SymbolView name={{ ios: 'trash', android: 'delete', web: 'delete' }} size={26} weight="semibold" tintColor="#ffffff" />
+            <SymbolView name={{ ios: 'trash', android: 'delete', web: 'delete' }} size={26} weight="semibold" tintColor={theme.destructiveText} />
           </Pressable>
         </Animated.View>
       </View>
@@ -108,6 +109,6 @@ const styles = StyleSheet.create({
   container: { overflow: 'hidden' },
   separator: { position: 'absolute', bottom: 0, left: 0, right: 0, height: StyleSheet.hairlineWidth },
   actionTrack: { ...StyleSheet.absoluteFill, alignItems: 'flex-end', justifyContent: 'center' },
-  actionPill: { backgroundColor: TRASH_RED, borderRadius: ACTION_SIZE / 2, height: ACTION_SIZE, marginRight: 8 },
+  actionPill: { borderRadius: ACTION_SIZE / 2, height: ACTION_SIZE, marginRight: 8 },
   actionButton: { alignItems: 'flex-start', flex: 1, justifyContent: 'center', paddingLeft: 15 },
 });

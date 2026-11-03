@@ -1,0 +1,5 @@
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+ android:minWidth="110dp" android:minHeight="80dp" android:minResizeWidth="110dp" android:minResizeHeight="80dp"
+ android:targetCellWidth="2" android:targetCellHeight="2" android:resizeMode="horizontal|vertical"
+ android:widgetCategory="home_screen" android:initialLayout="@layout/glance_default_loading_layout"
+ android:updatePeriodMillis="0" android:description="@string/meal_planner_widget_description" />

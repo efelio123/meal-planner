@@ -1,7 +1,7 @@
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Button, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { ApiError, api } from '@/lib/api';
 import { Screen } from '@/components/screen';
@@ -10,7 +10,7 @@ import { TimeZonePicker } from '@/components/time-zone-picker';
 import { useHouseholdState } from '@/hooks/use-household-state';
 import { deviceTimeZone } from '@/lib/time-zones';
 import { useTheme } from '@/hooks/use-theme';
-import { ThemedInput } from '@/components/themed-controls';
+import { PrimaryButton as Button, ThemedInput } from '@/components/themed-controls';
 
 export default function CreateHousehold() {
   const theme = useTheme();
@@ -55,5 +55,5 @@ const styles = StyleSheet.create({
   content: { gap: 16 },
   title: { fontSize: 30, fontWeight: '700' },
   hint: { fontSize: 14 },
-  error: { color: '#b42318' },
+  error: {},
 });

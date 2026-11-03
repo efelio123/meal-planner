@@ -1,3 +1,5 @@
+import { notifyHouseholdAccessRefresh } from '@/lib/household-access-events';
+import { permissionActions } from '@/lib/household-permissions';
 // SDK 58 initializes the full route tree asynchronously; cold imports on Windows
 // exceed Jest's unit-test default. This is not an app startup performance check.
 import type { PropsWithChildren } from 'react';
@@ -73,6 +75,7 @@ jest.mock('@/lib/api', () => {
     api: {
       ...actual.api,
       me: jest.fn(), shoppingList: jest.fn(), mealPlan: jest.fn(), householdMembers: jest.fn(), household: jest.fn(),
+      memberPermissions: jest.fn(), setMemberPermissions: jest.fn(), householdMember: jest.fn(),
       recipes: jest.fn(), recipe: jest.fn(), createRecipe: jest.fn(), updateRecipe: jest.fn(),
       archiveRecipe: jest.fn(), restoreRecipe: jest.fn(), catalogItems: jest.fn(), catalogUnits: jest.fn(),
       catalogCategories: jest.fn(), catalogStores: jest.fn(), createCatalogCategory: jest.fn(), createCatalogItem: jest.fn(),
@@ -101,7 +104,7 @@ describe('Recipes through the actual Expo Router', () => {
     Platform.OS = 'android';
     jest.clearAllMocks();
     mockGetToken.mockResolvedValue('session-token');
-    mockedStorage.getItem.mockResolvedValue('household-a');
+    mockedStorage.getItem.mockImplementation(async (key) => key === 'meal-planner:appearance:v1' ? JSON.stringify({ version: 1, themeId: 'system', chooserSeenVersion: 1 }) : 'household-a');
     mockedStorage.setItem.mockResolvedValue();
     mockedStorage.removeItem.mockResolvedValue();
     mockedApi.me.mockResolvedValue(signedInMe);
@@ -319,6 +322,7 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.getByLabelText('Ingredient amount').props.keyboardType).toBe('default');
     await fireEvent.changeText(screen.getByLabelText('Ingredient amount'), '1/0');
     expect(screen.getByRole('button', { name: 'Add ingredient' }).props.accessibilityState?.disabled).toBe(true);
+    expect(screen.getByRole('button', { name: 'Add' }).props.accessibilityState?.disabled).toBe(true);
     await fireEvent.changeText(screen.getByLabelText('Ingredient amount'), '2 2/3');
     await fireEvent.press(screen.getByRole('button', { name: `Unit: ${label ?? 'No unit'}` }));
     await fireEvent.press(await screen.findByRole('button', { name: 'Cup' }));
@@ -428,6 +432,9 @@ describe('Recipes through the actual Expo Router', () => {
     expect(await screen.findByText('Ingredient details')).toBeTruthy();
     expect(rendered.getPathname()).toBe('/recipes/sheet/details');
     const detailsScroll = screen.getByTestId('recipe-ingredient-details-scroll');
+    let nativeDetails = detailsScroll.parent;
+    while (nativeDetails && !['RNSScreen', 'RNSModalScreen'].includes(nativeDetails.type)) nativeDetails = nativeDetails.parent;
+    expect(nativeDetails?.props.sheetInitialDetentIndex).toBe(0);
     expect(screen.queryByTestId('native-sheet-content')).toBeNull();
     expect(detailsScroll.props.keyboardShouldPersistTaps).toBe('handled');
     expect(detailsScroll.props.keyboardDismissMode).toBe(Platform.OS === 'ios' ? 'interactive' : 'on-drag');
@@ -469,7 +476,8 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.getByDisplayValue('1/2')).toBeTruthy();
     expect(screen.getByDisplayValue('finely chopped')).toBeTruthy();
     await waitFor(() => expect(screen.queryByLabelText('Search Food Catalog')).toBeNull());
-    await fireEvent.press(screen.getByText('Cancel'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to Food Catalog' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Done' }));
     await waitFor(() => expect(screen.queryByText('Ingredient details')).toBeNull());
   });
 
@@ -647,7 +655,7 @@ describe('Recipes through the actual Expo Router', () => {
     expect(screen.getByRole('button', { name: 'Unit: Cup' })).toBeTruthy();
     expect(mockedApi.createCatalogItem).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({ recipe_measurement_dimension: 'volume', recipe_measurement_unit_code: 'cup' }));
     await waitFor(() => expect(screen.queryByLabelText('Search Food Catalog')).toBeNull());
-    await fireEvent.press(screen.getByText('Cancel'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to recipe' }));
     await waitFor(() => expect(screen.queryByText('Ingredient details')).toBeNull());
     expect(screen.getByDisplayValue('Celery Soup')).toBeTruthy();
   });
@@ -893,4 +901,394 @@ describe('Recipes through the actual Expo Router', () => {
     expect(await screen.findByDisplayValue('1.5')).toBeTruthy();
     expect(screen.getByLabelText('Ingredient amount').props.placeholder).toBe('e.g. 2 or 1/2');
   });
+  it.each(['/recipes/create', '/plan/recipe-create'])('creates a section and keeps its assignment across nested sheets from %s', async (path) => {
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => router.navigate(path as never));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Family dinner');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add section' }));
+    await screen.findByLabelText('Section name');
+    expect(rendered.getPathname()).toBe(`${path.startsWith('/plan') ? '/plan' : '/recipes'}/sheet/sections`);
+    expect(screen.getByTestId('recipe-section-name-scroll')).toBeTruthy();
+    expect(screen.queryByTestId('native-sheet-content')).toBeNull();
+    await fireEvent.changeText(screen.getByLabelText('Section name'), ' Chicken ');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add section' }));
+    const sectionAdd = await screen.findByRole('button', { name: 'Add ingredient to Chicken' });
+    expect(within(sectionAdd).queryByText('Add ingredient')).toBeNull();
+    expect(screen.getAllByText('Add ingredient')).toHaveLength(1);
+    await fireEvent.press(sectionAdd);
+    await fireEvent.press(await screen.findByText('Milk'));
+    expect(await screen.findByRole('button', { name: 'Section: Chicken' })).toBeTruthy();
+    let nativeDetails = screen.getByTestId('recipe-ingredient-details-scroll').parent;
+    while (nativeDetails && !['RNSScreen', 'RNSModalScreen'].includes(nativeDetails.type)) nativeDetails = nativeDetails.parent;
+    expect(nativeDetails?.props.sheetInitialDetentIndex).toBe(1);
+    expect(nativeDetails?.props.sheetAllowedDetents).toEqual([0.52, 0.92]);
+    await fireEvent.changeText(screen.getByLabelText('Ingredient amount'), '2 2/3');
+    await fireEvent.changeText(screen.getByLabelText('Ingredient note'), 'for sauce');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add' }));
+    await screen.findByText('Note: for sauce');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.createRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', expect.objectContaining({ ingredient_sections: [{ name: 'Chicken' }], ingredients: [expect.objectContaining({ amount: '2 2/3', note: 'for sauce', section_position: 0 })] })));
+    // A server that omits grouping must never dismiss the retained draft as saved.
+    expect(await screen.findByText('The server did not confirm the ingredient sections. Your draft is kept; check the saved recipe before retrying.')).toBeTruthy();
+    expect(screen.getByDisplayValue('Family dinner')).toBeTruthy();
+    const sent = mockedApi.createRecipe.mock.calls[0][2];
+    const confirmed = recipe({ id: 'recipe-created', name: 'Family dinner', ingredient_sections: [{ id: 'section-a', name: 'Chicken', position: 0 }], ingredients: [{ ...recipe().ingredients![0], amount: '2.666667', note: 'for sauce', section_position: 0 }] });
+    mockedApi.createRecipe.mockResolvedValue({ recipe: confirmed });
+    mockedApi.recipe.mockResolvedValue({ recipe: confirmed });
+    await fireEvent.press(screen.getByRole('button', { name: 'Retry save' }));
+    await waitFor(() => expect(mockedApi.createRecipe).toHaveBeenCalledTimes(2));
+    expect(mockedApi.createRecipe.mock.calls[1][2]).toEqual(sent);
+    expect(await screen.findByText('Family dinner')).toBeTruthy();
+    expect((await screen.findAllByText('Chicken')).length).toBeGreaterThan(0);
+  });
+
+  it('renames, reorders and removes sections without losing duplicate ingredient occurrences', async () => {
+    const base = recipe().ingredients![0];
+    mockedApi.recipe.mockResolvedValue({ recipe: recipe({ ingredient_sections: [{ id: 'a', position: 0, name: 'Chicken' }, { id: 'b', position: 1, name: 'Mash' }], ingredients: [{ ...base, section_position: 0, note: 'sauce' }, { ...base, id: 'second', position: 1, section_position: 1, amount: '3', note: 'potatoes' }] }) });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Manage sections' }));
+    await fireEvent(screen.getByLabelText('Reorder Mash, position 2 of 2'), 'accessibilityAction', { nativeEvent: { actionName: 'decrement' } });
+    const manager = screen.getByTestId('recipe-sections-root');
+    const header = screen.getByTestId('recipe-sections-header');
+    const body = screen.getByTestId('recipe-sections-scroll');
+    const footer = screen.getByTestId('recipe-sections-footer');
+    // Native Screens needs these frames; Jest itself cannot reproduce flattening.
+    expect(manager.props.collapsable).toBe(false);
+    expect(header.props.collapsable).toBe(false);
+    expect(footer.props.collapsable).toBe(false);
+    expect(manager.children.slice(0, 3)).toEqual([header, body, footer]);
+    expect(within(header).getByText('Manage sections')).toBeTruthy();
+    expect(within(body).getByText('Hold a handle to reorder sections. Changes save with the recipe.')).toBeTruthy();
+    expect(within(footer).getByRole('button', { name: 'Add section' })).toBeTruthy();
+    expect(StyleSheet.flatten(body.props.style).flex).toBe(1);
+    expect(screen.queryByTestId('native-sheet-content')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit section Chicken' }));
+    await fireEvent.changeText(await screen.findByLabelText('Section name'), 'Sauce');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save section' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Remove section Mash' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove section' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByText('Other ingredients');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'recipe-1', expect.objectContaining({ ingredient_sections: [{ name: 'Sauce' }], ingredients: [expect.objectContaining({ amount: '3', note: 'potatoes', section_position: null }), expect.objectContaining({ amount: '1/2', note: 'sauce', section_position: 0 })] })));
+  });
+
+  it('moves an occurrence through Ingredient Details and saves its measurement and note with its new section', async () => {
+    const base = recipe().ingredients![0];
+    mockedApi.recipe.mockResolvedValue({ recipe: recipe({ ingredient_sections: [{ id: 'a', position: 0, name: 'Chicken' }, { id: 'b', position: 1, name: 'Mash' }], ingredients: [{ ...base, section_position: 0, note: 'sauce' }, { ...base, id: 'second', position: 1, section_position: 1, amount: '3', note: 'potatoes' }] }) });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press((await screen.findAllByRole('button', { name: 'Edit Milk' }))[0]);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Section: Chicken' }));
+    await fireEvent.press(await screen.findByText('Mash'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Save ingredient' }));
+    await screen.findByText('Note: sauce');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'recipe-1', expect.objectContaining({ ingredient_sections: [{ name: 'Chicken' }, { name: 'Mash' }], ingredients: [expect.objectContaining({ amount: '3', note: 'potatoes', section_position: 1 }), expect.objectContaining({ amount: '1/2', note: 'sauce', section_position: 1 })] })));
+  });
+
+  it('removes the final section, keeps every ingredient and sends an explicit empty section list', async () => {
+    mockedApi.recipe.mockResolvedValue({ recipe: recipe({ ingredient_sections: [{ id: 'a', position: 0, name: 'Sauce' }], ingredients: [{ ...recipe().ingredients![0], section_position: 0, note: 'keep me' }] }) });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Manage sections' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove section Sauce' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Remove section' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Done' }));
+    await screen.findByText('Note: keep me');
+    expect(screen.queryByText('Other ingredients')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalledWith(expect.any(Function), 'household-a', 'recipe-1', expect.objectContaining({ ingredient_sections: [], ingredients: [expect.objectContaining({ amount: '1/2', note: 'keep me' })] })));
+  });
+
+  it.each(['/recipes/create', '/plan/recipe-create'])('keeps a new draft on Back until Discard is chosen from %s', async (path) => {
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate(path as never));
+    await screen.findByLabelText('Recipe name');
+    await act(async () => router.back());
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+    expect(rendered.getPathname()).not.toBe(path);
+    await act(async () => router.navigate(path as never));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Do not lose dinner');
+    await act(async () => router.back());
+    await screen.findByText('Discard recipe changes?');
+    expect(rendered.getPathname()).toBe(path);
+    await fireEvent.press(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByDisplayValue('Do not lose dinner')).toBeTruthy();
+    await act(async () => router.back());
+    await fireEvent.press(await screen.findByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => expect(rendered.getPathname()).not.toBe(path));
+  });
+  it('guards an edited recipe against the native pop-to-root path and keeps the same draft when canceled', async () => {
+    mockedApi.recipes.mockResolvedValue({ recipes: [recipe()] });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate('/recipes'));
+    await fireEvent.press(await screen.findByText('Tomato Soup'));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/recipes/recipe-1'));
+    await act(async () => router.push('/recipes/recipe-1/edit'));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Updated family dinner');
+    // Native tabs pop the stack on reselect. SDK 58 retries a prevented native
+    // dismissal as the same POP action through usePreventRemove.
+    const protectedScreen = screen.root!.queryAll((node) => node.type === 'RNSScreen' && node.props.preventNativeDismiss === true).at(-1)!;
+    expect(protectedScreen).toBeTruthy();
+    await fireEvent(protectedScreen, 'nativeDismissCancelled', { nativeEvent: { dismissCount: 2 } });
+    await screen.findByText('Discard recipe changes?');
+    await fireEvent.press(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(screen.getByDisplayValue('Updated family dinner')).toBeTruthy();
+    await fireEvent(protectedScreen, 'nativeDismissCancelled', { nativeEvent: { dismissCount: 2 } });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Discard changes' }));
+    await waitFor(() => expect(rendered.getPathname()).toBe('/recipes'));
+  });
+  it('leaves unchanged and reverted edits without a warning and retains a changed draft across tab switches', async () => {
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await screen.findByDisplayValue('Tomato Soup');
+    await act(async () => router.back());
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+    expect(rendered.getPathname()).not.toBe('/recipes/recipe-1/edit');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Temporary');
+    await fireEvent.changeText(screen.getByLabelText('Recipe name'), 'Tomato Soup');
+    await act(async () => router.back());
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+    await act(async () => router.navigate('/recipes/create'));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Retained across tabs');
+    await act(async () => router.navigate('/shopping'));
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+    await act(async () => router.back());
+    expect(await screen.findByDisplayValue('Retained across tabs')).toBeTruthy();
+  });
+  it('blocks leaving during an unresolved save and exits without a discard warning after success', async () => {
+    let resolveSave!: (value: { recipe: Recipe }) => void;
+    mockedApi.updateRecipe.mockReturnValue(new Promise((resolve) => { resolveSave = resolve; }));
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Saved dinner');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalled());
+    await act(async () => router.back());
+    expect(await screen.findByText('Recipe is saving')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Discard changes' })).toBeNull();
+    await act(async () => resolveSave({ recipe: recipe({ name: 'Saved dinner', edit_revision: 2 }) }));
+    await waitFor(() => expect(rendered.getPathname()).not.toBe('/recipes/recipe-1/edit'));
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+  });
+  it('protects section-only changes without warning on nested Back and retains failed-save drafts', async () => {
+    const { ApiError } = jest.requireActual<typeof import('@/lib/api')>('@/lib/api');
+    mockedApi.updateRecipe.mockRejectedValueOnce(new ApiError(409, 'Changed elsewhere.', 'RECIPE_REVISION_CONFLICT'));
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add section' }));
+    await fireEvent.changeText(await screen.findByLabelText('Section name'), 'Sauce');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add section' }));
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByText('Changed elsewhere.');
+    await act(async () => router.back());
+    await screen.findByText('Discard recipe changes?');
+    await fireEvent.press(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(rendered.getPathname()).toBe('/recipes/recipe-1/edit');
+    expect(screen.getByText('Sauce')).toBeTruthy();
+  });
+
+  it('shows named ingredient sections before Other ingredients in saved and edited recipes, without changing persistence order', async () => {
+    const base = recipe().ingredients![0];
+    const saved = recipe({ ingredient_sections: [{ id: 'a', position: 0, name: 'Chicken' }, { id: 'b', position: 1, name: 'Mash' }], ingredients: [
+      { ...base, section_position: null, note: 'unassigned' },
+      { ...base, id: 'chicken', position: 1, section_position: 0, note: 'sauce' },
+      { ...base, id: 'mash', position: 2, section_position: 1, note: 'potatoes' },
+    ] });
+    mockedApi.recipe.mockResolvedValue({ recipe: saved });
+    mockedApi.updateRecipe.mockResolvedValue({ recipe: { ...saved, edit_revision: 2 } });
+    const sectionHeadings = () => screen.getAllByRole('header').map((heading) => heading.props.children).filter((text) => ['Chicken', 'Mash', 'Other ingredients'].includes(text));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Plan'); await act(async () => router.navigate('/recipes/recipe-1'));
+    await screen.findByRole('header', { name: 'Chicken' });
+    expect(sectionHeadings()).toEqual(['Chicken', 'Mash', 'Other ingredients']);
+    await act(async () => router.push('/recipes/recipe-1/edit'));
+    await screen.findByLabelText('Recipe name');
+    expect(sectionHeadings()).toEqual(['Chicken', 'Mash', 'Other ingredients']);
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalled());
+    // Merely displaying groups differently must not mark ingredients dirty.
+    expect(mockedApi.updateRecipe.mock.calls[0][3]).not.toHaveProperty('ingredients');
+    expect(mockedApi.updateRecipe.mock.calls[0][3]).not.toHaveProperty('ingredient_sections');
+  });
+
+  it.each(['/recipes/create', '/plan/recipe-create'])('imports a whole recipe and saves independent ingredients/directions from %s', async (path) => {
+    const source = recipe({ id: 'source', name: 'Saved soup', ingredient_section_count: 0, source_url: 'https://example.test/soup', steps: [{ id: 's', position: 0, instruction: 'Stir slowly.' }] });
+    const saved = recipe({ id: 'recipe-created', name: 'Our dinner', ingredient_sections: [{ id: 'saved-section', name: 'Saved soup', position: 0 }], ingredients: [{ ...source.ingredients![0], section_position: 0 }], steps: source.steps, notes: 'From Saved soup: https://example.test/soup' });
+    mockedApi.createRecipe.mockResolvedValue({ recipe: saved });
+    mockedApi.recipes.mockResolvedValue({ recipes: [source] }); mockedApi.recipe.mockImplementation(async (_token, _home, id) => ({ recipe: id === 'source' ? source : saved }));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate(path as never));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Our dinner');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' }));
+    const footer = await screen.findByTestId('recipe-food-footer');
+    expect(within(footer).getAllByRole('button').map((r) => r.props.accessibilityLabel ?? r.props.children)).toHaveLength(2);
+    expect(within(footer).getAllByText(/Create Food item in Catalog|Import from recipe/).map((r) => r.props.children)).toEqual(['Create Food item in Catalog', 'Import from recipe']);
+    await fireEvent.press(screen.getByRole('button', { name: 'Import from recipe' }));
+    await screen.findByRole('button', { name: 'Import whole recipe Saved soup' });
+    let native = screen.getByTestId('recipe-import-sheet').parent;
+    while (native && !['RNSScreen', 'RNSModalScreen'].includes(native.type as string)) native = native.parent;
+    expect(native?.props.sheetInitialDetentIndex).toBe(1);
+    await fireEvent.press(screen.getByRole('button', { name: 'Import whole recipe Saved soup' }));
+    await screen.findByText('1 ingredient and 1 direction imported from Saved soup.');
+    expect(screen.queryByTestId('recipe-food-footer')).toBeNull();
+    expect(screen.queryByTestId('recipe-import-sheet')).toBeNull();
+    expect(mockedApi.createRecipe).not.toHaveBeenCalled(); expect(mockedApi.updateRecipe).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.createRecipe).toHaveBeenCalled());
+    expect(mockedApi.createRecipe.mock.calls[0][2]).toMatchObject({ name: 'Our dinner', ingredient_sections: [{ name: 'Saved soup' }], ingredients: [{ catalog_item_id: food.id, amount: '1/2', section_position: 0 }], steps: ['Stir slowly.'], notes: 'From Saved soup: https://example.test/soup' });
+    expect(mockedApi.updateRecipe).not.toHaveBeenCalled();
+    await screen.findByRole('header', { name: 'Our dinner' });
+    await fireEvent.press(screen.getByRole('button', { name: 'Edit recipe' }));
+    expect(await screen.findByDisplayValue('Our dinner')).toBeTruthy();
+    expect(screen.getByDisplayValue('Stir slowly.')).toBeTruthy();
+    expect(screen.getByRole('header', { name: 'Saved soup' })).toBeTruthy();
+    expect(screen.queryByText('Discard recipe changes?')).toBeNull();
+  });
+
+  it('keeps the Food search on Back and allows reopening Import without a stranded latch', async () => {
+    const source = recipe({ id: 'source', name: 'Saved soup', ingredient_section_count: 0 });
+    mockedApi.recipes.mockResolvedValue({ recipes: [source] }); mockedApi.recipe.mockResolvedValue({ recipe: source });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/create'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add ingredient' }));
+    await fireEvent.changeText(await screen.findByPlaceholderText('Search Food Catalog'), 'Milk');
+    await fireEvent.press(screen.getByRole('button', { name: 'Import from recipe' }));
+    await fireEvent.changeText(await screen.findByLabelText('Search recipes to import'), 'Saved');
+    await fireEvent.press(screen.getByRole('button', { name: 'Back to Food Catalog' }));
+    expect(await screen.findByDisplayValue('Milk')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Import from recipe' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Import whole recipe Saved soup' }));
+    await screen.findByText('1 ingredient imported from Saved soup.');
+    await act(async () => router.back());
+    expect(await screen.findByText('Discard recipe changes?')).toBeTruthy();
+  });
+
+  it('imports only a selected section into an edited recipe and preserves its existing directions', async () => {
+    const source = recipe({ id: 'source', name: 'Chicken and mash', ingredient_section_count: 2, ingredient_sections: [{ id: 'a', position: 0, name: 'Chicken' }, { id: 'b', position: 1, name: 'Mash' }], ingredients: [{ ...recipe().ingredients![0], section_position: 1 }], steps: [{ id: 's', position: 0, instruction: 'Do not import me' }] });
+    const destination = recipe({ notes: 'Keep notes', steps: [{ id: 'ours', position: 0, instruction: 'Our step' }] });
+    mockedApi.recipes.mockResolvedValue({ recipes: [destination, source] }); mockedApi.recipe.mockImplementation(async (_token, _home, id) => ({ recipe: id === 'source' ? source : destination }));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add ingredient' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Import from recipe' }));
+    expect(screen.queryByRole('button', { name: 'Expand Tomato Soup' })).toBeNull();
+    await fireEvent.press(await screen.findByRole('button', { name: 'Expand Chicken and mash' }));
+    expect(await screen.findByRole('button', { name: 'Import Chicken ingredients from Chicken and mash' })).toBeDisabled();
+    await fireEvent.press(screen.getByRole('button', { name: 'Import Mash ingredients from Chicken and mash' }));
+    await screen.findByText('1 ingredient imported from Mash.');
+    expect(screen.getByDisplayValue('Our step')).toBeTruthy(); expect(screen.queryByDisplayValue('Do not import me')).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalled());
+    const [,, id, payload] = mockedApi.updateRecipe.mock.calls[0];
+    expect(id).toBe('recipe-1'); expect(payload).not.toHaveProperty('steps'); expect(payload.notes).toBe('Keep notes');
+    expect(payload.ingredient_sections).toEqual([{ name: 'Mash' }]); expect(payload.ingredients).toHaveLength(2);
+  });
+
+  it('imports through a named section plus and flattens source groups into that destination', async () => {
+    const destination = recipe({ ingredient_sections: [{ id: 'd', position: 0, name: 'Dinner' }], ingredients: [{ ...recipe().ingredients![0], section_position: 0 }] });
+    const source = recipe({ id: 'source', name: 'Soup', ingredient_section_count: 1, ingredient_sections: [{ id: 'a', position: 0, name: 'Soup part' }], ingredients: [{ ...recipe().ingredients![0], section_position: 0 }] });
+    mockedApi.recipes.mockResolvedValue({ recipes: [source] }); mockedApi.recipe.mockImplementation(async (_token, _home, id) => ({ recipe: id === 'source' ? source : destination }));
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/recipe-1/edit'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Add ingredient to Dinner' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Import from recipe' }));
+    await screen.findByText('Import into Dinner. Amounts stay as written.');
+    await fireEvent.press(await screen.findByRole('button', { name: 'Expand Soup' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Import whole recipe Soup' }));
+    await screen.findByText('1 ingredient imported from Soup.');
+    await fireEvent.press(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockedApi.updateRecipe).toHaveBeenCalled());
+    expect(mockedApi.updateRecipe.mock.calls[0][3]).toMatchObject({ ingredient_sections: [{ name: 'Dinner' }], ingredients: [{ section_position: 0 }, { section_position: 0 }] });
+  });
+
+  it('edits section-wide permissions through the actual Profile stack and warns before discarding', async () => {
+    const actions = permissionActions.map((key) => ({ key, label: key, group: key.startsWith('shopping.') ? 'Shopping' : key.startsWith('recipes.') ? 'Recipes' : key.startsWith('plan.') ? 'Meal planning' : 'Catalog' }));
+    mockedApi.memberPermissions.mockResolvedValue({ membership_id: 'member-target', role: 'member', permissions: ['shopping.add'], permissions_revision: 1, actions });
+    mockedApi.householdMember.mockResolvedValue({ member: { membership_id: 'member-target', display_name: 'Sam', role: 'member' } as never });
+    const rendered = await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/profile/my-households/household-a/members/member-target/permissions' as never));
+    const shopping = await screen.findByRole('checkbox', { name: 'All Shopping actions' });
+    expect(shopping.props.accessibilityState.checked).toBe('mixed');
+    await fireEvent.press(shopping); expect(screen.getByRole('checkbox', { name: 'shopping.remove' })).toBeChecked();
+    await act(async () => router.back()); await screen.findByText('Discard permission changes?');
+    await fireEvent.press(screen.getByRole('button', { name: 'Keep editing' }));
+    expect(rendered.getPathname()).toContain('/permissions'); expect(mockedApi.setMemberPermissions).not.toHaveBeenCalled();
+    await act(async () => router.back()); await fireEvent.press(await screen.findByRole('button', { name: 'Discard changes' }));
+    expect(rendered.getPathname()).not.toContain('/permissions');
+  });
+
+  it('keeps deep-linked recipe and Catalog forms read-only without member write grants', async () => {
+    const member = { ...household, role: 'member' as const, permissions: [], permissions_revision: 1 };
+    mockedApi.me.mockResolvedValue({ ...signedInMe, households: [member] }); mockedApi.household.mockResolvedValue({ household: member });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/create'));
+    expect((await screen.findByLabelText('Recipe name')).props.editable).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    await act(async () => router.navigate('/catalog/add'));
+    expect((await screen.findByLabelText('Item name')).props.editable).toBe(false);
+    expect(screen.queryByRole('button', { name: 'Add to catalog' })).toBeNull();
+    expect(mockedApi.createRecipe).not.toHaveBeenCalled(); expect(mockedApi.createCatalogItem).not.toHaveBeenCalled();
+  });
+
+  it('preserves an open ingredient draft and disables changes after access is revoked', async () => {
+    const member = { ...household, role: 'member' as const, permissions: [...permissionActions], permissions_revision: 1, membership_id: 'actor-membership' };
+    mockedApi.me.mockResolvedValue({ ...signedInMe, households: [member] }); mockedApi.household.mockResolvedValue({ household: member });
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/create')); await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Keep this draft');
+    await fireEvent.press(screen.getByRole('button', { name: 'Add ingredient' })); await fireEvent.press(await screen.findByText('Milk'));
+    await fireEvent.changeText(await screen.findByLabelText('Ingredient amount'), '3');
+    mockedApi.household.mockResolvedValue({ household: { ...member, permissions: [], permissions_revision: 2 } });
+    await act(async () => { notifyHouseholdAccessRefresh('household-a'); });
+    await waitFor(() => expect(screen.getByLabelText('Ingredient amount').props.editable).toBe(false));
+    expect(screen.getByLabelText('Ingredient amount').props.value).toBe('3'); expect(screen.getByRole('button', { name: 'Add ingredient' })).toBeDisabled();
+    expect(mockedApi.createRecipe).not.toHaveBeenCalled();
+  });
+
+  it('changes appearance through Profile and retains an unsaved recipe in its tab', async () => {
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' }); await screen.findByText('Plan');
+    await act(async () => router.navigate('/recipes/create'));
+    await fireEvent.changeText(await screen.findByLabelText('Recipe name'), 'Keep this recipe');
+    await act(async () => router.navigate('/profile'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Appearance' }));
+    await fireEvent.press(await screen.findByRole('radio', { name: 'Green' }));
+    await waitFor(() => expect(mockedStorage.setItem).toHaveBeenCalledWith('meal-planner:appearance:v1', JSON.stringify({ version: 1, themeId: 'green', chooserSeenVersion: 1 })));
+    await act(async () => router.back()); await act(async () => router.back());
+    expect(await screen.findByLabelText('Recipe name')).toHaveProp('value', 'Keep this recipe');
+    expect(mockedApi.createRecipe).not.toHaveBeenCalled();
+  });
+
+  it('offers the first-use native chooser once and preserves the selected theme after dismissal', async () => {
+    mockedStorage.getItem.mockImplementation(async (key) => key === 'meal-planner:appearance:v1' ? null : 'household-a');
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/' });
+    await screen.findByText('Choose your look');
+    expect(screen.getByRole('radio', { name: 'Meal Planner' })).toBeChecked();
+    expect(screen.getByTestId('appearance-chooser-header').props.collapsable).toBe(false);
+    await fireEvent.press(screen.getByRole('radio', { name: 'Meal Planner' }));
+    await waitFor(() => expect(mockedStorage.setItem).toHaveBeenCalledWith('meal-planner:appearance:v1', JSON.stringify({ version: 1, themeId: 'apricot', chooserSeenVersion: 1 })));
+    await fireEvent.press(screen.getByRole('button', { name: 'Continue' })); await screen.findByText('Plan');
+    await act(async () => router.navigate('/profile'));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Appearance' }));
+    expect(await screen.findByRole('radio', { name: 'Meal Planner' })).toBeChecked();
+    expect(screen.queryByText('Choose your look')).toBeNull();
+  });
+
+  it('defers the first-use chooser for a deep-linked editor until it returns to a tab root', async () => {
+    mockedStorage.getItem.mockImplementation(async (key) => key === 'meal-planner:appearance:v1' ? null : 'household-a');
+    await renderRouter(`${process.cwd()}/src/app`, { initialUrl: '/recipes/create' });
+    await screen.findByLabelText('Recipe name');
+    await act(() => jest.advanceTimersByTimeAsync(400));
+    expect(screen.queryByText('Choose your look')).toBeNull();
+    await act(async () => router.replace('/recipes'));
+    await screen.findByText('Choose your look');
+  });
+
 });

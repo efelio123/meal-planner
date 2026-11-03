@@ -11,6 +11,7 @@ from meal_planner_api.catalog import _clean_emoji
 from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.database import get_engine
 from meal_planner_api.household_management import lock_household
+from meal_planner_api.permissions import require_permissions
 
 
 def _not_found() -> HTTPException:
@@ -115,6 +116,39 @@ def _validate_cover(values: dict) -> tuple[str, str | None]:
     return kind, emoji
 
 
+def _prepare_sections(values: list[dict] | None) -> list[dict]:
+    if values is None:
+        return []
+    if len(values) > 20:
+        raise _invalid("A recipe can have at most 20 ingredient sections.")
+    result = []
+    for position, value in enumerate(values):
+        name = _clean_text(value.get("name"), limit=80, label="Section name")
+        if not name or any(ord(c) < 32 for c in name):
+            raise _invalid("Section name must contain 1–80 characters without control characters.")
+        result.append({"position": position, "name": name})
+    return result
+
+
+def _group_ingredients(ingredients: list[dict], sections: list[dict]) -> list[dict]:
+    for item in ingredients:
+        position = item.get("section_position")
+        if position is not None and (type(position) is not int or not 0 <= position < len(sections)):
+            raise _invalid("Choose a section belonging to this recipe.")
+    result = sorted(ingredients, key=lambda item: -1 if item.get("section_position") is None else item["section_position"])
+    return [{**item, "position": index} for index, item in enumerate(result)]
+
+
+def _insert_sections(connection, household_id: str, recipe_id: str, sections: list[dict]) -> dict[int, str]:
+    ids = {}
+    for section in sections:
+        ids[section["position"]] = connection.execute(text("""
+            INSERT INTO household_recipe_sections (household_id, recipe_id, position, name)
+            VALUES (:household_id, :recipe_id, :position, :name) RETURNING id::text
+        """), {**section, "household_id": household_id, "recipe_id": recipe_id}).scalar_one()
+    return ids
+
+
 def _validate_ingredients(connection, household_id: str, ingredients: list[dict]) -> list[dict]:
     if not ingredients:
         raise _invalid("A recipe needs at least one Food Catalog ingredient.")
@@ -145,6 +179,7 @@ def _validate_ingredients(connection, household_id: str, ingredients: list[dict]
             raise _invalid("Choose a built-in or custom unit, not both.")
         prepared.append({
             "catalog_item_id": catalog_item_id,
+            "section_position": ingredient.get("section_position"),
             "position": position,
             "amount": _parse_amount(ingredient.get("amount")),
             "unit_code": unit_code,
@@ -164,17 +199,17 @@ def _prepare_steps(steps: list[str] | None) -> list[str]:
     return prepared
 
 
-def _insert_children(connection, household_id: str, recipe_id: str, ingredients: list[dict], steps: list[str]) -> None:
+def _insert_children(connection, household_id: str, recipe_id: str, ingredients: list[dict], steps: list[str], section_ids: dict[int, str] | None = None) -> None:
     for ingredient in ingredients:
         connection.execute(text("""
             INSERT INTO household_recipe_ingredients (
-                household_id, recipe_id, catalog_item_id, position, amount,
+                household_id, recipe_id, catalog_item_id, section_id, position, amount,
                 recipe_unit_code, recipe_unit_dimension, custom_unit_label, note
             ) VALUES (
-                :household_id, :recipe_id, :catalog_item_id, :position, :amount,
+                :household_id, :recipe_id, :catalog_item_id, :section_id, :position, :amount,
                 :unit_code, :unit_dimension, :custom_unit_label, :note
             )
-        """), {**ingredient, "household_id": household_id, "recipe_id": recipe_id})
+        """), {**ingredient, "section_id": (section_ids or {}).get(ingredient.get("section_position")), "household_id": household_id, "recipe_id": recipe_id})
     for position, instruction in enumerate(steps):
         connection.execute(text("""
             INSERT INTO household_recipe_steps (household_id, recipe_id, position, instruction)
@@ -186,10 +221,12 @@ def _read_recipe_children(connection, household_id: str, recipe_id: str) -> tupl
     ingredients = connection.execute(text("""
         SELECT i.id::text AS id, i.catalog_item_id::text AS catalog_item_id,
             ci.name AS catalog_item_name, c.emoji AS category_emoji,
-            i.position, i.amount, i.recipe_unit_code AS unit_code,
+            i.position, section.position AS section_position, i.amount, i.recipe_unit_code AS unit_code,
             units.label AS unit_label, i.custom_unit_label, i.note
         FROM household_recipe_ingredients i
         JOIN catalog_items ci ON ci.household_id = i.household_id AND ci.id = i.catalog_item_id
+        LEFT JOIN household_recipe_sections section ON section.household_id = i.household_id
+            AND section.recipe_id = i.recipe_id AND section.id = i.section_id
         LEFT JOIN catalog_categories c ON c.household_id = ci.household_id AND c.id = ci.category_id
         LEFT JOIN recipe_measurement_units units
             ON units.code = i.recipe_unit_code AND units.dimension = i.recipe_unit_dimension
@@ -208,6 +245,10 @@ def _read_recipe_children(connection, household_id: str, recipe_id: str) -> tupl
 def _serialize_recipe(connection, row) -> dict:
     result = dict(row)
     ingredients, steps = _read_recipe_children(connection, result["household_id"], result["id"])
+    result["ingredient_sections"] = [dict(section) for section in connection.execute(text("""
+        SELECT id::text AS id, position, name FROM household_recipe_sections
+        WHERE household_id = :household_id AND recipe_id = :recipe_id ORDER BY position
+    """), {"household_id": result["household_id"], "recipe_id": result["id"]}).mappings()]
     result["ingredients"] = ingredients
     result["steps"] = steps
     return result
@@ -235,7 +276,9 @@ def list_recipes(
                 r.cook_minutes, r.notes, r.source_url, r.edit_revision,
                 r.created_at, r.updated_at, r.archived_at,
                 (SELECT count(*)::int FROM household_recipe_ingredients i
-                 WHERE i.household_id = r.household_id AND i.recipe_id = r.id) AS ingredient_count
+                 WHERE i.household_id = r.household_id AND i.recipe_id = r.id) AS ingredient_count,
+                (SELECT count(*)::int FROM household_recipe_sections section
+                 WHERE section.household_id = r.household_id AND section.recipe_id = r.id) AS ingredient_section_count
             FROM household_recipes r
             JOIN households h ON h.id = r.household_id
             JOIN household_members hm ON hm.household_id = h.id
@@ -281,6 +324,7 @@ def create_recipe(user: CurrentUser, household_id: str, values: dict, engine: En
     steps = _prepare_steps(values.get("steps"))
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "recipes.create")
         existing = connection.execute(text(
             _RECIPE_SELECT_BASE + "AND r.created_by_user_id = :user_id AND r.create_request_id = :request_id"
         ), {
@@ -290,7 +334,8 @@ def create_recipe(user: CurrentUser, household_id: str, values: dict, engine: En
             if existing["archived_at"] is not None:
                 raise _conflict("RECIPE_CREATE_REQUEST_ALREADY_USED", "This recipe draft was already used. Start a new recipe to continue.")
             return _serialize_recipe(connection, existing)
-        ingredients = _validate_ingredients(connection, household_id, values.get("ingredients", []))
+        sections = _prepare_sections(values.get("ingredient_sections"))
+        ingredients = _group_ingredients(_validate_ingredients(connection, household_id, values.get("ingredients", [])), sections)
         recipe_id = connection.execute(text("""
             INSERT INTO household_recipes (
                 household_id, created_by_user_id, create_request_id, name, normalized_name, cover_kind,
@@ -305,7 +350,8 @@ def create_recipe(user: CurrentUser, household_id: str, values: dict, engine: En
             "cover_emoji": cover_emoji, "servings": servings, "prep_minutes": prep_total,
             "cook_minutes": cook_total, "notes": notes, "source_url": source_url,
         }).scalar_one()
-        _insert_children(connection, household_id, recipe_id, ingredients, steps)
+        section_ids = _insert_sections(connection, household_id, recipe_id, sections)
+        _insert_children(connection, household_id, recipe_id, ingredients, steps, section_ids)
         row = connection.execute(text(_RECIPE_SELECT + "AND r.id = :recipe_id"), {
             "household_id": household_id, "user_id": user.id, "recipe_id": recipe_id,
         }).mappings().one()
@@ -324,6 +370,7 @@ def update_recipe(
         raise _invalid("An expected recipe revision is required to save changes.")
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "recipes.edit", resource=("household_recipes", recipe_id))
         current = connection.execute(text("""
             SELECT id::text AS id, name, normalized_name, cover_kind, cover_emoji,
                 servings, prep_minutes, cook_minutes, notes, source_url, edit_revision
@@ -370,10 +417,20 @@ def update_recipe(
                 durations[database_field] = current[database_field]
         notes = _clean_text(values.get("notes"), limit=10000, label="Recipe notes") if "notes" in fields else current["notes"]
         source_url = _clean_source_url(values.get("source_url")) if "source_url" in fields else current["source_url"]
+        if "ingredient_sections" in fields and (values.get("ingredient_sections") is None or "ingredients" not in fields):
+            raise _invalid("Send sections and the complete ingredient list together.")
+        sections = _prepare_sections(values.get("ingredient_sections"))
+        if "ingredients" in fields and "ingredient_sections" not in fields:
+            has_sections = connection.execute(text("""
+                SELECT EXISTS (SELECT 1 FROM household_recipe_sections
+                    WHERE household_id = :household_id AND recipe_id = :recipe_id)
+            """), {"household_id": household_id, "recipe_id": recipe_id}).scalar_one()
+            if has_sections:
+                raise _conflict("RECIPE_SECTIONS_UPDATE_REQUIRED", "Update the app to edit ingredients in a recipe with sections. Your changes have not been saved.")
         if "ingredients" in fields:
             if values["ingredients"] is None:
                 raise _invalid("A recipe needs at least one Food Catalog ingredient.")
-            ingredients = _validate_ingredients(connection, household_id, values["ingredients"])
+            ingredients = _group_ingredients(_validate_ingredients(connection, household_id, values["ingredients"]), sections)
         else:
             ingredients = None
         if "steps" in fields:
@@ -399,7 +456,9 @@ def update_recipe(
             connection.execute(text("DELETE FROM household_recipe_ingredients WHERE household_id = :household_id AND recipe_id = :recipe_id"), {
                 "household_id": household_id, "recipe_id": recipe_id,
             })
-            _insert_children(connection, household_id, recipe_id, ingredients, [])
+            connection.execute(text("DELETE FROM household_recipe_sections WHERE household_id = :household_id AND recipe_id = :recipe_id"), {"household_id": household_id, "recipe_id": recipe_id})
+            section_ids = _insert_sections(connection, household_id, recipe_id, sections)
+            _insert_children(connection, household_id, recipe_id, ingredients, [], section_ids)
         if steps is not None:
             connection.execute(text("DELETE FROM household_recipe_steps WHERE household_id = :household_id AND recipe_id = :recipe_id"), {
                 "household_id": household_id, "recipe_id": recipe_id,
@@ -414,6 +473,7 @@ def update_recipe(
 def archive_recipe(user: CurrentUser, household_id: str, recipe_id: str, engine: Engine | None = None) -> None:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "recipes.archive", resource=("household_recipes", recipe_id))
         updated = connection.execute(text("""
             UPDATE household_recipes SET archived_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP,
                 edit_revision = edit_revision + 1
@@ -427,6 +487,7 @@ def archive_recipe(user: CurrentUser, household_id: str, recipe_id: str, engine:
 def restore_recipe(user: CurrentUser, household_id: str, recipe_id: str, engine: Engine | None = None) -> None:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "recipes.restore", resource=("household_recipes", recipe_id))
         updated = connection.execute(text("""
             UPDATE household_recipes SET archived_at = NULL, updated_at = CURRENT_TIMESTAMP,
                 edit_revision = edit_revision + 1

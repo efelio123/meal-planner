@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError
 from meal_planner_api.current_user import CurrentUser
 from meal_planner_api.database import get_engine
 from meal_planner_api.household_management import lock_household
+from meal_planner_api.permissions import require_permissions
 from meal_planner_api.recipes import _parse_amount
 
 SLOTS = {"breakfast", "lunch", "dinner"}
@@ -181,6 +182,7 @@ def create_entry(user: CurrentUser, household_id: str, planned_for: str, meal_sl
         raise _invalid("Choose breakfast, lunch, or dinner.")
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "plan.add")
         if recipe_id is not None:
             _validate_recipe(connection, household_id, recipe_id)
         try:
@@ -203,6 +205,7 @@ def update_entry(user: CurrentUser, household_id: str, entry_id: str, planned_fo
         raise _invalid("Choose breakfast, lunch, or dinner.")
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "plan.edit", resource=("household_meal_plan_entries", entry_id))
         current = connection.execute(text("""
             SELECT edit_revision, recipe_id::text AS recipe_id FROM household_meal_plan_entries
             WHERE household_id = :household_id AND id = :entry_id FOR UPDATE
@@ -232,6 +235,7 @@ def update_entry(user: CurrentUser, household_id: str, entry_id: str, planned_fo
 def delete_entry(user: CurrentUser, household_id: str, entry_id: str, expected_revision: int, engine: Engine | None = None) -> None:
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "plan.remove", resource=("household_meal_plan_entries", entry_id))
         deleted = connection.execute(text("""
             DELETE FROM household_meal_plan_entries
             WHERE household_id = :household_id AND id = :entry_id AND edit_revision = :revision
@@ -355,6 +359,7 @@ def add_reviewed_needs(user: CurrentUser, household_id: str, week_start: str, re
     request_hash = hashlib.sha256(json.dumps(request_identity, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     with (engine or get_engine()).begin() as connection:
         lock_household(connection, household_id, user.id)
+        require_permissions(connection, household_id, user.id, "shopping.add")
         existing = connection.execute(text("""
             SELECT request_hash, created_by_user_id::text AS created_by_user_id
             FROM shopping_list_meal_plan_requests

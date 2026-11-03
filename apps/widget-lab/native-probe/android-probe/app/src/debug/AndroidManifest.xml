@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The disposable emulator fixture is HTTP; production must require HTTPS. -->
+    <application android:usesCleartextTraffic="true">
+        <receiver android:name=".ProbeGateReceiver" android:exported="false" android:process=":widget" />
+    </application>
+</manifest>

@@ -1,3 +1,5 @@
+import { PermissionGate } from '@/features/household-permissions/permission-gate';
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Keyboard, Platform, Pressable, StyleSheet, View, type TextInputInstance } from 'react-native';
@@ -26,7 +28,8 @@ const sortOptions = [
 ];
 
 export default function ShoppingListScreen() {
-  const theme = useTheme(); const router = useRouter(); const sheetFlow = useNativeSheetFlow();
+  const theme = useTheme();
+  const { can } = useHouseholdAccess(); const router = useRouter(); const sheetFlow = useNativeSheetFlow();
   const { selectedHousehold } = useHouseholdState();
   const { scope, createdItem, setCreatedItem } = useShoppingContext();
   const mealPlanContext = useMealPlanContextOptional();
@@ -235,7 +238,7 @@ export default function ShoppingListScreen() {
     const amount = [item.amount, item.unit_label].filter(Boolean).join(' ');
     const subtitle = [amount || null, item.store_name || null].filter(Boolean).join(' · ');
     const row = <View style={[styles.itemRow, { backgroundColor: theme.surface }]}>
-      <Pressable accessibilityRole="checkbox" accessibilityLabel={`Mark ${item.name} ${item.is_checked ? 'not purchased' : 'purchased'}`} accessibilityState={{ checked: item.is_checked, disabled: writesDisabled }} disabled={writesDisabled} onPress={() => { if (interceptRowPress(item.id)) return; setActionError(null); void toggle(item).catch((reason: unknown) => setActionError(reason instanceof Error ? reason.message : 'We couldn’t update that item.')); }} style={styles.checkHit}>
+      <Pressable accessibilityRole="checkbox" accessibilityLabel={`Mark ${item.name} ${item.is_checked ? 'not purchased' : 'purchased'}`} accessibilityState={{ checked: item.is_checked, disabled: writesDisabled || !can('shopping.check') }} disabled={writesDisabled || !can('shopping.check')} onPress={() => { if (interceptRowPress(item.id)) return; setActionError(null); void toggle(item).catch((reason: unknown) => setActionError(reason instanceof Error ? reason.message : 'We couldn’t update that item.')); }} style={styles.checkHit}>
         <SymbolView name={{ ios: item.is_checked ? 'checkmark.circle.fill' : 'circle', android: item.is_checked ? 'check_circle' : 'radio_button_unchecked', web: item.is_checked ? 'check_circle' : 'radio_button_unchecked' }} size={25} tintColor={item.is_checked ? theme.primary : theme.textSecondary} />
       </Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${item.name}`} accessibilityState={{ disabled: Boolean(clearing) }} disabled={Boolean(clearing)} onPress={() => { if (!interceptRowPress(item.id)) void openItem(item); }} style={styles.itemBody}>
@@ -247,7 +250,7 @@ export default function ShoppingListScreen() {
       {pending ? <ActivityIndicator accessibilityLabel={`Updating ${item.name}`} color={theme.activity} /> : null}
     </View>;
     if (Platform.OS === 'web') return <View key={item.id} style={separatorColor ? { borderBottomColor: separatorColor, borderBottomWidth: StyleSheet.hairlineWidth } : undefined}>{row}</View>;
-    return <SwipeToDeleteRow key={item.id} active={openSwipeId === item.id} enabled={!writesDisabled}
+    return <SwipeToDeleteRow key={item.id} active={openSwipeId === item.id} enabled={!writesDisabled && can('shopping.remove')}
       rowId={item.id} removeAccessibilityLabel={`Remove ${item.name} from Shopping`} testID={`shopping-swipe-${item.id}`} separatorTestID={`shopping-separator-${item.id}`} separatorColor={separatorColor} onDragStart={suppressRowPressForDrag} onDragEnd={suppressRowPress}
       onReveal={() => { scrollStartedAfterReveal.current = false; scrollDragStartY.current = scrollOffsetY.current; setOpenSwipeId(item.id); }}
       onClose={() => setOpenSwipeId((current) => current === item.id ? null : current)}
@@ -291,7 +294,7 @@ export default function ShoppingListScreen() {
     }} refreshing={loading && items.length > 0}>
     <Stack.Screen options={{ headerShown: false }} />
     <View style={styles.content}>
-      <TabPageHeader title="Shopping" subtitle={<ThemedText themeColor="textSecondary">{selectedHousehold?.name ?? 'Household'} · shared list</ThemedText>} actions={<CircularAddButton accessibilityLabel="Add from Catalog" disabled={Boolean(clearing)} onPress={addFromCatalog} />} />
+      <TabPageHeader title="Shopping" subtitle={<ThemedText themeColor="textSecondary">{selectedHousehold?.name ?? 'Household'} · shared list</ThemedText>} actions={<PermissionGate action="shopping.add"><CircularAddButton accessibilityLabel="Add from Catalog" disabled={Boolean(clearing)} onPress={addFromCatalog} /></PermissionGate>} />
       {shoppingNotice ? <View style={[styles.notice, { backgroundColor: theme.surfaceSelected }]}><ThemedText accessibilityRole="alert" style={styles.noticeText}>{shoppingNotice.count} {shoppingNotice.count === 1 ? 'item' : 'items'} added from this week’s meals.</ThemedText><Pressable accessibilityRole="button" accessibilityLabel="Dismiss shopping confirmation" onPress={() => mealPlanContext?.clearShoppingAddNotice(shoppingNotice.requestId)}><ThemedText themeColor="link">Dismiss</ThemedText></Pressable></View> : null}
       <View style={[styles.searchField, { backgroundColor: theme.inputBackground, borderColor: theme.border }]}>
         <SymbolView accessibilityElementsHidden importantForAccessibility="no" name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }} size={19} tintColor={theme.inputPlaceholder} />
@@ -328,8 +331,8 @@ export default function ShoppingListScreen() {
       {clearNotice ? <ThemedText accessibilityLiveRegion="polite">{clearNotice}</ThemedText> : null}
       {items.length > 0 ? <View style={styles.clearActions}>
         <ThemedText themeColor="textSecondary">Applies to all stores, including hidden items.</ThemedText>
-        {items.some((item) => item.is_checked) ? <Pressable accessibilityRole="button" accessibilityLabel="Clear purchased items" accessibilityState={{ disabled: bulkDisabled }} disabled={bulkDisabled} onPress={() => clearList('purchased')} style={[styles.clearAction, { borderColor: theme.border, opacity: bulkDisabled ? 0.5 : 1 }]}><ThemedText themeColor="error">{clearing === 'purchased' ? 'Clearing…' : 'Clear purchased items'}</ThemedText></Pressable> : null}
-        <Pressable accessibilityRole="button" accessibilityLabel="Clear entire list" accessibilityState={{ disabled: bulkDisabled }} disabled={bulkDisabled} onPress={() => clearList('all')} style={[styles.clearAction, { borderColor: theme.border, opacity: bulkDisabled ? 0.5 : 1 }]}><ThemedText themeColor="error">{clearing === 'all' ? 'Clearing…' : 'Clear entire list'}</ThemedText></Pressable>
+        {items.some((item) => item.is_checked) ? <PermissionGate action="shopping.clear_purchased"><Pressable accessibilityRole="button" accessibilityLabel="Clear purchased items" accessibilityState={{ disabled: bulkDisabled }} disabled={bulkDisabled} onPress={() => clearList('purchased')} style={[styles.clearAction, { borderColor: theme.border, opacity: bulkDisabled ? 0.5 : 1 }]}><ThemedText themeColor="error">{clearing === 'purchased' ? 'Clearing…' : 'Clear purchased items'}</ThemedText></Pressable></PermissionGate> : null}
+        <PermissionGate action="shopping.clear_all"><Pressable accessibilityRole="button" accessibilityLabel="Clear entire list" accessibilityState={{ disabled: bulkDisabled }} disabled={bulkDisabled} onPress={() => clearList('all')} style={[styles.clearAction, { borderColor: theme.border, opacity: bulkDisabled ? 0.5 : 1 }]}><ThemedText themeColor="error">{clearing === 'all' ? 'Clearing…' : 'Clear entire list'}</ThemedText></Pressable></PermissionGate>
       </View> : null}
       {Platform.OS === 'web' ? <PrimaryButton disabled={loading} onPress={() => { setOpenSwipeId(null); void refresh(); }} title={loading ? 'Refreshing…' : 'Refresh'} /> : null}
     </View>

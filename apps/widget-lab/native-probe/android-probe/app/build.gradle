@@ -1,0 +1,22 @@
+plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android'; id 'org.jetbrains.kotlin.plugin.compose' }
+android {
+    namespace 'com.example.mealplanner.nativewidgetprobe'
+    compileSdk 37
+    defaultConfig {
+        applicationId 'com.example.mealplanner.nativewidgetprobe'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '0.0.1'
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    buildFeatures { compose true }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    kotlinOptions { jvmTarget = '17' }
+}
+dependencies {
+    implementation 'androidx.glance:glance-appwidget:1.2.0'
+    implementation 'androidx.work:work-runtime-ktx:2.10.5'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+}

@@ -1,3 +1,6 @@
+import { PermissionGate } from '@/features/household-permissions/permission-gate';
+import { useHouseholdAccess } from '@/features/household-permissions/use-household-access';
+import { PermissionNotice } from '@/features/household-permissions/permission-notice';
 import { useShoppingList } from './use-shopping-list';
 import { useAuth } from '@clerk/expo';
 import { useRouter } from 'expo-router';
@@ -34,6 +37,7 @@ function Header({ title, onBack }: { title: string; onBack?: () => void }) {
 
 export function ShoppingCatalogPickerSheet({ items, onAdd }: { items: ShoppingListItem[]; onAdd: (item: CatalogItem) => Promise<ShoppingAddOutcome> }) {
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
   const router = useRouter();
   const { getToken, selectedHousehold } = useHouseholdState();
   const { userId, sessionId } = useAuth();
@@ -119,7 +123,7 @@ export function ShoppingCatalogPickerSheet({ items, onAdd }: { items: ShoppingLi
     confirmationTimeout.current = null;
     router.back();
   };
-  const createCatalogAction = () => <Pressable accessibilityRole="button" accessibilityLabel="Create item in Catalog" disabled={Boolean(addingId)} onPress={createCatalogItem} style={styles.createCatalog}>
+  const createCatalogAction = () => <Pressable accessibilityRole="button" accessibilityLabel="Create item in Catalog" disabled={Boolean(addingId) || !can('catalog.items.create')} onPress={createCatalogItem} style={styles.createCatalog}>
     <SymbolView name={{ ios: 'plus.circle', android: 'add_circle', web: 'add_circle' }} size={22} tintColor={theme.link} /><ThemedText themeColor="link">Create item in Catalog</ThemedText><DisclosureChevron variant="action" />
   </Pressable>;
   const filtered = catalogItems.filter((item) => item.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
@@ -131,6 +135,7 @@ export function ShoppingCatalogPickerSheet({ items, onAdd }: { items: ShoppingLi
     setAddingId(item.id);
     setAddError(null);
     try {
+      if (!canNow('shopping.add')) return;
       const outcome = await onAdd(item);
       if (activeRef.current && requestScopeRef.current === startedScope) {
         setAddedIds((current) => new Set(current).add(item.id));
@@ -157,7 +162,7 @@ export function ShoppingCatalogPickerSheet({ items, onAdd }: { items: ShoppingLi
         <View collapsable={false} style={[styles.header, { borderBottomColor: theme.border }]}>
           <ThemedText accessibilityRole="header" style={[visualStyles.sheetTitle, styles.headerTitle]}>Add item</ThemedText>
           <View style={styles.headerActions}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Create Catalog item" disabled={Boolean(addingId)} onPress={createCatalogItem} style={styles.headerIconAction}><SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={23} tintColor={theme.link} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Create Catalog item" disabled={Boolean(addingId) || !can('catalog.items.create')} onPress={createCatalogItem} style={styles.headerIconAction}><SymbolView name={{ ios: 'plus', android: 'add', web: 'add' }} size={23} tintColor={theme.link} /></Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Done" disabled={Boolean(addingId)} onPress={closePicker} style={styles.headerAction}><ThemedText themeColor="link" style={visualStyles.sheetActionText}>Done</ThemedText></Pressable>
           </View>
         </View>
@@ -196,6 +201,9 @@ export function ShoppingCatalogPickerSheet({ items, onAdd }: { items: ShoppingLi
 export function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged, onRemove, routeBase = 'shopping' }: { catalogItem: ShoppingCatalogSummary; existingItem?: ShoppingListItem; onChanged: () => void; onRemove: (item: ShoppingListItem) => Promise<void>; routeBase?: 'shopping' | 'plan' }) {
   const { add, update } = useShoppingList();
   const theme = useTheme();
+  const { can, canNow } = useHouseholdAccess();
+  const permission = existingItem ? 'shopping.edit' : 'shopping.add';
+  const allowed = can(permission);
   const router = useRouter();
   const { getToken, selectedHousehold } = useHouseholdState();
   const { userId, sessionId } = useAuth();
@@ -319,6 +327,7 @@ export function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged,
   };
 
   const save = async () => {
+    if (!canNow(permission)) return;
     if (!active.current || pendingMutation.current || !householdId || scopeChanged || saving || loading || loadError || amountValidationError || (existingItem && !detail)) return;
     const started = scopeRef.current;
     pendingMutation.current = true;
@@ -344,6 +353,7 @@ export function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged,
   };
 
   const remove = async () => {
+    if (!canNow('shopping.remove')) return;
     if (!active.current || pendingMutation.current || !existingItem || !householdId || scopeChanged || saving || removing) return;
     const started = scopeRef.current;
     pendingMutation.current = true;
@@ -358,20 +368,20 @@ export function ShoppingItemDetailsSheet({ catalogItem, existingItem, onChanged,
   };
 
   return <ScrollView automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'} testID="shopping-item-details-sheet" style={[styles.sheetScroll, { backgroundColor: theme.elevatedSurface }]} contentContainerStyle={styles.sheetContent} automaticallyAdjustContentInsets={false} contentInsetAdjustmentBehavior="never" keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
-    <Header title={existingItem ? 'Edit item' : 'Add to Shopping'} />
+    <Header title={existingItem ? allowed ? 'Edit item' : 'Item details' : 'Add to Shopping'} /><PermissionNotice allowed={allowed} />
     {scopeChanged ? <View style={styles.message}><ThemedText accessibilityRole="alert" themeColor="error">Your household or sign-in changed. Close this sheet and choose an item again.</ThemedText><PrimaryButton onPress={() => router.back()} title="Close" /></View> : <>
       <View style={styles.itemHero}><View style={[styles.itemGlyph, { backgroundColor: theme.screen }]}><ThemedText style={styles.glyphText}>{currentCatalogItem.name.trim().slice(0, 1).toLocaleUpperCase()}</ThemedText></View><View style={styles.rowCopy}><ThemedText style={styles.heroName}>{currentCatalogItem.name}</ThemedText><ThemedText themeColor="textSecondary">{currentCatalogItem.item_type === 'food' ? 'Food' : 'Household'}{currentCatalogItem.category_name ? ` · ${currentCatalogItem.category_name}` : ''}</ThemedText></View></View>
-      {!currentCatalogItem.archived ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${currentCatalogItem.name} in Catalog`} disabled={saving || removing} onPress={editCatalogItem} style={styles.editCatalogAction}><ThemedText themeColor="link">Edit Catalog item</ThemedText><DisclosureChevron variant="action" /></Pressable> : null}
-      <View style={styles.amountUnitRow}><View style={styles.amountField}><ThemedText style={styles.fieldLabel}>Amount</ThemedText><ThemedInput accessibilityLabel="Amount" autoCapitalize="none" autoCorrect={false} keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'} onChangeText={setAmount} onBlur={() => setAmount((current) => normalizeShoppingAmount(current))} placeholder="e.g. 2 2/3" selectTextOnFocus value={amount} /></View><View style={styles.unitField}><ChoicePicker label="Unit" searchable choices={shoppingUnits} selectedId={unitId} value={selectedUnit} emptyChoiceLabel="No unit" disabled={loading || loadError || saving || removing} sheetRoute={routeBase === 'plan' ? '/plan/sheet/shopping-choice' : '/shopping/sheet/choice'} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Add unit" onOpen={() => Keyboard.dismiss()} onSelect={(id) => { unitOverridden.current = true; unitIdRef.current = id; setUnitId(id); setPreferenceNotice(null); }} onCreate={(query) => routeToChoices('shopping-unit', 'create', query)} /></View></View>
+      {!currentCatalogItem.archived ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${currentCatalogItem.name} in Catalog`} disabled={!can('catalog.items.edit') || saving || removing} onPress={editCatalogItem} style={styles.editCatalogAction}><ThemedText themeColor="link">Edit Catalog item</ThemedText><DisclosureChevron variant="action" /></Pressable> : null}
+      <View style={styles.amountUnitRow}><View style={styles.amountField}><ThemedText style={styles.fieldLabel}>Amount</ThemedText><ThemedInput editable={allowed} accessibilityLabel="Amount" autoCapitalize="none" autoCorrect={false} keyboardType={Platform.OS === 'ios' ? 'numbers-and-punctuation' : 'default'} onChangeText={setAmount} onBlur={() => setAmount((current) => normalizeShoppingAmount(current))} placeholder="e.g. 2 2/3" selectTextOnFocus value={amount} /></View><View style={styles.unitField}><ChoicePicker label="Unit" searchable choices={shoppingUnits} selectedId={unitId} value={selectedUnit} emptyChoiceLabel="No unit" disabled={!allowed || loading || loadError || saving || removing} sheetRoute={routeBase === 'plan' ? '/plan/sheet/shopping-choice' : '/shopping/sheet/choice'} sheetDetents={[0.58, 0.94]} sheetInitialDetentIndex={1} createLabel="Add unit" onOpen={() => Keyboard.dismiss()} onSelect={(id) => { unitOverridden.current = true; unitIdRef.current = id; setUnitId(id); setPreferenceNotice(null); }} onCreate={can('catalog.units.create') ? (query) => routeToChoices('shopping-unit', 'create', query) : undefined} /></View></View>
       {amountValidationError ? <ThemedText accessibilityRole="alert" themeColor="error">{amountValidationError}</ThemedText> : null}
-      <ChoicePicker label="Store (optional)" searchable choices={storesChoices} selectedId={storeId} value={selectedStore} emptyChoiceLabel="No store" disabled={loading || loadError || saving || removing} sheetRoute={routeBase === 'plan' ? '/plan/sheet/shopping-choice' : '/shopping/sheet/choice'} sheetDetents={[0.52, 0.92]} createLabel="Create store" manageLabel="Manage stores" onOpen={() => Keyboard.dismiss()} onSelect={(id) => { storeOverridden.current = true; storeIdRef.current = id; setStoreId(id); setPreferenceNotice(null); }} onCreate={(query) => routeToChoices('store', 'create', query)} onManage={() => routeToChoices('store', 'manage')} />
+      <ChoicePicker label="Store (optional)" searchable choices={storesChoices} selectedId={storeId} value={selectedStore} emptyChoiceLabel="No store" disabled={!allowed || loading || loadError || saving || removing} sheetRoute={routeBase === 'plan' ? '/plan/sheet/shopping-choice' : '/shopping/sheet/choice'} sheetDetents={[0.52, 0.92]} createLabel="Create store" manageLabel="Manage stores" onOpen={() => Keyboard.dismiss()} onSelect={(id) => { storeOverridden.current = true; storeIdRef.current = id; setStoreId(id); setPreferenceNotice(null); }} onCreate={can('catalog.stores.create') ? (query) => routeToChoices('store', 'create', query) : undefined} onManage={() => routeToChoices('store', 'manage')} />
       {!existingItem && (initialUnitId || currentCatalogItem.preferred_store_id) ? <ThemedText themeColor="textSecondary">Prefilled from Catalog. Change it for this shopping trip.</ThemedText> : null}
       {preferenceNotice ? <ThemedText accessibilityRole="alert" themeColor="textSecondary">{preferenceNotice}</ThemedText> : null}
       {existingItem ? <View style={[styles.meals, { backgroundColor: theme.surface }]}><ThemedText style={visualStyles.sectionTitle}>Used in meals</ThemedText>{loading ? <ActivityIndicator accessibilityLabel="Loading meal details" color={theme.activity} /> : detail?.used_in_meals?.length ? detail.used_in_meals.map((meal, index) => <ThemedText key={`${meal.planned_for}-${index}`} themeColor="textSecondary">{new Date(`${meal.planned_for}T12:00:00`).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · {meal.recipe_name}</ThemedText>) : <ThemedText themeColor="textSecondary">No planned meals use this item this week.</ThemedText>}</View> : null}
       {error ? <ThemedText accessibilityRole="alert" themeColor="error">{error}</ThemedText> : null}
       {loadError ? <PrimaryButton disabled={loading} onPress={() => setRetryCount((count) => count + 1)} title={loading ? 'Retrying…' : 'Retry loading details'} /> : null}
-      <View style={styles.saveAction}><PrimaryButton disabled={saving || removing || loading || loadError || Boolean(amountValidationError) || Boolean(existingItem && !detail)} onPress={() => void save()} title={saving ? 'Saving…' : existingItem ? 'Save changes' : 'Add to Shopping'} /></View>
-      {existingItem ? <Pressable accessibilityRole="button" accessibilityLabel="Remove from Shopping" accessibilityState={{ disabled: removing || saving }} disabled={removing || saving} onPress={() => void remove()} style={styles.removeAction}><ThemedText themeColor="error">{removing ? 'Removing…' : 'Remove from Shopping'}</ThemedText></Pressable> : null}
+      <View style={styles.saveAction}><PermissionGate action={permission}><PrimaryButton disabled={!allowed || saving || removing || loading || loadError || Boolean(amountValidationError) || Boolean(existingItem && !detail)} onPress={() => void save()} title={saving ? 'Saving…' : existingItem ? 'Save changes' : 'Add to Shopping'} /></PermissionGate></View>
+      {existingItem ? <Pressable accessibilityRole="button" accessibilityLabel="Remove from Shopping" accessibilityState={{ disabled: removing || saving }} disabled={!can('shopping.remove') || removing || saving} onPress={() => void remove()} style={styles.removeAction}><ThemedText themeColor="error">{removing ? 'Removing…' : 'Remove from Shopping'}</ThemedText></Pressable> : null}
     </>}
   </ScrollView>;
 }

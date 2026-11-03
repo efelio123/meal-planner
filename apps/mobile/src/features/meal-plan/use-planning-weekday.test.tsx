@@ -43,3 +43,15 @@ it('orders rapid preference writes so the final weekday wins', async () => {
   await waitFor(() => expect(AsyncStorage.setItem).toHaveBeenCalledTimes(2));
   expect(AsyncStorage.setItem).toHaveBeenLastCalledWith(planningWeekdayKey('a'), '5');
 });
+
+it('publishes changes to another mounted owner and rejects its late hydration', async () => {
+  const old = deferred<string | null>();
+  jest.mocked(AsyncStorage.getItem).mockResolvedValueOnce('1').mockReturnValueOnce(old.promise);
+  const plan = await renderHook(() => usePlanningWeekday('shared-user'));
+  const widget = await renderHook(() => usePlanningWeekday('shared-user'));
+  await waitFor(() => expect(AsyncStorage.getItem).toHaveBeenCalledTimes(2));
+  await act(async () => { plan.result.current.save(6); });
+  expect(widget.result.current.weekday).toBe(6);
+  await act(async () => { old.resolve('1'); await old.promise; });
+  expect(widget.result.current.weekday).toBe(6);
+});

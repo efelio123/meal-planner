@@ -1,13 +1,10 @@
-/**
- * Learn more about light and dark modes:
- * https://docs.expo.dev/guides/color-schemes/
- */
-
-import { Colors, resolveThemeMode } from '@/constants/theme';
+import { useContext } from 'react';
+import { ThemePalettes, resolveThemeMode } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { AppearanceContext } from '@/features/appearance/appearance-context';
 
 export function useTheme() {
-  return Colors[useThemeMode()];
+  const appearance = useContext(AppearanceContext);
+  return ThemePalettes[appearance?.themeId ?? 'system'][useThemeMode()];
 }
-
 export function useThemeMode() { return resolveThemeMode(useColorScheme()); }

@@ -14,7 +14,7 @@ const mockBack = jest.fn();
 const mockPush = jest.fn();
 
 jest.mock('@clerk/expo', () => ({ useAuth: () => ({ sessionId: mockSessionId, userId: 'user-1' }) }));
-jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: () => ({ getToken: jest.fn(), selectedHousehold: { id: mockHouseholdId } }) }));
+jest.mock('@/hooks/use-household-state', () => ({ useHouseholdState: () => ({ getToken: jest.fn(), selectedHousehold: { id: mockHouseholdId, role: 'member', permissions: jest.requireActual('@/lib/household-permissions').permissionActions } }) }));
 jest.mock('expo-router', () => {
   const React = jest.requireActual<typeof import('react')>('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children);

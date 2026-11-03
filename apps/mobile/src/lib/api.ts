@@ -1,12 +1,16 @@
+import type { CalendarRunInput, CalendarSettings, CalendarSnapshot, CalendarStatus } from '@/features/calendar-sync/types';
+import { notifyCalendarRefresh } from './calendar-refresh-events';
+import type { HouseholdAccess, MemberPermissions, PermissionAction } from './household-permissions';
+import { notifyHouseholdAccessRefresh } from './household-access-events';
 import { apiOrigin } from '@/auth-config';
 import type { StartupDiagnostics } from '@/lib/startup-diagnostics';
 
 export type GetToken = () => Promise<string | null>;
 
-export type Household = { id: string; name: string; time_zone: string; role: 'owner' | 'member' };
+export type Household = HouseholdAccess & { id: string; name: string; time_zone: string };
 export type Me = { user: { id: string; email: string; display_name: string }; households: Household[] };
 export type ShoppingListItem = {
-  id: string; name: string; is_checked: boolean; checked_at: string | null; checked_by_user_id: string | null;
+  id: string; name: string; is_checked: boolean; check_version?: number; checked_at: string | null; checked_by_user_id: string | null;
   created_by_user_id: string; created_at: string; catalog_item_id?: string | null; catalog_item_type?: CatalogItemType;
   category_id?: string | null; category_name?: string | null; category_emoji?: string | null; updated_at?: string;
   catalog_item_archived?: boolean; catalog_preferred_shopping_unit_code?: string | null;
@@ -27,7 +31,7 @@ export type ShoppingListItemInput = {
 export type CreatedInvitation = { id: string; expires_at: string; code: string };
 export type HouseholdMember = { membership_id: string; display_name: string; avatar_url: string | null; role: 'owner' | 'member'; joined_at: string; is_self: boolean; email?: string };
 export type PendingInvitation = { id: string; normalized_email: string; expires_at: string };
-export type ApiErrorCode = 'DISPLAY_NAME_REQUIRED' | 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' | 'INVITATION_ALREADY_PENDING' | 'LAST_OWNER' | 'CATALOG_ITEM_ALREADY_EXISTS' | 'CATALOG_CHOICE_ALREADY_EXISTS' | 'CATALOG_CHOICE_IN_USE' | 'CATALOG_REFERENCE_ARCHIVED' | 'CATALOG_CATEGORY_COUNT_CHANGED' | 'RECIPE_REVISION_CONFLICT' | 'RECIPE_CATALOG_ITEM_ARCHIVED' | 'RECIPE_CREATE_REQUEST_ALREADY_USED' | 'MEAL_PLAN_SLOT_OCCUPIED' | 'MEAL_PLAN_REVISION_CONFLICT' | 'MEAL_PLAN_RECIPE_ARCHIVED' | 'MEAL_PLAN_REVIEW_STALE' | 'MEAL_PLAN_REQUEST_REUSED' | 'SHOPPING_ITEM_ALREADY_EXISTS';
+export type ApiErrorCode = 'CALENDAR_SYNC_CONFLICT' | 'CALENDAR_MANAGER_REQUIRED' | 'HOUSEHOLD_ACTION_FORBIDDEN' | 'MEMBER_PERMISSIONS_CONFLICT' | 'OWNER_FULL_ACCESS' | 'DISPLAY_NAME_REQUIRED' | 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' | 'INVITATION_ALREADY_PENDING' | 'LAST_OWNER' | 'CATALOG_ITEM_ALREADY_EXISTS' | 'CATALOG_CHOICE_ALREADY_EXISTS' | 'CATALOG_CHOICE_IN_USE' | 'CATALOG_REFERENCE_ARCHIVED' | 'CATALOG_CATEGORY_COUNT_CHANGED' | 'RECIPE_REVISION_CONFLICT' | 'RECIPE_CATALOG_ITEM_ARCHIVED' | 'RECIPE_CREATE_REQUEST_ALREADY_USED' | 'MEAL_PLAN_SLOT_OCCUPIED' | 'MEAL_PLAN_REVISION_CONFLICT' | 'MEAL_PLAN_RECIPE_ARCHIVED' | 'MEAL_PLAN_REVIEW_STALE' | 'MEAL_PLAN_REQUEST_REUSED' | 'SHOPPING_ITEM_ALREADY_EXISTS';
 
 export type MealSlot = 'breakfast' | 'lunch' | 'dinner';
 export type MealEntryType = 'recipe' | 'leftovers' | 'eating_out';
@@ -99,7 +103,9 @@ export type CatalogItemInput = {
   recipe_measurement_unit_code?: string | null;
 };
 
+export type RecipeSection = { id: string; position: number; name: string };
 export type RecipeIngredientInput = {
+  section_position?: number | null;
   catalog_item_id: string;
   amount?: string | null;
   unit_code?: string | null;
@@ -130,6 +136,8 @@ export type Recipe = {
   updated_at: string;
   archived_at: string | null;
   ingredient_count: number;
+  ingredient_section_count?: number;
+  ingredient_sections?: RecipeSection[];
   ingredients?: RecipeIngredient[];
   steps?: RecipeStep[];
 };
@@ -145,6 +153,7 @@ export type RecipeInput = {
   cook_minutes?: number | null;
   notes?: string | null;
   source_url?: string | null;
+  ingredient_sections?: { name: string }[];
   ingredients: RecipeIngredientInput[];
   steps?: string[];
 };
@@ -160,6 +169,12 @@ export class ApiError extends Error {
 }
 
 const apiErrorMessages: Partial<Record<ApiErrorCode, string>> = {
+  CALENDAR_MANAGER_REQUIRED: 'Only the household calendar manager can change this connection.',
+  CALENDAR_SYNC_CONFLICT: 'Calendar settings changed or the linked phone has unfinished work. Refresh and retry on the linked phone before reconnecting.',
+  HOUSEHOLD_ACTION_FORBIDDEN: 'Your permissions do not allow this action. Ask an owner to update your access.',
+  MEMBER_PERMISSIONS_CONFLICT: 'Permissions changed on another device. Reload the latest permissions before saving.',
+  OWNER_FULL_ACCESS: 'Owners have full access. Change their role before editing permissions.',
+
   DISPLAY_NAME_REQUIRED: 'Add a display name to continue.',
   HOUSEHOLD_MEMBER_ALREADY_EXISTS: 'This person is already a member of this household.',
   INVITATION_ALREADY_PENDING: 'An active invitation already exists for that email.',
@@ -209,8 +224,12 @@ async function request<T>(getToken: GetToken, path: string, init?: RequestInit, 
     try {
       const body = await response.json() as { detail?: { code?: unknown } };
       const candidate = body.detail?.code;
-      if (candidate === 'DISPLAY_NAME_REQUIRED' || candidate === 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' || candidate === 'INVITATION_ALREADY_PENDING' || candidate === 'LAST_OWNER' || candidate === 'CATALOG_ITEM_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_IN_USE' || candidate === 'CATALOG_REFERENCE_ARCHIVED' || candidate === 'CATALOG_CATEGORY_COUNT_CHANGED' || candidate === 'RECIPE_REVISION_CONFLICT' || candidate === 'RECIPE_CATALOG_ITEM_ARCHIVED' || candidate === 'RECIPE_CREATE_REQUEST_ALREADY_USED' || candidate === 'MEAL_PLAN_SLOT_OCCUPIED' || candidate === 'MEAL_PLAN_REVISION_CONFLICT' || candidate === 'MEAL_PLAN_RECIPE_ARCHIVED' || candidate === 'MEAL_PLAN_REVIEW_STALE' || candidate === 'MEAL_PLAN_REQUEST_REUSED' || candidate === 'SHOPPING_ITEM_ALREADY_EXISTS') code = candidate;
+      if (candidate === 'CALENDAR_SYNC_CONFLICT' || candidate === 'CALENDAR_MANAGER_REQUIRED' || candidate === 'HOUSEHOLD_ACTION_FORBIDDEN' || candidate === 'MEMBER_PERMISSIONS_CONFLICT' || candidate === 'OWNER_FULL_ACCESS' || candidate === 'DISPLAY_NAME_REQUIRED' || candidate === 'HOUSEHOLD_MEMBER_ALREADY_EXISTS' || candidate === 'INVITATION_ALREADY_PENDING' || candidate === 'LAST_OWNER' || candidate === 'CATALOG_ITEM_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_ALREADY_EXISTS' || candidate === 'CATALOG_CHOICE_IN_USE' || candidate === 'CATALOG_REFERENCE_ARCHIVED' || candidate === 'CATALOG_CATEGORY_COUNT_CHANGED' || candidate === 'RECIPE_REVISION_CONFLICT' || candidate === 'RECIPE_CATALOG_ITEM_ARCHIVED' || candidate === 'RECIPE_CREATE_REQUEST_ALREADY_USED' || candidate === 'MEAL_PLAN_SLOT_OCCUPIED' || candidate === 'MEAL_PLAN_REVISION_CONFLICT' || candidate === 'MEAL_PLAN_RECIPE_ARCHIVED' || candidate === 'MEAL_PLAN_REVIEW_STALE' || candidate === 'MEAL_PLAN_REQUEST_REUSED' || candidate === 'SHOPPING_ITEM_ALREADY_EXISTS') code = candidate;
     } catch { /* Keep error responses safe and generic when their body is not JSON. */ }
+    if (code === 'HOUSEHOLD_ACTION_FORBIDDEN') {
+      const householdId = path.match(/^\/v1\/households\/([^/]+)/u)?.[1];
+      if (householdId) notifyHouseholdAccessRefresh(householdId);
+    }
     const message = code === 'DISPLAY_NAME_REQUIRED'
       ? (apiErrorMessages[code] ?? 'Add a display name to continue.')
       : response.status === 410
@@ -218,10 +237,25 @@ async function request<T>(getToken: GetToken, path: string, init?: RequestInit, 
         : (code && apiErrorMessages[code]) || 'Something went wrong. Please try again.';
     throw new ApiError(response.status, message, code);
   }
+  if ((!init?.method || init.method === 'GET') && /^\/v1\/households\/[^/]+\/(shopping-list|recipes|catalog\/items|meal-plan)(?:\?|$)/u.test(path)) {
+    const householdId = path.split('/')[3]; if (householdId) notifyHouseholdAccessRefresh(householdId);
+  }
+  if (/^\/v1\/households\/[^/]+\/(meal-plan(?:[/?]|$)|recipes(?:[/?]|$))/u.test(path) && !path.includes('calendar-run') || init?.method === 'PATCH' && /^\/v1\/households\/[^/?]+$/u.test(path)) {
+    const id = path.split('/')[3]; if (id) notifyCalendarRefresh(id);
+  }
   return response.status === 204 ? (undefined as T) : (response.json() as Promise<T>);
 }
 
 export const api = {
+  calendarStatus: (token: GetToken, home: string) => request<CalendarStatus>(token, `/v1/households/${home}/calendar-sync`),
+  calendarConfigure: (token: GetToken, home: string, settings: CalendarSettings & { enabled: boolean; expected_revision: number; writer_secret?: string }) => request<CalendarStatus>(token, `/v1/households/${home}/calendar-sync`, { method: 'PUT', body: JSON.stringify(settings) }),
+  calendarRegister: (token: GetToken, home: string, input: { expected_revision: number; writer_secret: string; writer_id: string; writer_label: string; takeover_confirmed: boolean; new_destination_confirmed?: boolean }) => request<CalendarStatus>(token, `/v1/households/${home}/calendar-sync/writer`, { method: 'POST', body: JSON.stringify(input) }),
+  calendarTransfer: (token: GetToken, home: string, membership: string, revision: number) => request<CalendarStatus>(token, `/v1/households/${home}/calendar-sync/manager`, { method: 'POST', body: JSON.stringify({ membership_id: membership, expected_revision: revision }) }),
+  calendarRun: (token: GetToken, home: string, input: CalendarRunInput) => request<CalendarSnapshot>(token, `/v1/households/${home}/meal-plan/calendar-run`, { method: 'POST', body: JSON.stringify(input) }),
+  calendarAuthorize: (token: GetToken, home: string, input: Omit<CalendarRunInput, 'known_ids'> & { operation: 'create' | 'update' | 'delete'; source_id: string }) => request<{ authorized: true }>(token, `/v1/households/${home}/calendar-sync/authorize`, { method: 'POST', body: JSON.stringify(input) }),
+  calendarFinish: (token: GetToken, home: string, input: { writer_secret: string; run_id: string; success: boolean; cleanup_complete?: boolean; removed_source_ids?: string[] }) => request<{ finished: true }>(token, `/v1/households/${home}/calendar-sync/finish`, { method: 'POST', body: JSON.stringify(input) }),
+  calendarDisconnect: (token: GetToken, home: string, input: { writer_secret: string; expected_revision: number }) => request<CalendarStatus>(token, `/v1/households/${home}/calendar-sync/disconnect`, { method: 'POST', body: JSON.stringify(input) }),
+
   me: (getToken: GetToken, init?: RequestInit, diagnostics?: StartupDiagnostics) => request<Me>(getToken, '/v1/me', init, diagnostics),
   createHousehold: (getToken: GetToken, name: string, timeZone: string) =>
     request<{ household: Household }>(getToken, '/v1/households', { method: 'POST', body: JSON.stringify({ name, time_zone: timeZone }) }),
@@ -233,6 +267,12 @@ export const api = {
     request<{ members: HouseholdMember[] }>(getToken, `/v1/households/${householdId}/members`, { method: 'GET' }),
   householdMember: (getToken: GetToken, householdId: string, membershipId: string) =>
     request<{ member: HouseholdMember }>(getToken, `/v1/households/${householdId}/members/${membershipId}`, { method: 'GET' }),
+  memberPermissions: (getToken: GetToken, householdId: string, membershipId: string) =>
+    request<MemberPermissions>(getToken, `/v1/households/${householdId}/members/${membershipId}/permissions`),
+  setMemberPermissions: (getToken: GetToken, householdId: string, membershipId: string, permissions: PermissionAction[], expectedRevision: number) =>
+    request<MemberPermissions>(getToken, `/v1/households/${householdId}/members/${membershipId}/permissions`, { method: 'PATCH', body: JSON.stringify({ permissions, expected_revision: expectedRevision }) }),
+  reAddShoppingListItem: (getToken: GetToken, householdId: string, itemId: string) =>
+    request<{ item: ShoppingListItem }>(getToken, `/v1/households/${householdId}/shopping-list/items/${itemId}/re-add`, { method: 'POST', body: '{}' }),
   setHouseholdMemberRole: (getToken: GetToken, householdId: string, membershipId: string, role: HouseholdMember['role']) =>
     request<void>(getToken, `/v1/households/${householdId}/members/${membershipId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   removeHouseholdMember: (getToken: GetToken, householdId: string, membershipId: string) =>
