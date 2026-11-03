@@ -128,3 +128,14 @@ unchanged. SDK 58 regeneration must explicitly use `--no-clean` to preserve a
 prepared native project; the bridge keeps the app's iOS 16.4 minimum while the
 interactive extension requires iOS 17. Android date API backporting preserves its
 24/25 minimum. No paid resources or consumer SDK upgrades are needed.
+
+## Approved local database readiness
+
+Felipe separately approves the Windows development backup/restore/migration on
+November 2. The custom dump restores with all 22 table schemas and full row
+fingerprints matching; migration rehearsal and the restored-row version trigger
+pass. Only then is `meal_planner_dev` updated to `widget_devices`, preserving all
+original table content and leaving widget connections empty. The Windows API is
+restarted and its health/routes/unauthenticated-access checks pass. Recovery
+artifacts and exact scope are recorded in `docs/qa/widget-integration.md`.
+Mac family deployment and signed consumer phone acceptance remain pending.

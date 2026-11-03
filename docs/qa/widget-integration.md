@@ -2,7 +2,8 @@
 
 Branch: `codex/native-widgets`. Approved plan:
 `docs/plans/home-screen-widgets-native-sync.md`. Status: implementation prepared
-locally; real household/phone acceptance and deployment remain outstanding.
+locally; the approved Windows development migration is complete. Real household/phone
+acceptance and Mac deployment remain outstanding.
 
 ## API and data contract
 
@@ -135,9 +136,9 @@ invariants can be checked using `tests/validate-ios-project.rb`.
 ## Remaining acceptance / rollout
 
 - Obtain explicit approval for each persistent migration, with a verified backup
-  and disposable restore first. Shared development and Mac family databases remain
-  unmigrated by this slice; a new-source API needs `widget_devices` before Shopping
-  and Widgets can be tested there. Do not start/misrepresent a mixed-version API.
+  and disposable restore first. Windows development is now at `widget_devices`
+  after Felipe's explicit approval (below). The Mac family database remains
+  unmigrated by this slice. Do not start/misrepresent a mixed-version family API.
 - Prepare signed consumer app+extension profiles for each phone, verify matching
   widget App Group/Keychain entitlements and preserve existing Clerk sign-in.
 - Physical iPhone consumer flow: enable/add all sizes, small Shopping deep link,
@@ -148,3 +149,39 @@ invariants can be checked using `tests/validate-ios-project.rb`.
   Larger text and small Android 24/25 geometry have not been device-reviewed.
 - Samsung/OEM and Android private HTTPS/Tailscale acceptance remain unrun. No
   production app installation, Mac API/data deployment, merge or push is claimed.
+
+## Approved Windows development update — November 2
+
+Felipe explicitly approves backing up, restore-verifying and migrating only the
+Windows development database. Its identity is verified as localhost PostgreSQL
+17.11, `meal_planner_dev`, at `calendar_sync` before any change.
+
+Docker Desktop/database were stopped. Only the existing `meal-planner-postgres-1`
+container is restarted; unrelated containers are left stopped. A custom-format
+archive is saved privately outside the repository at
+`%LOCALAPPDATA%/MealPlanner/backups/meal-planner-dev-before-widgets-20261102204508.dump`,
+with its archive hash and verification report in the adjacent `.json` file.
+The dump and source fingerprints use the same exported consistent snapshot.
+
+The archive restores into a new, explicitly named temporary database. All **22
+table schemas and complete row fingerprints match**. The widget migration is
+then rehearsed there; original content is preserved and the checked-state trigger
+is verified with a rolled-back update on the restored copy. Only this owned
+restore-check database is dropped after verification.
+
+The approved live development migration succeeds from `calendar_sync` to
+`widget_devices`. Complete fingerprints of every original table's original
+columns match immediately before/after; the version row changes as intended.
+New check versions are valid, the trigger is present, and both widget tables are
+empty. No device credential or household widget connection is created.
+
+The Windows API had the previous source loaded. Only its verified development
+process is restarted with the same environment file, host and port. Health returns
+200, the widget routes appear in OpenAPI, and unauthenticated summary access
+returns 401. This operational verification does not claim a signed phone test.
+The prior full API/mobile/native test results above remain their recorded source
+validation; those suites are not run against a persistent household database.
+
+The Mac family database/API, installed phone apps and cloud staging are unchanged.
+Signed consumer widget profiles, actual household connection and physical visual/
+interaction acceptance remain the next review stage.

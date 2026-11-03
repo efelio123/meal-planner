@@ -192,8 +192,11 @@ Felipe then directs the Android gate to the PC emulator. Actual launcher taps, n
 transactional protected snapshot/outbox storage, real WidgetKit/Glance renderers,
 config generation and Profile Widgets settings. Disposable API validation passes
 265 tests; mobile passes 87 suites/902 tests. Native execution/build details and
-remaining checks are in `docs/qa/widget-integration.md`. Shared development and
-Mac family databases/installations remain unchanged, with persistent migration,
+remaining checks are in `docs/qa/widget-integration.md`. Felipe then explicitly approves a restore-verified Windows development update:
+all 22 restored table schemas/full row fingerprints match, the rehearsal passes,
+and `meal_planner_dev` migrates to `widget_devices` with original content preserved.
+The updated Windows API health/routes/auth checks pass; no widget connections are
+created. Mac family data/installations remain unchanged, with its deployment,
 signed consumer profiles and actual household phone acceptance pending. F16 is
 not released or accepted based on automated validation.
 
