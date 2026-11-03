@@ -185,3 +185,13 @@ validation; those suites are not run against a persistent household database.
 The Mac family database/API, installed phone apps and cloud staging are unchanged.
 Signed consumer widget profiles, actual household connection and physical visual/
 interaction acceptance remain the next review stage.
+
+
+## Consumer phone-review preparation
+
+Felipe then approves a temporary Windows-development phone test through private
+Mac HTTPS 8443, leaving family HTTPS 443/data unchanged. An isolated native Release
+workspace, prior signed-app recovery archive and guarded route/tunnel cleanup are
+prepared. Consumer signing is awaiting Xcode account/profile refresh; no phone
+update or widget connection is claimed. See `widget-phone-review.md` for the
+current boundary, prepared artifacts, signing evidence and acceptance steps.
